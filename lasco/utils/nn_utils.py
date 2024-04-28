@@ -6,7 +6,7 @@ import numpy as np
 from jax import jit, random, vmap
 from scipy.spatial import distance_matrix
 from jaxopt import Bisection
-from l2ws.algo_steps import kl_inv_fn
+from lasco.algo_steps import kl_inv_fn
 
 
 def invert_kl(q, c):

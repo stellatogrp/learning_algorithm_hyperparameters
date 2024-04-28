@@ -1,7 +1,7 @@
 from functools import partial
 
-from l2ws.algo_steps import k_steps_eval_extragrad, k_steps_train_extragrad
-from l2ws.l2ws_model import L2WSmodel
+from lasco.algo_steps import k_steps_eval_extragrad, k_steps_train_extragrad
+from lasco.l2ws_model import L2WSmodel
 
 
 class EGmodel(L2WSmodel):

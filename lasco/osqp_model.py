@@ -5,8 +5,8 @@ import numpy as np
 import osqp
 from scipy.sparse import csc_matrix
 
-from l2ws.algo_steps import k_steps_eval_osqp, k_steps_train_osqp, unvec_symm
-from l2ws.l2ws_model import L2WSmodel
+from lasco.algo_steps import k_steps_eval_osqp, k_steps_train_osqp, unvec_symm
+from lasco.l2ws_model import L2WSmodel
 
 
 class OSQPmodel(L2WSmodel):

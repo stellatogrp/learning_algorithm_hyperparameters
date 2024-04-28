@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from scipy import sparse
-from trajax import integrators
+# from trajax import integrators
 
 log = logging.getLogger(__name__)
 

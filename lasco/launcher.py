@@ -12,32 +12,32 @@ import numpy as np
 import pandas as pd
 import scs
 from jax import lax, vmap
-from jax.config import config
+# from jax.config import config
 from scipy.sparse import csc_matrix, load_npz
 from scipy.spatial import distance_matrix
 
-from l2ws.algo_steps import (
+from lasco.algo_steps import (
     create_projection_fn,
     form_osqp_matrix,
     get_psd_sizes,
     unvec_symm,
     vec_symm,
 )
-from l2ws.alista_model import ALISTAmodel
-from l2ws.eg_model import EGmodel
-from l2ws.gd_model import GDmodel
-from l2ws.glista_model import GLISTAmodel
-from l2ws.ista_model import ISTAmodel
-from l2ws.lasco_gd_model import LASCOGDmodel
-from l2ws.lista_cpss_model import LISTA_CPSSmodel
-from l2ws.lista_model import LISTAmodel
-from l2ws.maml_model import MAMLmodel
-from l2ws.osqp_model import OSQPmodel
-from l2ws.scs_model import SCSmodel
-from l2ws.tilista_model import TILISTAmodel
-from l2ws.utils.generic_utils import count_files_in_directory, sample_plot, setup_permutation
-from l2ws.utils.mpc_utils import closed_loop_rollout
-from l2ws.utils.nn_utils import (
+from lasco.alista_model import ALISTAmodel
+from lasco.eg_model import EGmodel
+from lasco.gd_model import GDmodel
+from lasco.glista_model import GLISTAmodel
+from lasco.ista_model import ISTAmodel
+from lasco.lasco_gd_model import LASCOGDmodel
+from lasco.lista_cpss_model import LISTA_CPSSmodel
+from lasco.lista_model import LISTAmodel
+from lasco.maml_model import MAMLmodel
+from lasco.osqp_model import OSQPmodel
+from lasco.scs_model import SCSmodel
+from lasco.tilista_model import TILISTAmodel
+from lasco.utils.generic_utils import count_files_in_directory, sample_plot, setup_permutation
+from lasco.utils.mpc_utils import closed_loop_rollout
+from lasco.utils.nn_utils import (
     calculate_avg_posterior_var,
     calculate_pinsker_penalty,
     # calculate_total_penalty,
@@ -51,7 +51,7 @@ plt.rcParams.update({
     "font.family": "serif",   # For talks, use sans-serif
     "font.size": 16,
 })
-config.update("jax_enable_x64", True)
+# config.update("jax_enable_x64", True)
 
 
 class Workspace:
@@ -216,8 +216,6 @@ class Workspace:
             self.q_mat_train = thetas[:N_train, :]
             self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_gd_model(cfg, static_dict)
-        import pdb
-        pdb.set_trace()
 
         # write th z_stars_max
         # Scalar value to be saved
@@ -497,9 +495,9 @@ class Workspace:
                                     pac_bayes_cfg=cfg.pac_bayes_cfg,
                                     z_stars_train=self.z_stars_train,
                                     z_stars_test=self.z_stars_test,
+                                    loss_method=cfg.loss_method,
                                     algo_dict=input_dict)
-        import pdb
-        pdb.set_trace()
+        
 
     def create_extragradient_model(self, cfg, static_dict):
         # get A, lambd, ista_step
@@ -2651,7 +2649,7 @@ class Workspace:
                 'penalty': pen,
                 'avg_posterior_var': avg_posterior_var,
                 'stddev_posterior_var': stddev_posterior_var,
-                'prior': jnp.exp(self.l2ws_model.params[2]),
+                # 'prior': jnp.exp(self.l2ws_model.params[2]),
                 # 'prior': self.l2ws_model.c / (1 + jnp.exp(-self.l2ws_model.params[2])), #jnp.exp(self.l2ws_model.params[2]),
                 'mean_squared_w': mean_squared_w,
                 'time_per_iter': time_per_iter

@@ -6,13 +6,13 @@ import numpy as np
 import scs
 from scipy.sparse import csc_matrix
 
-from l2ws.algo_steps import (
+from lasco.algo_steps import (
     create_M,
     get_scaled_vec_and_factor,
     k_steps_eval_scs,
     k_steps_train_scs,
 )
-from l2ws.l2ws_model import L2WSmodel
+from lasco.l2ws_model import L2WSmodel
 
 
 class SCSmodel(L2WSmodel):

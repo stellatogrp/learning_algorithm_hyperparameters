@@ -4,7 +4,7 @@ import jax.numpy as jnp
 from jax import random
 from matplotlib import pyplot as plt
 
-from l2ws.algo_steps import (
+from lasco.algo_steps import (
     create_M,
     create_projection_fn,
     extract_sol,

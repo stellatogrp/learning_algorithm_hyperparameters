@@ -3,11 +3,11 @@ from functools import partial
 import cvxpy as cp
 import jax.numpy as jnp
 import jax.scipy as jsp
-from cvxpylayers.jax import CvxpyLayer
+# from cvxpylayers.jax import CvxpyLayer
 from jax import grad, jit, lax, vmap
 from jax.tree_util import tree_map
 
-from l2ws.utils.generic_utils import python_fori_loop, unvec_symm, vec_symm
+from lasco.utils.generic_utils import python_fori_loop, unvec_symm, vec_symm
 
 TAU_FACTOR = 1 #10
 
@@ -26,16 +26,16 @@ TAU_FACTOR = 1 #10
 #     return jnp.concatenate([x2, y2])
 
 
-def k_steps_eval_lasco_gd(k, z0, q, P, gd_steps, supervised, z_star, jit):
+def k_steps_eval_lasco_gd(k, z0, q, params, P, supervised, z_star, jit):
     iter_losses = jnp.zeros(k)
     z_all_plus_1 = jnp.zeros((k + 1, z0.size))
     z_all_plus_1 = z_all_plus_1.at[0, :].set(z0)
-    fp_eval_partial = partial(fp_eval_gd,
+    fp_eval_partial = partial(fp_eval_lasco_gd,
                               supervised=supervised,
                               z_star=z_star,
                               P=P,
                               c=q,
-                              gd_steps=gd_steps
+                              gd_steps=params
                               )
     z_all = jnp.zeros((k, z0.size))
     obj_diffs = jnp.zeros(k)
@@ -50,7 +50,7 @@ def k_steps_eval_lasco_gd(k, z0, q, P, gd_steps, supervised, z_star, jit):
     return z_final, iter_losses, z_all_plus_1, obj_diffs
 
 
-def k_steps_train_lasco_gd(k, z0, q, P, gd_steps, supervised, z_star, jit):
+def k_steps_train_lasco_gd(k, z0, q, params, P, supervised, z_star, jit):
     iter_losses = jnp.zeros(k)
 
     fp_train_partial = partial(fp_train_lasco_gd,
@@ -58,7 +58,7 @@ def k_steps_train_lasco_gd(k, z0, q, P, gd_steps, supervised, z_star, jit):
                                z_star=z_star,
                                P=P,
                                c=q,
-                               gd_steps=gd_steps
+                               gd_steps=params
                                )
     val = z0, iter_losses
     start_iter = 0

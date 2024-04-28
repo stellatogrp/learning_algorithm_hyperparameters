@@ -6,11 +6,11 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 from jax import jit, random, vmap
-from jax.config import config
+# from jax.config import config
 from jaxopt import OptaxSolver
 
-from l2ws.algo_steps import create_eval_fn, create_train_fn, lin_sys_solve, create_kl_inv_layer, kl_inv_fn
-from l2ws.utils.nn_utils import (
+from lasco.algo_steps import create_eval_fn, create_train_fn, lin_sys_solve, create_kl_inv_layer, kl_inv_fn
+from lasco.utils.nn_utils import (
     calculate_pinsker_penalty,
     # calculate_total_penalty,
     get_perturbed_weights,
@@ -20,10 +20,12 @@ from l2ws.utils.nn_utils import (
     compute_single_param_KL
 )
 from jaxopt import Bisection
-from l2ws.utils.generic_utils import manual_vmap
+from lasco.utils.generic_utils import manual_vmap
 
-config.update("jax_enable_x64", True)
-# config.update('jax_disable_jit', True)
+
+import jax
+jax.config.update("jax_enable_x64", True)
+# jax.config.update('jax_disable_jit', True)
 
 
 class L2WSmodel(object):
@@ -59,7 +61,7 @@ class L2WSmodel(object):
         self.deterministic = pac_bayes_cfg.get('deterministic', False)
         self.prior = 0
 
-        self.kl_inv_layer = create_kl_inv_layer()
+        # self.kl_inv_layer = create_kl_inv_layer()
 
         # essential pieces for the model
         self.initialize_essentials(jit, eval_unrolls, train_unrolls, train_inputs, test_inputs)
@@ -208,8 +210,7 @@ class L2WSmodel(object):
             # for either of the following cases
             #   1. factors needed, but are the same for all problems
             #   2. no factors are needed
-            key = state.iter_num
-
+            key = 0 #state.iter_num
             results = self.optimizer.update(params=params,
                                             state=state,
                                             inputs=batch_inputs,
@@ -384,6 +385,7 @@ class L2WSmodel(object):
                                                    iters=self.train_unrolls,
                                                    z_stars=z_stars_init,
                                                    key=self.key)
+
             
     def init_params(self):
         # initialize weights of neural network
@@ -542,9 +544,10 @@ class L2WSmodel(object):
 
         z0 is only used if the loss_method is first_2_last
         """
+        # return iter_losses[-1]
         if supervised:
             if loss_method == 'constant_sum':
-                loss = iter_losses.sum()
+                loss = iter_losses[1:].sum()
             elif loss_method == 'fixed_k':
                 # loss = jnp.linalg.norm(z_last[:-1]/z_star[-1] - z_star)
                 loss = iter_losses[-1]
@@ -553,7 +556,7 @@ class L2WSmodel(object):
                 weights = (1+jnp.arange(iter_losses.size))
                 loss = iter_losses @ weights
             elif loss_method == 'constant_sum':
-                loss = iter_losses.sum()
+                loss = iter_losses[1:].sum()
             elif loss_method == 'fixed_k':
                 loss = iter_losses[-1]
             elif loss_method == 'first_2_last':
@@ -631,6 +634,8 @@ class L2WSmodel(object):
             def loss_fn(params, inputs, b, iters, z_stars, key):
                 if diff_required:
                     losses = batch_predict(params, inputs, b, iters, z_stars, key)
+                    return losses.mean()
+                
                     # return losses.mean()
                     q = losses.mean() / self.penalty_coeff
 
@@ -689,6 +694,7 @@ class L2WSmodel(object):
     
 
     def calculate_total_penalty(self, N_train, params, c, b, delta, prior=0):
+        return 0
         # priors are already rounded
         rounded_priors = params[2]
 

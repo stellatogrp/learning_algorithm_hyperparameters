@@ -3,63 +3,59 @@ from functools import partial
 import jax.numpy as jnp
 from jax import random
 
-from l2ws.algo_steps import (
-    k_steps_eval_alista,
-    k_steps_train_alista,
-    k_steps_eval_fista,
-    k_steps_eval_ista,
-)
-from l2ws.l2ws_model import L2WSmodel
-from l2ws.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
+from lasco.algo_steps import k_steps_eval_lasco_gd, k_steps_train_lasco_gd
+from lasco.l2ws_model import L2WSmodel
+from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
 
 
-class ALISTAmodel(L2WSmodel):
+class LASCOGDmodel(L2WSmodel):
     def __init__(self, **kwargs):
-        super(ALISTAmodel, self).__init__(**kwargs)
+        super(LASCOGDmodel, self).__init__(**kwargs)
 
     def initialize_algo(self, input_dict):
         self.factor_static = None
-        self.algo = 'alista'
+        self.algo = 'lasco_gd'
         self.factors_required = False
-        self.q_mat_train, self.q_mat_test = input_dict['b_mat_train'], input_dict['b_mat_test']
-        D, W = input_dict['D'], input_dict['W']
-        # lambd = input_dict['lambd']
-        # ista_step = input_dict['ista_step']
-        self.D, self.W = D, W
-        self.m, self.n = D.shape
+        self.q_mat_train, self.q_mat_test = input_dict['c_mat_train'], input_dict['c_mat_test']
+        # self.q_mat_train, self.q_mat_test = input_dict['b_mat_train'], input_dict['b_mat_test']
+        # D, W = input_dict['D'], input_dict['W']
+        P = input_dict['P']
+        self.P = P
+
+        # self.D, self.W = D, W
+        self.n = P.shape[0]
         self.output_size = self.n
 
-        evals, evecs = jnp.linalg.eigh(D.T @ D)
-        # step = 1 / evals.max()
-        lambd = 0.1 
-        self.ista_step = lambd / evals.max()
+        # evals, evecs = jnp.linalg.eigh(D.T @ D)
+        # lambd = 0.1 
+        # self.ista_step = lambd / evals.max()
 
-        self.k_steps_train_fn = partial(k_steps_train_alista, D=D, W=W,
+        self.k_steps_train_fn = partial(k_steps_train_lasco_gd, P=P,
                                         jit=self.jit)
-        self.k_steps_eval_fn = partial(k_steps_eval_alista, D=D, W=W,
+        self.k_steps_eval_fn = partial(k_steps_eval_lasco_gd, P=P,
                                        jit=self.jit)
         self.out_axes_length = 5
 
 
     def init_params(self):
-        self.mean_params = jnp.ones((self.train_unrolls, 2))
+        # w_key = random.PRNGKey(0)
+        # self.mean_params = random.normal(w_key, (self.train_unrolls, 2))
+        # self.mean_params = self.mean_params[:, 0]
+        # self.mean_params = 
+        p = jnp.diag(self.P)
+        self.mean_params = (p.max() + p.min()) / 2 * jnp.ones(self.train_unrolls)
+        # self.mean_params = self.mean_params.at[2].set(0.1)
 
-        # # initialize with ista values
-        # # alista_step = alista_cfg['step']
-        # # alista_eta = alista_cfg['eta']
-        # # self.mean_params = self.mean_params.at[:, 0].set(alista_step)
-        # # self.mean_params = self.mean_params.at[:, 1].set(alista_eta)
-        
-        self.sigma_params = -jnp.ones((self.train_unrolls, 2)) * 10
+        self.sigma_params = -jnp.ones(self.train_unrolls) * 10
 
         # initialize the prior
         self.prior_param = jnp.log(self.init_var) * jnp.ones(2)
 
-        self.params = [self.mean_params, self.sigma_params, self.prior_param]
+        self.params = [self.mean_params, self.sigma_params] #, self.prior_param]
 
 
     def create_end2end_loss_fn(self, bypass_nn, diff_required):
-        supervised = self.supervised and diff_required
+        supervised = True #self.supervised and diff_required
         loss_method = self.loss_method
 
         def predict(params, input, q, iters, z_star, key, factor):
@@ -77,22 +73,22 @@ class ALISTAmodel(L2WSmodel):
             # w_key = random.split(key)
             w_key = random.PRNGKey(key)
             perturb = random.normal(w_key, (self.train_unrolls, 2))
-            # return scale * random.normal(w_key, (n, m))
             if self.deterministic:
                 stochastic_params = params[0]
             else:
                 stochastic_params = params[0] + jnp.sqrt(jnp.exp(params[1])) * perturb
+            print('stochastic_params', stochastic_params)
+            print('self.deterministic', self.deterministic)
+            print('iters', iters)
+        
 
             if bypass_nn:
-                eval_out = k_steps_eval_ista(k=iters,
-                                   z0=z0, 
-                                   q=q, 
-                                   lambd=0.1, 
-                                   A=self.D, 
-                                   ista_step=self.ista_step, 
-                                   supervised=True, 
-                                   z_star=z_star, 
-                                   jit=True)
+                eval_out = eval_fn(k=iters,
+                                        z0=z0,
+                                        q=q,
+                                        params=stochastic_params,
+                                        supervised=supervised,
+                                        z_star=z_star)
                 z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
                 angles = None
             else:
@@ -115,8 +111,8 @@ class ALISTAmodel(L2WSmodel):
 
             loss = self.final_loss(loss_method, z_final, iter_losses, supervised, z0, z_star)
 
-            penalty_loss = calculate_pinsker_penalty(self.N_train, params, self.b, self.c, self.delta)
-            loss = loss + self.penalty_coeff * penalty_loss
+            # penalty_loss = calculate_pinsker_penalty(self.N_train, params, self.b, self.c, self.delta)
+            # loss = loss + self.penalty_coeff * penalty_loss
 
             if diff_required:
                 return loss
@@ -128,6 +124,7 @@ class ALISTAmodel(L2WSmodel):
     
 
     def calculate_total_penalty(self, N_train, params, c, b, delta):
+        return 0
         # priors are already rounded
         rounded_priors = params[2]
 
@@ -146,11 +143,12 @@ class ALISTAmodel(L2WSmodel):
 
 
     def compute_all_params_KL(self, mean_params, sigma_params, lambd):
+        return 0
         # step size
-        total_pen = compute_single_param_KL(mean_params[:, 0], jnp.exp(sigma_params[:, 0]), jnp.exp(lambd[0]))
+        total_pen = compute_single_param_KL(mean_params, jnp.exp(sigma_params), jnp.exp(lambd[0]))
 
-        # threshold
-        total_pen += compute_single_param_KL(mean_params[:, 1], jnp.exp(sigma_params[:, 1]), jnp.exp(lambd[1]))
+        # # threshold
+        # total_pen += compute_single_param_KL(mean_params, jnp.exp(sigma_params), jnp.exp(lambd[1]))
         return total_pen
 
 
@@ -159,6 +157,7 @@ class ALISTAmodel(L2WSmodel):
 
     
     def calculate_avg_posterior_var(self, params):
+        return 0,0
         sigma_params = params[1]
         flattened_params = jnp.concatenate([jnp.ravel(weight_matrix) for weight_matrix, _ in sigma_params] + 
                                         [jnp.ravel(bias_vector) for _, bias_vector in sigma_params])

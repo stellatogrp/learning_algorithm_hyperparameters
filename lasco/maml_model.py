@@ -3,12 +3,12 @@ from functools import partial
 import jax.numpy as jnp
 from jax import random, vmap, grad, value_and_grad
 
-from l2ws.algo_steps import (
+from lasco.algo_steps import (
     k_steps_eval_maml,
     k_steps_train_maml,
 )
-from l2ws.l2ws_model import L2WSmodel
-from l2ws.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL, predict_y, get_perturbed_weights
+from lasco.l2ws_model import L2WSmodel
+from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL, predict_y, get_perturbed_weights
 
 
 class MAMLmodel(L2WSmodel):

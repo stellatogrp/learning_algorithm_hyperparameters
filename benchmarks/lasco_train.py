@@ -2,23 +2,23 @@ import sys
 
 import hydra
 
-import l2ws.examples.jamming as jamming
-import l2ws.examples.lasso as lasso
-import l2ws.examples.markowitz as markowitz
-import l2ws.examples.mnist as mnist
-import l2ws.examples.mpc as mpc
-import l2ws.examples.osc_mass as osc_mass
-import l2ws.examples.phase_retrieval as phase_retrieval
-import l2ws.examples.quadcopter as quadcopter
-import l2ws.examples.robust_kalman as robust_kalman
-import l2ws.examples.robust_ls as robust_ls
-import l2ws.examples.robust_pca as robust_pca
-import l2ws.examples.sparse_pca as sparse_pca
-import l2ws.examples.sparse_coding as sparse_coding
-import l2ws.examples.sine as sine
-import l2ws.examples.unconstrained_qp as unconstrained_qp
-import l2ws.examples.vehicle as vehicle
-from l2ws.utils.data_utils import copy_data_file, recover_last_datetime
+import lasco.examples.jamming as jamming
+import lasco.examples.lasso as lasso
+import lasco.examples.markowitz as markowitz
+import lasco.examples.mnist as mnist
+import lasco.examples.mpc as mpc
+import lasco.examples.osc_mass as osc_mass
+import lasco.examples.phase_retrieval as phase_retrieval
+import lasco.examples.quadcopter as quadcopter
+import lasco.examples.robust_kalman as robust_kalman
+import lasco.examples.robust_ls as robust_ls
+import lasco.examples.robust_pca as robust_pca
+import lasco.examples.sparse_pca as sparse_pca
+import lasco.examples.sparse_coding as sparse_coding
+import lasco.examples.sine as sine
+import lasco.examples.unconstrained_qp as unconstrained_qp
+import lasco.examples.vehicle as vehicle
+from lasco.utils.data_utils import copy_data_file, recover_last_datetime
 
 
 @hydra.main(config_path='configs/markowitz', config_name='markowitz_run.yaml')
