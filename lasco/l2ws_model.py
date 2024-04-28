@@ -713,6 +713,7 @@ class L2WSmodel(object):
 
 
     def compute_all_params_KL(self, mean_params, sigma_params, eta):
+        return 0
         lambda_max = self.c
         total_pen = 0
         for i, params in enumerate(mean_params):
@@ -730,6 +731,7 @@ class L2WSmodel(object):
 
 
     def compute_weight_norm_squared(self, nn_params):
+        return 0, 0
         weight_norms = np.zeros(len(nn_params))
         nn_weights = nn_params
         num_weights = 0
@@ -741,6 +743,7 @@ class L2WSmodel(object):
 
     
     def calculate_avg_posterior_var(self, params):
+        return 0, 0
         sigma_params = params[1]
         flattened_params = jnp.concatenate([jnp.ravel(weight_matrix) for weight_matrix, _ in sigma_params] + 
                                         [jnp.ravel(bias_vector) for _, bias_vector in sigma_params])

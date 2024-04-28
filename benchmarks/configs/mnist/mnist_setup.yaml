@@ -17,7 +17,7 @@
 
 A_scale: 1
 N_test: 100
-N_train: 50000
+N_train: 100 #50000
 blur_size: 8
 dataset: emnist
 deblur_or_denoise: deblur

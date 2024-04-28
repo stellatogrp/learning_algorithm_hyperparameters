@@ -1,5 +1,5 @@
 nn_cfg:
-  lr: 1e-3
+  lr: 1e-2
   method: adam
   intermediate_layer_sizes: []
   batch_size: 1000
@@ -25,7 +25,7 @@ pretrain:
 data:
   datetime: ''
 
-eval_every_x_epochs: 100
+eval_every_x_epochs: 20
 save_every_x_epochs: 1
 test_every_x_epochs: 1
 write_csv_every_x_batches: 1
@@ -39,7 +39,7 @@ num_samples: 10
 prediction_variable: w
 angle_anchors: [0]
 plot_iterates: [0, 10, 20]
-loss_method: 'fixed_k' #'fixed_k' #'constant_sum'
+loss_method: 'constant_sum' #'fixed_k' #'constant_sum'
 # share_all: False
 num_clusters: 10
 pretrain_alpha: False
@@ -74,19 +74,19 @@ iterates_visualize: [10, 20, 50, 90, 200, 300, 500, 1000] #[10, 20, 50, 100, 200
 vis_num: 0
 skip_startup: False
 
-eval_unrolls: 16000
+eval_unrolls: 20
 solve_c_num: 0
 supervised: True
-train_unrolls: 5
+train_unrolls: 20
 
 sigma_nn: [0.0, 1e-6, 1e-5, 0.0001, 0.001, 0.01, .1, 1, 10]
 pac_bayes_num_samples: 5
 pac_bayes_flag: False
 # load_weights_datetime: '2023-08-28/16-14-46'
 # nn_load_type: deterministic
-load_weights_datetime: '2024-01-07/13-07-24'
-nn_load_type: stochastic
-save_weights_flag: True
+# load_weights_datetime: '2024-01-07/13-07-24'
+# nn_load_type: stochastic
+# save_weights_flag: True
 
 
 pac_bayes_cfg:
@@ -96,9 +96,9 @@ pac_bayes_cfg:
   delta: 0.0001
   rep: True
   penalty_coeff: 1.0
-  deterministic: False
+  deterministic: True
   target_pen: 0.3
-  frac_solved_accs: fp_full #nmse_full # [0.001, 0.01, 0.1, 1.0] # fp_full
+  frac_solved_accs: [0.001] #fp_full #nmse_full # [0.001, 0.01, 0.1, 1.0] # fp_full
 
 custom_loss: False #True
 
