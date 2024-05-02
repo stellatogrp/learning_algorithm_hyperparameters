@@ -70,8 +70,8 @@ alpha_relax: 1
 # closed_loop_budget: 10
 
 # visualize
-iterates_visualize: [10, 20, 50, 90, 200, 300, 500, 1000] #[10, 20, 50, 100, 200, 500]
-vis_num: 0
+iterates_visualize: [10, 19] #[10, 20, 50, 90, 200, 300, 500, 1000] #[10, 20, 50, 100, 200, 500]
+vis_num: 5
 skip_startup: False
 
 eval_unrolls: 20

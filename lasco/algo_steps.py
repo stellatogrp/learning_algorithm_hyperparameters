@@ -3,13 +3,168 @@ from functools import partial
 import cvxpy as cp
 import jax.numpy as jnp
 import jax.scipy as jsp
-# from cvxpylayers.jax import CvxpyLayer
 from jax import grad, jit, lax, vmap
 from jax.tree_util import tree_map
 
 from lasco.utils.generic_utils import python_fori_loop, unvec_symm, vec_symm
 
 TAU_FACTOR = 1 #10
+
+
+def k_steps_train_lasco_scs(k, z0, q, params, supervised, z_star, proj, jit, hsde):
+    iter_losses = jnp.zeros(k)
+    # scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)
+
+    scalar_params, all_factors, scaled_vecs = params[0], params[1], params[2]
+    alphas = scalar_params[-1, :]
+    factors1, factors2 = all_factors
+
+    fp_train_partial = partial(fp_train_lasco_scs, q_r=q, all_factors=all_factors,
+                               supervised=supervised, z_star=z_star, proj=proj, hsde=hsde,
+                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas)
+    
+    if hsde:
+        # first step: iteration 0
+        # we set homogeneous = False for the first iteration
+        #   to match the SCS code which has the global variable FEASIBLE_ITERS
+        #   which is set to 1
+        homogeneous = False
+        z_next, u, u_tilde, v = fixed_point_hsde(
+            z0, homogeneous, q, factors1[0, :, :], 
+            factors2[0, :], proj, scaled_vecs[0, :], 1) #alphas[0])
+        iter_losses = iter_losses.at[0].set(jnp.linalg.norm(z_next - z0))
+        z0 = z_next
+    val = z0, iter_losses
+    start_iter = 1 if hsde else 0
+    if jit:
+        out = lax.fori_loop(start_iter, k, fp_train_partial, val)
+    else:
+        out = python_fori_loop(start_iter, k, fp_train_partial, val)
+    z_final, iter_losses = out
+    return z_final, iter_losses
+
+
+def fp_train_lasco_scs(i, val, q_r, all_factors, supervised, z_star, proj, hsde, homogeneous, 
+                       scaled_vecs, alphas):
+    """
+    q_r = r if hsde else q_r = q
+    homogeneous tells us if we set tau = 1.0 or use the root_plus method
+    """
+    z, loss_vec = val
+    r = q_r
+    factors1, factors2 = all_factors
+    z_next, u, u_tilde, v = fixed_point_hsde(z, homogeneous, r, factors1[0, :, :], 
+                                             factors2[0, :], proj, scaled_vecs[0, :], 1) #alphas[i])
+
+    if supervised:
+        diff = jnp.linalg.norm(z[:-1] / z[-1] - z_star)
+    else:
+        diff = jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
+    loss_vec = loss_vec.at[i].set(diff)
+    return z_next, loss_vec
+
+
+def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit, hsde, zero_cone_size,
+                      custom_loss=None, lightweight=False):
+    """
+    if k = 500 we store u_1, ..., u_500 and z_0, z_1, ..., z_500
+        which is why we have all_z_plus_1
+    """
+    all_u, all_z = jnp.zeros((k, z0.size)), jnp.zeros((k, z0.size))
+    all_z_plus_1 = jnp.zeros((k + 1, z0.size))
+    all_z_plus_1 = all_z_plus_1.at[0, :].set(z0)
+    all_v = jnp.zeros((k, z0.size))
+    iter_losses = jnp.zeros(k)
+    primal_residuals, dual_residuals = jnp.zeros(k), jnp.zeros(k)
+    m, n = A.shape
+
+
+    scalar_params, all_factors, scaled_vecs = params[0], params[1], params[2]
+    alphas = scalar_params[-1, :]
+    factors1, factors2 = all_factors
+
+
+    # scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)
+
+    # if jit:
+    #     verbose = False
+    # else:
+    #     verbose = True
+    verbose = not jit
+
+    if hsde:
+        # first step: iteration 0
+        # we set homogeneous = False for the first iteration
+        #   to match the SCS code which has the global variable FEASIBLE_ITERS
+        #   which is set to 1
+        homogeneous = False
+
+        z_next, u, u_tilde, v = fixed_point_hsde(
+            z0, homogeneous, q, factors1[0, :, :], factors2[0, :], proj, scaled_vecs[0, :], 1, verbose=verbose)
+        all_z = all_z.at[0, :].set(z_next)
+        all_u = all_u.at[0, :].set(u)
+        all_v = all_v.at[0, :].set(v)
+        iter_losses = iter_losses.at[0].set(jnp.linalg.norm(z_next - z0))
+        z0 = z_next
+    M = create_M(P, A)
+    rhs = (M + jnp.diag(scaled_vecs[0, :])) @ q
+    c, b = rhs[:n], rhs[n:]
+
+    fp_eval_partial = partial(fp_eval_lasco_scs, q_r=q, z_star=z_star, all_factors=all_factors,
+                              proj=proj, P=P, A=A, c=c, b=b, hsde=hsde,
+                              homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas,
+                              custom_loss=custom_loss,
+                              verbose=verbose)
+    val = z0, z0, iter_losses, all_z, all_u, all_v, primal_residuals, dual_residuals
+    start_iter = 1 if hsde else 0
+    if jit:
+        out = lax.fori_loop(start_iter, k, fp_eval_partial, val)
+    else:
+        out = python_fori_loop(start_iter, k, fp_eval_partial, val)
+    z_final, z_penult, iter_losses, all_z, all_u, all_v, primal_residuals, dual_residuals = out
+    all_z_plus_1 = all_z_plus_1.at[1:, :].set(all_z)
+
+    # return z_final, iter_losses, primal_residuals, dual_residuals, all_z_plus_1, all_u, all_v
+    if lightweight:
+        return z_final, iter_losses, all_z_plus_1[:10, :], primal_residuals, \
+            dual_residuals, all_u[:10, :], all_v[:10, :]
+    return z_final, iter_losses, all_z_plus_1, primal_residuals, dual_residuals, all_u, all_v
+
+
+def fp_eval_lasco_scs(i, val, q_r, z_star, all_factors, proj, P, A, c, b, hsde, homogeneous, 
+                      scaled_vecs, alphas,
+            lightweight=False, custom_loss=None, verbose=False):
+    """
+    q_r = r if hsde else q_r = q
+    homogeneous tells us if we set tau = 1.0 or use the root_plus method
+    """
+    m, n = A.shape
+    z, z_prev, loss_vec, all_z, all_u, all_v, primal_residuals, dual_residuals = val
+
+    r = q_r
+    factors1, factors2 = all_factors
+    z_next, u, u_tilde, v = fixed_point_hsde(
+        z, homogeneous, r, factors1[0, :, :], factors2[0, :], proj, scaled_vecs[0, :], 1, verbose=verbose)
+
+    # diff = jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
+    if custom_loss is None:
+        diff = jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
+    else:
+        diff = rkf_loss(z_next / z_next[-1], z_star)
+    loss_vec = loss_vec.at[i].set(diff)
+
+    # primal and dual residuals
+    if not lightweight:
+        x, y, s = extract_sol(u, v, n, hsde)
+        pr = jnp.linalg.norm(A @ x + s - q_r[n:])
+        dr = jnp.linalg.norm(A.T @ y + P @ x + q_r[:n])
+        primal_residuals = primal_residuals.at[i].set(pr)
+        dual_residuals = dual_residuals.at[i].set(dr)
+    all_z = all_z.at[i, :].set(z_next)
+    all_u = all_u.at[i, :].set(u)
+    all_v = all_v.at[i, :].set(v)
+    return z_next, z_prev, loss_vec, all_z, all_u, all_v, primal_residuals, dual_residuals
+
 
 
 def k_steps_eval_lasco_osqp(k, z0, q, params, P, A, supervised, z_star, jit, custom_loss=None):
@@ -117,8 +272,10 @@ def fp_eval_lasco_osqp(i, val, supervised, z_star, all_factors, P, A, q, rhos, s
 
     # primal and dual residuals
     if not lightweight:
-        pr = jnp.linalg.norm(A @ z_next[:n] - z_next[n + m:])
-        dr = jnp.linalg.norm(P @ z_next[:n] + A.T @ z_next[n:n + m] + q[:n])
+        pr = jnp.linalg.norm(A @ z[:n] - z[n + m:])
+        dr = jnp.linalg.norm(P @ z[:n] + A.T @ z[n:n + m] + q[:n])
+        # pr = jnp.linalg.norm(A @ z_next[:n] - z_next[n + m:])
+        # dr = jnp.linalg.norm(P @ z_next[:n] + A.T @ z_next[n:n + m] + q[:n])
         primal_residuals = primal_residuals.at[i].set(pr)
         dual_residuals = dual_residuals.at[i].set(dr)
     return z_next, loss_vec, z_all, primal_residuals, dual_residuals
@@ -261,8 +418,7 @@ def fixed_point_maml(z, neural_net_grad, theta, gamma):
     gradient, aux_data = neural_net_grad(z, theta)
     # for i in range(len(z)):
 
-    # import pdb
-    # pdb.set_trace()
+
     #     z_next = z - gamma * gradient
     # z_next = z
     # z_next = [tuple(z_elem - gamma * grad_elem for z_elem, grad_elem in zip(z_tuple, grad_tuple))
@@ -514,8 +670,7 @@ def fp_train_lista_cpss(i, val, supervised, z_star, params, D, b):
     theta = params[0][i]
     W_1 = params[1][:,:,i]
     # W_2 = params[2][:,:,i]
-    # import pdb
-    # pdb.set_trace()
+
     z_next = fixed_point_lista_cpss(z, W_1, D, b, theta)
     diff = jnp.linalg.norm(z - z_star) ** 2
     loss_vec = loss_vec.at[i].set(diff)
@@ -597,8 +752,7 @@ def fp_train_lista(i, val, supervised, z_star, params, b):
     theta = params[0][i]
     W_1 = params[1][:,:,i]
     W_2 = params[2][:,:,i]
-    # import pdb
-    # pdb.set_trace()
+
     z_next = fixed_point_lista(z, W_1, W_2, b, theta)
     diff = jnp.linalg.norm(z - z_star) ** 2
     loss_vec = loss_vec.at[i].set(diff)
@@ -981,7 +1135,7 @@ def eval_ista_obj(z, A, b, lambd):
     return .5 * jnp.linalg.norm(A @ z - b) ** 2 + lambd * jnp.linalg.norm(z, ord=1)
 
 
-def fp_train(i, val, q_r, factor, supervised, z_star, proj, hsde, homogeneous, scale_vec, alpha):
+def fp_train_scs(i, val, q_r, factor, supervised, z_star, proj, hsde, homogeneous, scale_vec, alpha):
     """
     q_r = r if hsde else q_r = q
     homogeneous tells us if we set tau = 1.0 or use the root_plus method
@@ -1232,7 +1386,7 @@ def fp_eval_fista(i, val, supervised, z_star, A, b, lambd, ista_step):
     return z_next, y_next, t_next, loss_vec, z_all
 
 
-def fp_eval(i, val, q_r, z_star, factor, proj, P, A, c, b, hsde, homogeneous, scale_vec, alpha,
+def fp_eval_scs(i, val, q_r, z_star, factor, proj, P, A, c, b, hsde, homogeneous, scale_vec, alpha,
             lightweight=False, custom_loss=None, verbose=False):
     """
     q_r = r if hsde else q_r = q
@@ -1282,7 +1436,7 @@ def k_steps_train_scs(k, z0, q, factor, supervised, z_star, proj, jit, hsde, m, 
     iter_losses = jnp.zeros(k)
     scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)
 
-    fp_train_partial = partial(fp_train, q_r=q, factor=factor,
+    fp_train_partial = partial(fp_train_scs, q_r=q, factor=factor,
                                supervised=supervised, z_star=z_star, proj=proj, hsde=hsde,
                                homogeneous=True, scale_vec=scale_vec, alpha=alpha)
 
@@ -1481,7 +1635,7 @@ def k_steps_eval_scs(k, z0, q, factor, proj, P, A, supervised, z_star, jit, hsde
     c, b = rhs[:n], rhs[n:]
     # print('b', b)
 
-    fp_eval_partial = partial(fp_eval, q_r=q, z_star=z_star, factor=factor,
+    fp_eval_partial = partial(fp_eval_scs, q_r=q, z_star=z_star, factor=factor,
                               proj=proj, P=P, A=A, c=c, b=b, hsde=hsde,
                               homogeneous=True, scale_vec=scale_vec, alpha=alpha,
                               custom_loss=custom_loss,
@@ -1538,12 +1692,6 @@ def get_scaled_factor(M, scale_vec):
     """
     scale_vec_diag = jnp.diag(scale_vec)
     factor = jsp.linalg.lu_factor(M + scale_vec_diag)
-
-    # this is to replace the lu factor and use cg
-    # M_plus_scale = M + scale_vec_diag
-    # def lhs_mat(x):
-    #     return M_plus_scale @ x
-    # factor = jit(lhs_mat)
     return factor
 
 
@@ -1554,7 +1702,7 @@ def get_scaled_vec_and_factor(M, rho_x, scale, m, n, zero_cone_size, hsde=True):
 
 def extract_sol(u, v, n, hsde):
     if hsde:
-        tau = u[-1]
+        tau = u[-1] + 1e-6
         x, y, s = u[:n] / tau, u[n:-1] / tau, v[n:-1] / tau
     else:
         x, y, s = u[:n], u[n:], v[n:]
@@ -1707,7 +1855,7 @@ def fixed_point(z_init, q, factor, proj, scale_vec, alpha, verbose=False):
     return z, u, u_tilde, v
 
 
-def fixed_point_hsde(z_init, homogeneous, r, factor, proj, scale_vec, alpha, verbose=False):
+def fixed_point_hsde(z_init, homogeneous, r, factor1, factor2, proj, scale_vec, alpha, verbose=False):
     """
     implements 1 iteration of algorithm 5.1 in https://arxiv.org/pdf/2004.02177.pdf
 
@@ -1746,7 +1894,10 @@ def fixed_point_hsde(z_init, homogeneous, r, factor, proj, scale_vec, alpha, ver
 
     # non identity DR scaling
     rhs = jnp.multiply(scale_vec, mu)
+    factor = (factor1, factor2)
     p = lin_sys_solve(factor, rhs)
+
+    r = lin_sys_solve(factor, r)
 
     # non identity DR scaling
     # p = jnp.multiply(scale_vec, p)
@@ -1995,7 +2146,7 @@ def soc_projection(x, s):
 
     def case1_soc_proj(x, s):
         # case 1: y_norm >= |s|
-        val = (s + x_norm) / (2 * x_norm)
+        val = (s + x_norm) / (2 * x_norm + 1e-10)
         t = val * x_norm
         y = val * x
         return y, t

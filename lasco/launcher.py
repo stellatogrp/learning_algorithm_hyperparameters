@@ -30,6 +30,7 @@ from lasco.glista_model import GLISTAmodel
 from lasco.ista_model import ISTAmodel
 from lasco.lasco_gd_model import LASCOGDmodel
 from lasco.lasco_osqp_model import LASCOOSQPmodel
+from lasco.lasco_scs_model import LASCOSCSmodel
 from lasco.lista_cpss_model import LISTA_CPSSmodel
 from lasco.lista_model import LISTAmodel
 from lasco.maml_model import MAMLmodel
@@ -154,7 +155,7 @@ class Workspace:
         # for control problems only
         self.closed_loop_rollout_dict = closed_loop_rollout_dict
         self.traj_length = traj_length
-        if traj_length is not None:
+        if traj_length is not None and False:
             self.prev_sol_eval = True
         else:
             self.prev_sol_eval = False
@@ -221,6 +222,10 @@ class Workspace:
             # self.q_mat_train = thetas[:N_train, :]
             # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_osqp_model(cfg, static_dict)
+        elif algo == 'lasco_scs':
+            # self.q_mat_train = thetas[:N_train, :]
+            # self.q_mat_test = thetas[N_train:N, :]
+            self.create_lasco_scs_model(cfg, static_dict)
         
 
         # write th z_stars_max
@@ -524,18 +529,6 @@ class Workspace:
                         factor=factor,
                         custom_loss=self.custom_loss,
                         plateau_decay=cfg.plateau_decay)
-    
-
-        # get A, lambd, ista_step
-        # P = static_dict['P']
-        # gd_step = static_dict['gd_step']
-        # input_dict = dict(algorithm='lasco_osqp',
-        #                   c_mat_train=self.q_mat_train,
-        #                   c_mat_test=self.q_mat_test,
-        #                 #   gd_step=gd_step,
-        #                   P=P,
-
-        #                   )
         self.l2ws_model = LASCOOSQPmodel(train_unrolls=self.train_unrolls,
                                     eval_unrolls=self.eval_unrolls,
                                     train_inputs=self.train_inputs,
@@ -547,6 +540,57 @@ class Workspace:
                                     z_stars_test=self.z_stars_test,
                                     loss_method=cfg.loss_method,
                                     algo_dict=input_dict)
+        
+    def create_lasco_scs_model(self, cfg, static_dict):
+        if self.static_flag:
+            static_M = static_dict['M']
+            static_algo_factor = static_dict['algo_factor']
+            cones = static_dict['cones_dict']
+
+        # rho_x = cfg.get('rho_x', 1)
+        # scale = cfg.get('scale', 1)
+        # alpha_relax = cfg.get('alpha_relax', 1)
+
+        # save cones
+        self.cones = static_dict['cones_dict']
+
+        self.M = static_M
+        proj = create_projection_fn(cones, self.n)
+
+        psd_sizes = get_psd_sizes(cones)
+
+        self.psd_size = psd_sizes[0]
+
+        algo_dict = {'proj': proj,
+                     'q_mat_train': self.q_mat_train,
+                     'q_mat_test': self.q_mat_test,
+                     'm': self.m,
+                     'n': self.n,
+                     'static_M': static_M,
+                     'static_flag': self.static_flag,
+                    #  'static_algo_factor': static_algo_factor,
+                    #  'rho_x': rho_x,
+                    #  'scale': scale,
+                    #  'alpha_relax': alpha_relax,
+                     'cones': cones,
+                     'lightweight': cfg.get('lightweight', False),
+                     'custom_loss': self.custom_loss
+                     }
+        self.l2ws_model = LASCOSCSmodel(train_unrolls=self.train_unrolls,
+                                   eval_unrolls=self.eval_unrolls,
+                                   train_inputs=self.train_inputs,
+                                   test_inputs=self.test_inputs,
+                                   z_stars_train=self.z_stars_train,
+                                   z_stars_test=self.z_stars_test,
+                                   x_stars_train=self.x_stars_train,
+                                   x_stars_test=self.x_stars_test,
+                                   y_stars_train=self.y_stars_train,
+                                   y_stars_test=self.y_stars_test,
+                                   regression=cfg.get('supervised', False),
+                                   nn_cfg=cfg.nn_cfg,
+                                   pac_bayes_cfg=cfg.pac_bayes_cfg,
+                                   loss_method=cfg.loss_method,
+                                   algo_dict=algo_dict)
 
         
         
@@ -685,51 +729,17 @@ class Workspace:
                                     algo_dict=input_dict)
 
     def create_scs_model(self, cfg, static_dict):
-        # get_M_q = None
-        # if get_M_q is None:
-        #     q_mat = jnp_load_obj['q_mat']
         if self.static_flag:
             static_M = static_dict['M']
-
             static_algo_factor = static_dict['algo_factor']
             cones = static_dict['cones_dict']
 
-            # call get_q_mat
-            # if get_M_q is not None:
-            #     q_mat = get_M_q(thetas)
-            # M_tensor_train, M_tensor_test = None, None
-            # matrix_invs_train, matrix_invs_test = None, None
-
-            # M_plus_I = static_M + jnp.eye(n + m)
-            # static_algo_factor = jsp.linalg.lu_factor(M_plus_I)
-        else:
-            pass
-            # load the algo_factors -- check if factor or inverse
-            # M_tensor, q_mat = get_M_q(thetas)
-
-            # load the matrix invs
-            # matrix_invs = jnp_load_obj['matrix_invs']
-
-            # static_M, static_algo_factor = None, None
-
-            # cones = static_dict['cones_dict']
-            # M_tensor_train = M_tensor[:N_train, :, :]
-            # M_tensor_test = M_tensor[N_train:N, :, :]
-            # matrix_invs_train = matrix_invs[:N_train, :, :]
-            # matrix_invs_test = matrix_invs[N_train:N, :, :]
         rho_x = cfg.get('rho_x', 1)
         scale = cfg.get('scale', 1)
         alpha_relax = cfg.get('alpha_relax', 1)
 
         # save cones
         self.cones = static_dict['cones_dict']
-
-        # alternate -- load it if available (but this is memory-intensive)
-        # N_train = self.train_inputs.shape[0]
-        # N_test = self.test_inputs.shape[0]
-        # N = N_train + N_test
-        # q_mat_train = jnp.array(q_mat[:N_train, :])
-        # q_mat_test = jnp.array(q_mat[N_train:N, :])
 
         self.M = static_M
         proj = create_projection_fn(cones, self.n)
@@ -766,10 +776,10 @@ class Workspace:
                                    nn_cfg=cfg.nn_cfg,
                                    pac_bayes_cfg=cfg.pac_bayes_cfg,
                                    algo_dict=algo_dict)
-        # self.l2ws_model = SCSmodel(input_dict)
+
 
     def setup_opt_sols(self, algo, jnp_load_obj, N_train, N, num_plot=5):
-        if algo != 'scs':
+        if algo != 'scs' and algo != 'lasco_scs':
             z_stars = jnp_load_obj['z_stars']
             z_stars_train = z_stars[:N_train, :]
             z_stars_test = z_stars[N_train:N, :]
@@ -1593,7 +1603,7 @@ class Workspace:
         #                             pac_bayes=True)
             
 
-        if isinstance(self.l2ws_model, SCSmodel):
+        if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel):
             out_train[6]
         # u_all = out_train[0][3]
         # z_all = out_train[0][0]
@@ -2102,13 +2112,10 @@ class Workspace:
         else:
             z_no_learn = self.z_no_learn_test
 
+
         if train:
             if col != 'nearest_neighbor' and col != 'no_train' and col != 'prev_sol':
                 self.custom_visualize_fn(z_all, z_stars, z_no_learn, z_nn,
-                                         thetas, self.iterates_visualize, visual_path)
-            else:
-                # try plotting
-                self.custom_visualize_fn(z_all, z_stars, z_no_learn, None,
                                          thetas, self.iterates_visualize, visual_path)
         else:
             if col != 'nearest_neighbor' and col != 'no_train' and col != 'prev_sol':
@@ -2121,6 +2128,25 @@ class Workspace:
                                              thetas, self.iterates_visualize, visual_path, 
                                              num=self.vis_num)
 
+        # if train:
+        #     if col != 'nearest_neighbor' and col != 'no_train' and col != 'prev_sol':
+        #         self.custom_visualize_fn(z_all, z_stars, z_no_learn, z_nn,
+        #                                  thetas, self.iterates_visualize, visual_path)
+        #     else:
+        #         # try plotting
+        #         self.custom_visualize_fn(z_all, z_stars, z_no_learn, None,
+        #                                  thetas, self.iterates_visualize, visual_path)
+        # else:
+        #     if col != 'nearest_neighbor' and col != 'no_train' and col != 'prev_sol':
+        #         if z_prev_sol is None:
+        #             self.custom_visualize_fn(z_all, z_stars, z_no_learn, z_nn,
+        #                                      thetas, self.iterates_visualize, visual_path, 
+        #                                      num=self.vis_num)
+        #         else:
+        #             self.custom_visualize_fn(z_all, z_stars, z_prev_sol, z_nn,
+        #                                      thetas, self.iterates_visualize, visual_path, 
+        #                                      num=self.vis_num)
+
     def run(self):
         # setup logging and dataframes
         self._init_logging()
@@ -2131,14 +2157,13 @@ class Workspace:
 
         if not self.skip_startup:
             
-            
+
+            # no learning evaluation
+            self.eval_iters_train_and_test('no_train', False)
 
             # fixed ws evaluation
             if self.l2ws_model.z_stars_train is not None and self.l2ws_model.algo != 'maml':
                 self.eval_iters_train_and_test('nearest_neighbor', False)
-
-            # no learning evaluation
-            self.eval_iters_train_and_test('no_train', False)
             
             
             
