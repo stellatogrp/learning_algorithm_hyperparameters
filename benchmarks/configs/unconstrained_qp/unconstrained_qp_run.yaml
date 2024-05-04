@@ -53,9 +53,9 @@ scale: 1
 alpha_relax: 1
 skip_startup: False #True
 
-save_weights_flag: False
-# load_weights_datetime: '2024-04-03/12-00-03' #'2024-03-30/11-47-25'
-# nn_load_type: stochastic
+save_weights_flag: True
+load_weights_datetime: '2024-05-04/11-22-08' #'2024-03-30/11-47-25'
+nn_load_type: stochastic
 
 pac_bayes_cfg:
   init_var: 1e-2 #1e-2
