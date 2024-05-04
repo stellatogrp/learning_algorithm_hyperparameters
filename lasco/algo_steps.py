@@ -16,7 +16,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, supervised, z_star, proj, jit, hsd
     # scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)
 
     scalar_params, all_factors, scaled_vecs = params[0], params[1], params[2]
-    alphas = scalar_params[-1, :]
+    alphas = jnp.exp(scalar_params[:, 2])
     factors1, factors2 = all_factors
 
     fp_train_partial = partial(fp_train_lasco_scs, q_r=q, all_factors=all_factors,
@@ -31,7 +31,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, supervised, z_star, proj, jit, hsd
         homogeneous = False
         z_next, u, u_tilde, v = fixed_point_hsde(
             z0, homogeneous, q, factors1[0, :, :], 
-            factors2[0, :], proj, scaled_vecs[0, :], 1) #alphas[0])
+            factors2[0, :], proj, scaled_vecs[0, :], alphas[0])
         iter_losses = iter_losses.at[0].set(jnp.linalg.norm(z_next - z0))
         z0 = z_next
     val = z0, iter_losses
@@ -53,11 +53,11 @@ def fp_train_lasco_scs(i, val, q_r, all_factors, supervised, z_star, proj, hsde,
     z, loss_vec = val
     r = q_r
     factors1, factors2 = all_factors
-    z_next, u, u_tilde, v = fixed_point_hsde(z, homogeneous, r, factors1[0, :, :], 
-                                             factors2[0, :], proj, scaled_vecs[0, :], 1) #alphas[i])
+    z_next, u, u_tilde, v = fixed_point_hsde(z, homogeneous, r, factors1[i, :, :], 
+                                             factors2[i, :], proj, scaled_vecs[i, :], alphas[i])
 
     if supervised:
-        diff = jnp.linalg.norm(z[:-1] / z[-1] - z_star)
+        diff = jnp.linalg.norm(z[:-1] - z_star) # / z[-1] - z_star)
     else:
         diff = jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
     loss_vec = loss_vec.at[i].set(diff)
@@ -80,7 +80,7 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
 
 
     scalar_params, all_factors, scaled_vecs = params[0], params[1], params[2]
-    alphas = scalar_params[-1, :]
+    alphas = jnp.exp(scalar_params[:, 2])
     factors1, factors2 = all_factors
 
 
@@ -100,7 +100,7 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
         homogeneous = False
 
         z_next, u, u_tilde, v = fixed_point_hsde(
-            z0, homogeneous, q, factors1[0, :, :], factors2[0, :], proj, scaled_vecs[0, :], 1, verbose=verbose)
+            z0, homogeneous, q, factors1[0, :, :], factors2[0, :], proj, scaled_vecs[0, :], alphas[0], verbose=verbose)
         all_z = all_z.at[0, :].set(z_next)
         all_u = all_u.at[0, :].set(u)
         all_v = all_v.at[0, :].set(v)
@@ -144,7 +144,7 @@ def fp_eval_lasco_scs(i, val, q_r, z_star, all_factors, proj, P, A, c, b, hsde, 
     r = q_r
     factors1, factors2 = all_factors
     z_next, u, u_tilde, v = fixed_point_hsde(
-        z, homogeneous, r, factors1[0, :, :], factors2[0, :], proj, scaled_vecs[0, :], 1, verbose=verbose)
+        z, homogeneous, r, factors1[i, :, :], factors2[i, :], proj, scaled_vecs[i, :], alphas[i], verbose=verbose)
 
     # diff = jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
     if custom_loss is None:
@@ -1656,7 +1656,7 @@ def k_steps_eval_scs(k, z0, q, factor, proj, P, A, supervised, z_star, jit, hsde
     return z_final, iter_losses, all_z_plus_1, primal_residuals, dual_residuals, all_u, all_v
 
 
-def get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=True):
+def get_scale_vec(rho_x, rho_y, m, n, zero_cone_size, hsde=True):
     """
     Returns the non-identity DR scaling vector
         which is used as a diagonal matrix
@@ -1677,12 +1677,41 @@ def get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=True):
         zero_scale_factor = 1 #1000
     else:
         zero_scale_factor = 1
-    scale_vec = scale_vec.at[n:n + zero_cone_size].set(1 / (zero_scale_factor * scale))
+    scale_vec = scale_vec.at[n:n + zero_cone_size].set(rho_y)
 
     # other parts of y-component of scale_vec set to 1 / scale
-    scale_vec = scale_vec.at[n + zero_cone_size:].set(1 / scale)
+    scale_vec = scale_vec.at[n + zero_cone_size:].set(rho_y)
 
     return scale_vec
+
+
+# def get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=True):
+#     """
+#     Returns the non-identity DR scaling vector
+#         which is used as a diagonal matrix
+
+#     scale_vec = (r_x, r_y)
+#     where r_x = rho_x * ones(n)
+#           r_y[:zero_cone_size] = 1 / (1000 * scale) * ones(zero_cone_size)
+#           r_y[zero_cone_size:] = 1 / scale * ones(m - zero_cone_size)
+#     scaling for y depends on if it's for the zero cone or not
+#     """
+#     scale_vec = jnp.ones(m + n)
+
+#     # x-component of scale_vec set to rho_x
+#     scale_vec = scale_vec.at[:n].set(rho_x)
+
+#     # zero cone of y-component of scale_vec set to 1 / (1000 * scale)
+#     if hsde:
+#         zero_scale_factor = 1 #1000
+#     else:
+#         zero_scale_factor = 1
+#     scale_vec = scale_vec.at[n:n + zero_cone_size].set(1 / (zero_scale_factor * scale))
+
+#     # other parts of y-component of scale_vec set to 1 / scale
+#     scale_vec = scale_vec.at[n + zero_cone_size:].set(1 / scale)
+
+#     return scale_vec
 
 
 def get_scaled_factor(M, scale_vec):
@@ -1695,14 +1724,14 @@ def get_scaled_factor(M, scale_vec):
     return factor
 
 
-def get_scaled_vec_and_factor(M, rho_x, scale, m, n, zero_cone_size, hsde=True):
-    scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)
+def get_scaled_vec_and_factor(M, rho_x, rho_y, m, n, zero_cone_size, hsde=True):
+    scale_vec = get_scale_vec(rho_x, rho_y, m, n, zero_cone_size, hsde=hsde)
     return get_scaled_factor(M, scale_vec), scale_vec
 
 
 def extract_sol(u, v, n, hsde):
     if hsde:
-        tau = u[-1] + 1e-6
+        tau = 1 #u[-1] #+ 1e-6
         x, y, s = u[:n] / tau, u[n:-1] / tau, v[n:-1] / tau
     else:
         x, y, s = u[:n], u[n:], v[n:]
@@ -1883,7 +1912,7 @@ def fixed_point_hsde(z_init, homogeneous, r, factor1, factor2, proj, scale_vec, 
         no normalization
         tau_tilde = 1 (bias towards feasibility)
     """
-
+    homogeneous = False
     if homogeneous:
         z_init = z_init / jnp.linalg.norm(z_init) * jnp.sqrt(z_init.size)
 

@@ -26,7 +26,7 @@ data:
   datetime: ''
 
 
-eval_unrolls: 20
+eval_unrolls: 100
 eval_every_x_epochs: 10
 save_every_x_epochs: 1
 test_every_x_epochs: 10
@@ -38,8 +38,8 @@ num_samples: 10
 # num_samples_train: 1000
 angle_anchors: [0]
 
-plot_iterates: [0, 20, 100]
-loss_method: 'constant_sum' #'fixed_k' #'constant_sum'
+plot_iterates: [0, 9, 20]
+loss_method: 'fixed_k' #'fixed_k' #'constant_sum'
 share_all: False
 num_clusters: 2000
 pretrain_alpha: False
@@ -60,7 +60,7 @@ save_weights_flag: False #True
 # nn_load_type: stochastic
 vis_num: 0
 supervised: True
-train_unrolls: 20
+train_unrolls: 50
 skip_startup: False
 
 sigma_nn: [0.0, 0.01, .1, 1, 10]

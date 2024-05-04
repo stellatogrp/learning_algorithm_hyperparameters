@@ -140,8 +140,9 @@ class LASCOSCSmodel(L2WSmodel):
             rho_xs, rho_ys = params[0][:, 0], params[0][:, 1]
             for i in range(self.train_unrolls):
                 rho_x, rho_y = jnp.exp(rho_xs[i]), jnp.exp(rho_ys[i])
-                scale = 1 / rho_y
-                factor, scale_vec = get_scaled_vec_and_factor(self.M, rho_x, scale, 
+                # scale = 1 / rho_y
+                
+                factor, scale_vec = get_scaled_vec_and_factor(self.M, rho_x, rho_y, 
                                                               self.m, self.n, 
                                                               zero_cone_size=0, hsde=True)
                 
@@ -173,6 +174,9 @@ class LASCOSCSmodel(L2WSmodel):
                 angles = None
 
             loss = self.final_loss(loss_method, z_final, iter_losses, supervised, z0, z_star)
+
+            # pen_diffs = jnp.abs(jnp.diff(rho_xs)) + jnp.abs(jnp.diff(rho_ys))
+            loss = loss #+ pen_diffs.sum()
 
             # penalty_loss = calculate_total_penalty(self.N_train, params, self.b, self.c, self.delta)
             # penalty_loss = calculate_pinsker_penalty(self.N_train, params, self.b, self.c, self.delta)
