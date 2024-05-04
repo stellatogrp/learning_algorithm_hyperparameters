@@ -47,7 +47,7 @@ normalize_inputs: True
 normalize_alpha: 'other'
 epochs_jit: 2
 accuracies: [1, .1, .03, .01, .001, .0001]
-iterates_visualize: [15]
+iterates_visualize: [5]
 
 rho_x: 1
 scale: 1
@@ -58,9 +58,9 @@ alpha_relax: 1
 save_weights_flag: False #True
 # load_weights_datetime: '2023-12-31/14-54-18'
 # nn_load_type: stochastic
-vis_num: 0
+vis_num: 5
 supervised: True
-train_unrolls: 50
+train_unrolls: 5
 skip_startup: False
 
 sigma_nn: [0.0, 0.01, .1, 1, 10]
