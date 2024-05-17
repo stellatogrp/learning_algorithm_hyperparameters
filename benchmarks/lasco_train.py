@@ -5,6 +5,7 @@ import hydra
 import lasco.examples.jamming as jamming
 import lasco.examples.lasso as lasso
 import lasco.examples.markowitz as markowitz
+import lasco.examples.maxcut as maxcut
 import lasco.examples.mnist as mnist
 import lasco.examples.mpc as mpc
 import lasco.examples.osc_mass as osc_mass
@@ -229,6 +230,19 @@ def main_run_sine(cfg):
     sine.run(cfg)
 
 
+@hydra.main(config_path='configs/maxcut', config_name='maxcut_run.yaml')
+def main_run_maxcut(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'maxcut'
+    agg_datetime = cfg.data.datetime
+    if agg_datetime == '':
+        # get the most recent datetime and update datetimes
+        agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = agg_datetime
+    copy_data_file(example, agg_datetime)
+    maxcut.run(cfg)
+
+
 if __name__ == '__main__':
     if sys.argv[2] == 'cluster':
         base = 'hydra.run.dir=/scratch/gpfs/rajivs/learn2warmstart/outputs/'
@@ -301,3 +315,7 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'sine/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_sine()
+    elif sys.argv[1] == 'maxcut':
+        sys.argv[1] = base + 'maxcut/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_run_maxcut()

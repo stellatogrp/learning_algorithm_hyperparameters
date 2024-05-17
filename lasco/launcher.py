@@ -266,7 +266,6 @@ class Workspace:
     def create_lasco_scs_model(self, cfg, static_dict):
         if self.static_flag:
             static_M = static_dict['M']
-            static_algo_factor = static_dict['algo_factor']
             cones = static_dict['cones_dict']
 
         # rho_x = cfg.get('rho_x', 1)
@@ -1195,8 +1194,6 @@ class Workspace:
         self._init_logging()
         self.setup_dataframes()
 
-        # set pretrain_on boolean
-        self.pretrain_on = self.pretrain_cfg.pretrain_iters > 0
 
         if not self.skip_startup:
 
@@ -1210,10 +1207,6 @@ class Workspace:
             # prev sol eval
             if self.prev_sol_eval and self.l2ws_model.z_stars_train is not None:
                 self.eval_iters_train_and_test('prev_sol', False)
-
-            # pretrain evaluation
-            if self.pretrain_on:
-                self.pretrain()
 
         # load the weights AFTER the cold-start
         if self.load_weights_datetime is not None:
@@ -1244,15 +1237,11 @@ class Workspace:
             self.finalize_genL2O(train=False, num_samples=500)
             return
 
-        if self.pac_bayes_hyperparameter_opt_flag:
-            self.pac_bayes_hyperparameter_opt(self.pac_bayes_num_samples,
-                                              self.sigma_nn_grid, self.sigma_beta_grid)
-
         for epoch_batch in range(num_epochs_jit):
             epoch = int(epoch_batch * self.epochs_jit)
             if (test_zero and epoch == 0) or (epoch % self.eval_every_x_epochs == 0 and epoch > 0):
                 self.eval_iters_train_and_test(
-                    f"train_epoch_{epoch}", self.pretrain_on)
+                    f"train_epoch_{epoch}", False)
 
             # if epoch > self.l2ws_model.dont_decay_until:
             #     self.l2ws_model.decay_upon_plateau()

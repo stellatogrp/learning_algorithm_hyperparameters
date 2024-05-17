@@ -74,10 +74,10 @@ iterates_visualize: [10, 19] #[10, 20, 50, 90, 200, 300, 500, 1000] #[10, 20, 50
 vis_num: 5
 skip_startup: False
 
-eval_unrolls: 20
+eval_unrolls: 500
 solve_c_num: 0
 supervised: True
-train_unrolls: 20
+train_unrolls: 50
 
 sigma_nn: [0.0, 1e-6, 1e-5, 0.0001, 0.001, 0.01, .1, 1, 10]
 pac_bayes_num_samples: 5
