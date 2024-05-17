@@ -1,0 +1,8 @@
+N_test: 100
+N_train: 100 #50000
+n_orig: 10
+p: 0.5
+seed: 42
+solve: true
+solve_acc_abs: 0.001
+solve_acc_rel: 0

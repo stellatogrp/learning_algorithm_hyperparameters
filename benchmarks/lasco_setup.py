@@ -5,8 +5,10 @@ import hydra
 import lasco.examples.jamming as jamming
 import lasco.examples.lasso as lasso
 import lasco.examples.markowitz as markowitz
+import lasco.examples.maxcut as maxcut
 import lasco.examples.mnist as mnist
 import lasco.examples.mpc as mpc
+import lasco.examples.mri as mri
 import lasco.examples.osc_mass as osc_mass
 import lasco.examples.phase_retrieval as phase_retrieval
 import lasco.examples.quadcopter as quadcopter
@@ -100,6 +102,16 @@ def main_setup_sine(cfg):
     sine.setup_probs(cfg)
 
 
+@hydra.main(config_path='configs/mri', config_name='mri_setup.yaml')
+def main_setup_mri(cfg):
+    mri.setup_probs(cfg)
+
+
+@hydra.main(config_path='configs/maxcut', config_name='maxcut_setup.yaml')
+def main_setup_maxcut(cfg):
+    maxcut.setup_probs(cfg)
+
+
 if __name__ == '__main__':
     if sys.argv[2] == 'cluster':
         base = 'hydra.run.dir=/scratch/gpfs/rajivs/learn2warmstart/outputs/'
@@ -172,3 +184,11 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'sine/data_setup_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_setup_sine()
+    elif sys.argv[1] == 'mri':
+        sys.argv[1] = base + 'mri/data_setup_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_setup_mri()
+    elif sys.argv[1] == 'maxcut':
+        sys.argv[1] = base + 'maxcut/data_setup_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_setup_maxcut()

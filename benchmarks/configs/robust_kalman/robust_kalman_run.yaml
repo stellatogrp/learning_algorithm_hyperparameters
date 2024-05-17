@@ -26,7 +26,7 @@ data:
   datetime: ''
 
 
-eval_unrolls: 100
+eval_unrolls: 200
 eval_every_x_epochs: 10
 save_every_x_epochs: 1
 test_every_x_epochs: 10
@@ -39,7 +39,7 @@ num_samples: 10
 angle_anchors: [0]
 
 plot_iterates: [0, 9, 20]
-loss_method: 'fixed_k' #'fixed_k' #'constant_sum'
+loss_method: 'constant_sum' #'fixed_k' #'constant_sum'
 share_all: False
 num_clusters: 2000
 pretrain_alpha: False
@@ -60,7 +60,7 @@ save_weights_flag: False #True
 # nn_load_type: stochastic
 vis_num: 5
 supervised: True
-train_unrolls: 5
+train_unrolls: 10
 skip_startup: False
 
 sigma_nn: [0.0, 0.01, .1, 1, 10]
@@ -93,4 +93,4 @@ pac_bayes_cfg:
 #60: '2023-05-22/15-29-14'
 #120: '2023-05-22/16-37-55'
 #1: '2023-05-22/16-43-06'
-custom_loss: False
+custom_loss: True #False

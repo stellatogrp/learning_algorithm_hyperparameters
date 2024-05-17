@@ -148,9 +148,9 @@ def fp_eval_lasco_scs(i, val, q_r, z_star, all_factors, proj, P, A, c, b, hsde, 
 
     # diff = jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
     if custom_loss is None:
-        diff = jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
+        diff = jnp.linalg.norm(z_next - z) #jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
     else:
-        diff = rkf_loss(z_next / z_next[-1], z_star)
+        diff = rkf_loss(z_next, z_star) #rkf_loss(z_next / z_next[-1], z_star)
     loss_vec = loss_vec.at[i].set(diff)
 
     # primal and dual residuals

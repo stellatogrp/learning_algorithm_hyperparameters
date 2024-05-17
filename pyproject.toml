@@ -10,9 +10,7 @@ readme = "README.md"
 license = {text = "Apache 2.0"}
 dynamic = ["version"]
 authors = [
-{name = "Rajiv Samvbharya", email="rajivs@princeton.edu"},
-{name = "Brandon Amos", email="bda@meta.com"},
-{name = "Georgina Hall", email="georgina.hall@insead.edu"},
+{name = "Rajiv Sambharya", email="rajivs@princeton.edu"},
 {name = "Bartolomeo Stellato", email="bstellato@princeton.edu"}
 ]
 dependencies = [
@@ -27,7 +25,8 @@ dependencies = [
     "matplotlib",
     "hydra-core", 
     "emnist", 
-    "imageio"
+    "imageio",
+    "networkx"
 ]
 
 [tool.setuptools.packages.find]

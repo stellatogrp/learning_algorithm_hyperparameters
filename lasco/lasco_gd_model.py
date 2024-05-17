@@ -27,7 +27,7 @@ class LASCOGDmodel(L2WSmodel):
         self.output_size = self.n
 
         # evals, evecs = jnp.linalg.eigh(D.T @ D)
-        # lambd = 0.1 
+        # lambd = 0.1
         # self.ista_step = lambd / evals.max()
 
         self.k_steps_train_fn = partial(k_steps_train_lasco_gd, P=P,
@@ -36,14 +36,14 @@ class LASCOGDmodel(L2WSmodel):
                                        jit=self.jit)
         self.out_axes_length = 5
 
-
     def init_params(self):
         # w_key = random.PRNGKey(0)
         # self.mean_params = random.normal(w_key, (self.train_unrolls, 2))
         # self.mean_params = self.mean_params[:, 0]
-        # self.mean_params = 
+        # self.mean_params =
         p = jnp.diag(self.P)
-        self.mean_params = (p.max() + p.min()) / 2 * jnp.ones(self.train_unrolls)
+        self.mean_params = (p.max() + p.min()) / 2 * \
+            jnp.ones(self.train_unrolls)
         # self.mean_params = self.mean_params.at[2].set(0.1)
 
         self.sigma_params = -jnp.ones(self.train_unrolls) * 10
@@ -51,11 +51,11 @@ class LASCOGDmodel(L2WSmodel):
         # initialize the prior
         self.prior_param = jnp.log(self.init_var) * jnp.ones(2)
 
-        self.params = [self.mean_params, self.sigma_params] #, self.prior_param]
-
+        # , self.prior_param]
+        self.params = [self.mean_params, self.sigma_params]
 
     def create_end2end_loss_fn(self, bypass_nn, diff_required):
-        supervised = True #self.supervised and diff_required
+        supervised = True  # self.supervised and diff_required
         loss_method = self.loss_method
 
         def predict(params, input, q, iters, z_star, key, factor):
@@ -76,40 +76,41 @@ class LASCOGDmodel(L2WSmodel):
             if self.deterministic:
                 stochastic_params = params[0]
             else:
-                stochastic_params = params[0] + jnp.sqrt(jnp.exp(params[1])) * perturb
+                stochastic_params = params[0] + \
+                    jnp.sqrt(jnp.exp(params[1])) * perturb
             print('stochastic_params', stochastic_params)
             print('self.deterministic', self.deterministic)
             print('iters', iters)
-        
 
             if bypass_nn:
                 eval_out = eval_fn(k=iters,
-                                        z0=z0,
-                                        q=q,
-                                        params=stochastic_params,
-                                        supervised=supervised,
-                                        z_star=z_star)
+                                   z0=z0,
+                                   q=q,
+                                   params=stochastic_params,
+                                   supervised=supervised,
+                                   z_star=z_star)
                 z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
                 angles = None
             else:
                 if diff_required:
                     z_final, iter_losses = train_fn(k=iters,
-                                                        z0=z0,
-                                                        q=q,
-                                                        params=stochastic_params,
-                                                        supervised=supervised,
-                                                        z_star=z_star)
+                                                    z0=z0,
+                                                    q=q,
+                                                    params=stochastic_params,
+                                                    supervised=supervised,
+                                                    z_star=z_star)
                 else:
                     eval_out = eval_fn(k=iters,
-                                        z0=z0,
-                                        q=q,
-                                        params=stochastic_params,
-                                        supervised=supervised,
-                                        z_star=z_star)
+                                       z0=z0,
+                                       q=q,
+                                       params=stochastic_params,
+                                       supervised=supervised,
+                                       z_star=z_star)
                     z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
                     angles = None
 
-            loss = self.final_loss(loss_method, z_final, iter_losses, supervised, z0, z_star)
+            loss = self.final_loss(loss_method, z_final,
+                                   iter_losses, supervised, z0, z_star)
 
             # penalty_loss = calculate_pinsker_penalty(self.N_train, params, self.b, self.c, self.delta)
             # loss = loss + self.penalty_coeff * penalty_loss
@@ -117,11 +118,11 @@ class LASCOGDmodel(L2WSmodel):
             if diff_required:
                 return loss
             else:
-                return_out = (loss, iter_losses, z_all_plus_1, angles) + eval_out[3:]
+                return_out = (loss, iter_losses, z_all_plus_1,
+                              angles) + eval_out[3:]
                 return return_out
         loss_fn = self.predict_2_loss(predict, diff_required)
         return loss_fn
-    
 
     def calculate_total_penalty(self, N_train, params, c, b, delta):
         return 0
@@ -137,32 +138,29 @@ class LASCOGDmodel(L2WSmodel):
             log_pen += 2 * jnp.log(b * jnp.log((c+1e-6) / curr_lambd))
 
         # calculate the KL penalty
-        penalty_loss = self.compute_all_params_KL(params[0], params[1], 
-                                            rounded_priors) + pi_pen + log_pen
-        return penalty_loss /  N_train
-
+        penalty_loss = self.compute_all_params_KL(params[0], params[1],
+                                                  rounded_priors) + pi_pen + log_pen
+        return penalty_loss / N_train
 
     def compute_all_params_KL(self, mean_params, sigma_params, lambd):
         return 0
         # step size
-        total_pen = compute_single_param_KL(mean_params, jnp.exp(sigma_params), jnp.exp(lambd[0]))
+        total_pen = compute_single_param_KL(
+            mean_params, jnp.exp(sigma_params), jnp.exp(lambd[0]))
 
         # # threshold
         # total_pen += compute_single_param_KL(mean_params, jnp.exp(sigma_params), jnp.exp(lambd[1]))
         return total_pen
 
-
     def compute_weight_norm_squared(self, nn_params):
         return jnp.linalg.norm(nn_params) ** 2, nn_params.size
 
-    
     def calculate_avg_posterior_var(self, params):
-        return 0,0
+        return 0, 0
         sigma_params = params[1]
-        flattened_params = jnp.concatenate([jnp.ravel(weight_matrix) for weight_matrix, _ in sigma_params] + 
-                                        [jnp.ravel(bias_vector) for _, bias_vector in sigma_params])
+        flattened_params = jnp.concatenate([jnp.ravel(weight_matrix) for weight_matrix, _ in sigma_params] +
+                                           [jnp.ravel(bias_vector) for _, bias_vector in sigma_params])
         variances = jnp.exp(flattened_params)
         avg_posterior_var = variances.mean()
         stddev_posterior_var = variances.std()
         return avg_posterior_var, stddev_posterior_var
-    
