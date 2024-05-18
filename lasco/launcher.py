@@ -26,13 +26,17 @@ from lasco.launcher_helper import (
 )
 from lasco.launcher_plotter import (
     plot_eval_iters,
-    plot_eval_iters_df,
     plot_lasco_weights,
     plot_losses_over_examples,
     plot_train_test_losses,
     plot_warm_starts,
 )
-from lasco.launcher_writer import update_percentiles, write_accuracies_csv, write_train_results
+from lasco.launcher_writer import (
+    test_eval_write,
+    update_percentiles,
+    write_accuracies_csv,
+    write_train_results,
+)
 from lasco.osqp_model import OSQPmodel
 from lasco.scs_model import SCSmodel
 from lasco.utils.generic_utils import count_files_in_directory, setup_permutation
@@ -68,10 +72,7 @@ class Workspace:
 
         pac_bayes_accs = pac_bayes_cfg.get(
             'frac_solved_accs', [0.1, 0.01, 0.001, 0.0001])
-        self.pac_bayes_num_samples = pac_bayes_cfg.get(
-            'pac_bayes_num_samples', 20)
 
-        self.nmse = False
         if pac_bayes_accs == 'fp_full':
             start = -6  # Start of the log range (log10(10^-5))
             end = 2  # End of the log range (log10(1))
@@ -127,8 +128,7 @@ class Workspace:
         self.train_unrolls = cfg.train_unrolls
 
         # load the data from problem to problem
-        jnp_load_obj = self.load_setup_data(
-            example, cfg.data.datetime, N_train, N)
+        jnp_load_obj = self.load_setup_data(example, cfg.data.datetime, N_train, N)
         thetas = jnp.array(jnp_load_obj['thetas'])
         self.thetas_train = thetas[:N_train, :]
         self.thetas_test = thetas[N_train:N, :]
@@ -158,21 +158,6 @@ class Workspace:
         elif algo == 'lasco_scs':
             self.create_lasco_scs_model(cfg, static_dict)
 
-        # write the z_stars_max
-        z_star_max = 1.0 * jnp.max(jnp.linalg.norm(self.z_stars_train, axis=1))
-        theta_max = jnp.max(jnp.linalg.norm(self.thetas_train, axis=1))
-
-        # Specify the CSV file name
-        filename = 'z_star_max.csv'
-
-        # Open the file in write mode
-        if self.l2ws_model.algo in ['gd', 'ista', 'scs', 'osqp']:
-            with open(filename, 'w', newline='') as file:
-                writer = csv.writer(file)
-
-                # Write the scalar value to the file
-                writer.writerow([z_star_max])
-                writer.writerow([theta_max])
 
     def create_gd_model(self, cfg, static_dict):
         # get A, lambd, ista_step
@@ -252,17 +237,15 @@ class Workspace:
                                          algo_dict=input_dict)
 
     def create_lasco_scs_model(self, cfg, static_dict):
-        if self.static_flag:
-            static_M = static_dict['M']
-            cones = static_dict['cones_dict']
+        static_M = static_dict['M']
 
         # save cones
         self.cones = static_dict['cones_dict']
 
         self.M = static_M
-        proj = create_projection_fn(cones, self.n)
+        proj = create_projection_fn(self.cones, self.n)
 
-        psd_sizes = get_psd_sizes(cones)
+        psd_sizes = get_psd_sizes(self.cones)
 
         self.psd_size = psd_sizes[0]
 
@@ -273,7 +256,7 @@ class Workspace:
                      'n': self.n,
                      'static_M': static_M,
                      'static_flag': self.static_flag,
-                     'cones': cones,
+                     'cones': self.cones,
                      'lightweight': cfg.get('lightweight', False),
                      'custom_loss': self.custom_loss
                      }
@@ -295,88 +278,25 @@ class Workspace:
                                         algo_dict=algo_dict)
 
     def create_osqp_model(self, cfg, static_dict):
-        if self.static_flag:
-            factor = static_dict['factor']
-            A = static_dict['A']
-            P = static_dict['P']
-            m, n = A.shape
-            self.m, self.n = m, n
-            rho = static_dict['rho']
-            input_dict = dict(factor_static_bool=True,
-                              supervised=cfg.supervised,
-                              rho=rho,
-                              q_mat_train=self.q_mat_train,
-                              q_mat_test=self.q_mat_test,
-                              A=A,
-                              P=P,
-                              m=m,
-                              n=n,
-                              factor=factor,
-                              custom_loss=self.custom_loss,
-                              plateau_decay=cfg.plateau_decay)
-        else:
-            self.m, self.n = static_dict['m'], static_dict['n']
-            m, n = self.m, self.n
-            rho_vec = jnp.ones(m)
-            l0 = self.q_mat_train[0, n: n + m]
-            u0 = self.q_mat_train[0, n + m: n + 2 * m]
-            # rho_vec = rho_vec.at[l0 == u0].set(1000)
-            rho_vec = rho_vec.at[l0 == u0].set(1)
-
-            t0 = time.time()
-
-            # form matrices (N, m + n, m + n) to be factored
-            nc2 = int(n * (n + 1) / 2)
-            q_mat = jnp.vstack([self.q_mat_train, self.q_mat_test])
-            N_train, _ = self.q_mat_train.shape[0], self.q_mat_test[0]
-            N = q_mat.shape[0]
-            unvec_symm_batch = vmap(
-                unvec_symm, in_axes=(0, None), out_axes=(0))
-            P_tensor = unvec_symm_batch(
-                q_mat[:, 2 * m + n: 2 * m + n + nc2], n)
-            A_tensor = jnp.reshape(q_mat[:, 2 * m + n + nc2:], (N, m, n))
-            sigma = 1
-            batch_form_osqp_matrix = vmap(
-                form_osqp_matrix, in_axes=(0, 0, None, None), out_axes=(0))
-
-            # try batching
-            cutoff = 4000
-            matrices1 = batch_form_osqp_matrix(
-                P_tensor[:cutoff, :, :], A_tensor[:cutoff, :, :], rho_vec, sigma)
-            matrices2 = batch_form_osqp_matrix(
-                P_tensor[cutoff:, :, :], A_tensor[cutoff:, :, :], rho_vec, sigma)
-            # matrices =
-
-            # do factors
-            # factors0, factors1 = self.batch_factors(self.q_mat_train)
-            batch_lu_factor = vmap(jsp.linalg.lu_factor,
-                                   in_axes=(0,), out_axes=(0, 0))
-            factors10, factors11 = batch_lu_factor(matrices1)
-            factors20, factors21 = batch_lu_factor(matrices2)
-            factors0 = jnp.vstack([factors10, factors20])
-            factors1 = jnp.vstack([factors11, factors21])
-
-            t1 = time.time()
-            print('batch factor time', t1 - t0)
-
-            self.factors_train = (
-                factors0[:N_train, :, :], factors1[:N_train, :])
-            self.factors_test = (
-                factors0[N_train:N, :, :], factors1[N_train:N, :])
-
-            input_dict = dict(factor_static_bool=False,
-                              supervised=cfg.supervised,
-                              rho=rho_vec,
-                              q_mat_train=self.q_mat_train,
-                              q_mat_test=self.q_mat_test,
-                              m=self.m,
-                              n=self.n,
-                              train_inputs=self.train_inputs,
-                              test_inputs=self.test_inputs,
-                              factors_train=self.factors_train,
-                              factors_test=self.factors_test,
-                              custom_loss=self.custom_loss,
-                              jit=True)
+        factor = static_dict['factor']
+        A = static_dict['A']
+        P = static_dict['P']
+        m, n = A.shape
+        self.m, self.n = m, n
+        rho = static_dict['rho']
+        input_dict = dict(factor_static_bool=True,
+                            supervised=cfg.supervised,
+                            rho=rho,
+                            q_mat_train=self.q_mat_train,
+                            q_mat_test=self.q_mat_test,
+                            A=A,
+                            P=P,
+                            m=m,
+                            n=n,
+                            factor=factor,
+                            custom_loss=self.custom_loss,
+                            plateau_decay=cfg.plateau_decay)
+        
         self.x_stars_train = self.z_stars_train[:, :self.n]
         self.x_stars_test = self.z_stars_test[:, :self.n]
         self.l2ws_model = OSQPmodel(train_unrolls=self.train_unrolls,
@@ -511,48 +431,6 @@ class Workspace:
         # save prior
         # jnp.savez("nn_weights/prior/prior_val.npz", prior=nn_weights[2])
 
-    def save_weights_stochastic(self):
-        nn_weights = self.l2ws_model.params
-        # create directory
-        if not os.path.exists('nn_weights'):
-            os.mkdir('nn_weights')
-            os.mkdir('nn_weights/mean')
-            os.mkdir('nn_weights/variance')
-            os.mkdir('nn_weights/prior')
-
-        # Save mean weights
-        mean_params = nn_weights[0]
-        for i, params in enumerate(mean_params):
-            weight_matrix, bias_vector = params
-            jnp.savez(f"nn_weights/mean/layer_{i}_params.npz", weight=weight_matrix,
-                      bias=bias_vector)
-
-        # Save variance weights
-        variance_params = nn_weights[1]
-        for i, params in enumerate(variance_params):
-            weight_matrix, bias_vector = params
-            jnp.savez(f"nn_weights/variance/layer_{i}_params.npz", weight=weight_matrix,
-                      bias=bias_vector)
-
-        # save prior
-        jnp.savez("nn_weights/prior/prior_val.npz", prior=nn_weights[2])
-
-    def save_weights_deterministic(self):
-        nn_weights = self.l2ws_model.params
-        # create directory
-        if not os.path.exists('nn_weights'):
-            os.mkdir('nn_weights')
-
-        if self.l2ws_model.algo == 'tilista':
-            jnp.savez("nn_weights/params.npz",
-                      scalar_params=nn_weights[0],
-                      matrix=nn_weights[1])
-        else:
-            # Save each weight matrix and bias vector separately using jnp.savez
-            for i, params in enumerate(nn_weights):
-                weight_matrix, bias_vector = params
-                jnp.savez(f"nn_weights/layer_{i}_params.npz", weight=weight_matrix,
-                          bias=bias_vector)
 
     def load_weights(self, example, datetime, nn_type):
         if self.l2ws_model.algo[:5] == 'lasco':
@@ -585,73 +463,8 @@ class Workspace:
         loaded_variance = jnp.load(f"{folder}/variance/variance_params.npz")
         variance_params = loaded_variance['variance_params']
 
-        # load the prior
-        # loaded_prior = jnp.load(f"{folder}/prior/prior_val.npz")
-        # prior = loaded_prior['prior']
-
         self.l2ws_model.params = [mean_params, variance_params]  # , prior]
 
-    def load_weights_stochastic(self, example, datetime):
-        # get the appropriate folder
-        orig_cwd = hydra.utils.get_original_cwd()
-        folder = f"{orig_cwd}/outputs/{example}/train_outputs/{datetime}/nn_weights"
-
-        # find the number of layers based on the number of files
-        num_layers = count_files_in_directory(folder + "/mean")
-
-        # load the mean
-        mean_params = []
-        for i in range(num_layers):
-            layer_file = f"{folder}/mean/layer_{i}_params.npz"
-            loaded_layer = jnp.load(layer_file)
-            weight_matrix, bias_vector = loaded_layer['weight'], loaded_layer['bias']
-            weight_bias_tuple = (weight_matrix, bias_vector)
-            mean_params.append(weight_bias_tuple)
-
-        # load the variance
-        variance_params = []
-        for i in range(num_layers):
-            layer_file = f"{folder}/variance/layer_{i}_params.npz"
-            loaded_layer = jnp.load(layer_file)
-            weight_matrix, bias_vector = loaded_layer['weight'], loaded_layer['bias']
-            weight_bias_tuple = (weight_matrix, bias_vector)
-            variance_params.append(weight_bias_tuple)
-
-        # load the prior
-        loaded_prior = jnp.load(f"{folder}/prior/prior_val.npz")
-        prior = loaded_prior['prior']
-
-        self.l2ws_model.params = [mean_params, variance_params, prior]
-
-    def load_weights_deterministic(self, example, datetime):
-        # get the appropriate folder
-        orig_cwd = hydra.utils.get_original_cwd()
-        folder = f"{orig_cwd}/outputs/{example}/train_outputs/{datetime}/nn_weights"
-
-        # len(nn_weights) == 3 and not isinstance(nn_weights[2], tuple)
-        if os.path.isdir(folder + "/mean"):
-            folder = f"{orig_cwd}/outputs/{example}/train_outputs/{datetime}/nn_weights/mean"
-
-        # find the number of layers based on the number of files
-        num_layers = count_files_in_directory(folder)
-
-        # iterate over the files/layers
-        params = []
-        for i in range(num_layers):
-            layer_file = f"{folder}/layer_{i}_params.npz"
-            loaded_layer = jnp.load(layer_file)
-            weight_matrix, bias_vector = loaded_layer['weight'], loaded_layer['bias']
-            weight_bias_tuple = (weight_matrix, bias_vector)
-            params.append(weight_bias_tuple)
-
-        # store the weights as the l2ws_model params
-        self.l2ws_model.params[0] = params
-
-        # load the variances proportional to the means
-        for i, params in enumerate(params):
-            weight_matrix, bias_vector = params
-            self.l2ws_model.params[1][i] = (jnp.log(jnp.abs(weight_matrix / 100)),
-                                            jnp.log(jnp.abs(bias_vector / 100)))
 
     def normalize_theta(self, theta):
         normalized_input = (theta - self.normalize_col_sums) / \
@@ -663,22 +476,8 @@ class Workspace:
         folder = f"{orig_cwd}/outputs/{example}/data_setup_outputs/{datetime}"
         filename = f"{folder}/data_setup.npz"
 
-        if self.static_flag:
-            jnp_load_obj = jnp.load(filename)
-        else:
-            jnp_load_obj = jnp.load(filename)
-            q_mat = jnp.array(load_npz(f"{filename[:-4]}_q.npz").todense())
+        jnp_load_obj = jnp.load(filename)
 
-            # randomize for quadcopter
-            # self.q_mat_train = q_mat[:N_train, :]
-            # self.q_mat_test = q_mat[N_train:N, :]
-            train_indices = np.random.choice(
-                q_mat.shape[0], N_train, replace=False)
-            self.q_mat_train = q_mat[train_indices, :]
-
-            test_indices = np.random.choice(
-                q_mat.shape[0], N - N_train, replace=False)
-            self.q_mat_test = q_mat[test_indices, :]
 
         if 'q_mat' in jnp_load_obj.keys():
             q_mat = jnp.array(jnp_load_obj['q_mat'])
@@ -749,12 +548,7 @@ class Workspace:
         # plot losses over examples
         losses_over_examples = out_train[1].T
 
-        yscalelog = False if self.l2ws_model.algo in [
-            'glista', 'lista_cpss', 'lista', 'alista', 'tilista'] else True
-        if min(self.frac_solved_accs) < 0:
-            yscalelog = False
-        plot_losses_over_examples(
-            losses_over_examples, train, col, yscalelog=yscalelog)
+        plot_losses_over_examples(losses_over_examples, train, col)
 
         # update the eval csv files
         primal_residuals, dual_residuals, obj_vals_diff = None, None, None
@@ -807,8 +601,7 @@ class Workspace:
         else:
             z_plot = z_all
 
-        plot_warm_starts(self.l2ws_model, self.plot_iterates,
-                         z_plot, train, col)
+        plot_warm_starts(self.l2ws_model, self.plot_iterates, z_plot, train, col)
 
         if self.l2ws_model.algo[:5] == 'lasco':
             plot_lasco_weights(self.l2ws_model.params, col)
@@ -820,7 +613,6 @@ class Workspace:
 
         if self.save_weights_flag:
             self.save_weights()
-        gc.collect()
 
         return out_train
 
@@ -847,7 +639,9 @@ class Workspace:
                 self.example, self.load_weights_datetime, self.nn_load_type)
 
         # eval test data to start
-        self.test_eval_write()
+        self.test_writer, self.test_logf, self.l2ws_model = test_eval_write(self.test_writer, 
+                                                                            self.test_logf, 
+                                                                            self.l2ws_model)
 
         # do all of the training
         test_zero = True if self.skip_startup else False
@@ -893,7 +687,9 @@ class Workspace:
                                                               time_train_per_epoch)
 
             # evaluate the test set and write results
-            self.test_eval_write()
+            self.test_writer, self.test_logf, self.l2ws_model = test_eval_write(self.test_writer, 
+                                                                            self.test_logf, 
+                                                                            self.l2ws_model)
 
             # plot the train / test loss so far
             if epoch % self.save_every_x_epochs == 0:
@@ -1012,51 +808,10 @@ class Workspace:
 
         inputs = self.get_inputs_for_eval(fixed_ws, num, train, col)
 
-        # do the batching
-        num_batches = int(num / batch_size)
-        full_eval_out = []
-        if num_batches <= 1:
-            eval_out = self.l2ws_model.evaluate(
-                self.eval_unrolls, inputs, q_mat, z_stars, fixed_ws, factors=factors, tag=tag)
-            return eval_out
+        eval_out = self.l2ws_model.evaluate(
+            self.eval_unrolls, inputs, q_mat, z_stars, fixed_ws, factors=factors, tag=tag)
+        return eval_out
 
-        for i in range(num_batches):
-            print('evaluating batch num', i)
-            start = i * batch_size
-            end = (i + 1) * batch_size
-            curr_inputs = inputs[start: end]
-            curr_q_mat = q_mat[start: end]
-
-            if factors is not None:
-                curr_factors = (
-                    factors[0][start:end, :, :], factors[1][start:end, :])
-            else:
-                curr_factors = None
-            if z_stars is not None:
-                curr_z_stars = z_stars[start: end]
-            else:
-                curr_z_stars = None
-            eval_out = self.l2ws_model.evaluate(
-                self.eval_unrolls, curr_inputs, curr_q_mat, curr_z_stars, fixed_ws,
-                factors=curr_factors, tag=tag)
-
-            eval_out1_list = [eval_out[1][i] for i in range(len(eval_out[1]))]
-            eval_out1_list[2] = eval_out1_list[2][:, :25, :]
-            if isinstance(self.l2ws_model, SCSmodel):
-                eval_out1_list[6] = eval_out1_list[6][:, :25, :]
-            eval_out_cpu = (eval_out[0], tuple(eval_out1_list), eval_out[2])
-            full_eval_out.append(eval_out_cpu)
-            del eval_out
-            del eval_out_cpu
-            del eval_out1_list
-            gc.collect()
-        loss = np.array([curr_out[0] for curr_out in full_eval_out]).mean()
-        time_per_prob = np.array([curr_out[2]
-                                 for curr_out in full_eval_out]).mean()
-        out = stack_tuples([curr_out[1] for curr_out in full_eval_out])
-
-        flattened_eval_out = (loss, out, time_per_prob)
-        return flattened_eval_out
 
     def get_inputs_for_eval(self, fixed_ws, num, train, col):
         if fixed_ws:
@@ -1072,10 +827,6 @@ class Workspace:
                                                train, num, m=m, n=n)
                 # inputs = get_nearest_neighbors(train, num)
             elif col == 'prev_sol':
-                # z_size = self.z_stars_test.shape[1]
-                # inputs = jnp.zeros((num, z_size))
-                # inputs = inputs.at[1:, :].set(self.z_stars_test[:num - 1, :])
-
                 # now set the indices (0, num_traj, 2 * num_traj) to zero
                 non_last_indices = jnp.mod(jnp.arange(
                     num), self.traj_length) != self.traj_length - 1
@@ -1138,46 +889,6 @@ class Workspace:
         for i in range(len(self.percentiles)):
             self.percentiles_df_list_test.append(pd.DataFrame(columns=['iterations']))
 
-    def test_eval_write(self):
-        test_loss, time_per_iter = self.l2ws_model.short_test_eval()
-        last_epoch = np.array(
-            self.l2ws_model.tr_losses_batch[-self.l2ws_model.num_batches:])
-        moving_avg = last_epoch.mean()
-
-        # do penalty calculation
-        total_pen = self.l2ws_model.calculate_total_penalty(self.l2ws_model.N_train,
-                                                            self.l2ws_model.params,
-                                                            self.l2ws_model.c,
-                                                            self.l2ws_model.b,
-                                                            self.l2ws_model.delta
-                                                            )
-        pen = jnp.sqrt(total_pen / 2)
-
-        # calculate avg posterior var
-        avg_posterior_var, stddev_posterior_var = self.l2ws_model.calculate_avg_posterior_var(
-            self.l2ws_model.params)
-
-        mean_squared_w, dim = self.l2ws_model.compute_weight_norm_squared(
-            self.l2ws_model.params[0])
-
-        print('mean', self.l2ws_model.params[0])
-        print('var', self.l2ws_model.params[1])
-
-        if self.test_writer is not None:
-            self.test_writer.writerow({
-                'iter': self.l2ws_model.state.iter_num,
-                'train_loss': moving_avg,
-                'test_loss': test_loss,
-                'penalty': pen,
-                'avg_posterior_var': avg_posterior_var,
-                'stddev_posterior_var': stddev_posterior_var,
-                # 'prior': jnp.exp(self.l2ws_model.params[2]),
-                # 'prior': self.l2ws_model.c / (1 + jnp.exp(-self.l2ws_model.params[2])), #jnp.exp(self.l2ws_model.params[2]),
-                'mean_squared_w': mean_squared_w,
-                'time_per_iter': time_per_iter
-            })
-            self.test_logf.flush()
-
 
     def update_eval_csv(self, iter_losses_mean, train, col, primal_residuals=None,
                         dual_residuals=None, obj_vals_diff=None, dist_opts=None):
@@ -1216,8 +927,7 @@ class Workspace:
             self.iters_df_test.to_csv('iters_compared_test.csv')
             if primal_residuals is not None:
                 self.primal_residuals_df_test[col] = primal_residuals
-                self.primal_residuals_df_test.to_csv(
-                    'primal_residuals_test.csv')
+                self.primal_residuals_df_test.to_csv('primal_residuals_test.csv')
                 self.dual_residuals_df_test[col] = dual_residuals
                 self.dual_residuals_df_test.to_csv('dual_residuals_test.csv')
                 primal_residuals_df = self.primal_residuals_df_test

@@ -31,6 +31,26 @@ from lasco.scs_model import SCSmodel
 from lasco.utils.generic_utils import count_files_in_directory, sample_plot, setup_permutation
 
 
+def test_eval_write(test_writer, test_logf, l2ws_model):
+    test_loss, time_per_iter = l2ws_model.short_test_eval()
+    last_epoch = np.array(
+        l2ws_model.tr_losses_batch[-l2ws_model.num_batches:])
+    moving_avg = last_epoch.mean()
+
+    print('mean', l2ws_model.params[0])
+    print('var', l2ws_model.params[1])
+
+    if test_writer is not None:
+        test_writer.writerow({
+            'iter': l2ws_model.state.iter_num,
+            'train_loss': moving_avg,
+            'test_loss': test_loss,
+            'time_per_iter': time_per_iter
+        })
+        test_logf.flush()
+    return test_writer, test_logf, l2ws_model
+
+
 def update_percentiles(percentiles_df_list, percentiles, losses, train, col):
     path = 'percentiles'
     if not os.path.exists(path):
