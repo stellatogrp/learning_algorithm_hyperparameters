@@ -39,7 +39,7 @@ num_samples: 10
 prediction_variable: w
 angle_anchors: [0]
 plot_iterates: [0, 10, 20]
-loss_method: 'constant_sum' #'fixed_k' #'constant_sum'
+loss_method: 'fixed_k' #'fixed_k' #'constant_sum'
 # share_all: False
 num_clusters: 10
 pretrain_alpha: False
@@ -77,7 +77,7 @@ skip_startup: False
 eval_unrolls: 500
 solve_c_num: 0
 supervised: True
-train_unrolls: 50
+train_unrolls: 10
 
 sigma_nn: [0.0, 1e-6, 1e-5, 0.0001, 0.001, 0.01, .1, 1, 10]
 pac_bayes_num_samples: 5

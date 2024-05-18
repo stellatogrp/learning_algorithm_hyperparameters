@@ -70,15 +70,6 @@ class Workspace:
             start = -6  # Start of the log range (log10(10^-5))
             end = 2  # End of the log range (log10(1))
             pac_bayes_accs = list(np.round(np.logspace(start, end, num=81), 6))
-        elif pac_bayes_accs == 'nmse_full':
-            start = 0
-            end = -80
-            self.nmse = True
-            pac_bayes_accs = list(np.round(np.linspace(start, end, num=81), 6))
-        elif pac_bayes_accs == 'maml_full':
-            start = -3  # Start of the log range (log10(10^-5))
-            end = 1  # End of the log range (log10(1))
-            pac_bayes_accs = list(np.round(np.logspace(start, end, num=81), 6))
         self.frac_solved_accs = pac_bayes_accs
         self.rep = pac_bayes_cfg.get('rep', True)
 
@@ -483,9 +474,6 @@ class Workspace:
             self.z_stars_test = z_stars_test
             self.z_stars_train = z_stars_train
 
-            # if algo == 'osqp':
-            #     self.x_stars_train = z_stars_train[:, :self.n]
-            #     self.x_stars_test = z_stars_test[:, :self.n]
         else:
             if 'x_stars' in jnp_load_obj.keys():
                 x_stars = jnp_load_obj['x_stars']
@@ -592,112 +580,6 @@ class Workspace:
                 jnp.savez(f"nn_weights/layer_{i}_params.npz", weight=weight_matrix,
                           bias=bias_vector)
 
-    def finalize_genL2O(self, train, num_samples):
-        '''
-        part 1: first obtain H (num_samples) samples
-        '''
-        K = self.l2ws_model.eval_unrolls
-        N = self.l2ws_model.N_train if train else self.l2ws_model.N_test
-        # hist = np.zeros((num_samples, N, K-1))
-        # hist = np.zeros((num_samples, K-1))
-
-        # round the priors
-        priors = self.l2ws_model.params[2]
-        rounded_priors = self.l2ws_model.round_priors(
-            priors, self.l2ws_model.c, self.l2ws_model.b)
-        self.l2ws_model.params[2] = rounded_priors
-
-        sample_conv_penalty = jnp.log(2 / self.l2ws_model.delta2) / num_samples
-        mcallester_penalty = self.l2ws_model.calculate_total_penalty(self.l2ws_model.N_train,
-                                                                     self.l2ws_model.params,
-                                                                     self.l2ws_model.c,
-                                                                     self.l2ws_model.b,
-                                                                     self.l2ws_model.delta
-                                                                     )
-
-        sum_frac_solved = np.zeros((K - 1, len(self.frac_solved_accs)))
-        all_losses = []
-        for i in range(num_samples):
-            eval_out = self.evaluate_only(fixed_ws=False, num=N, train=train,
-                                          col='pac_bayes', batch_size=N)
-            loss_train, out_train, train_time = eval_out
-            losses_over_examples = out_train[1].T
-            if i < 20:
-                all_losses.append(losses_over_examples.T)
-            self.l2ws_model.key += 1
-
-            for j in range(len(self.frac_solved_accs)):
-                fs = (out_train[1] < self.frac_solved_accs[j])
-                frac_solved = fs.sum(axis=0)  # fs.mean(axis=0)
-                sum_frac_solved[:, j] += frac_solved
-        mean_frac_solved = sum_frac_solved / (N * num_samples)
-        # hist[i, :, :] = out_train[1]
-        # hist[i, :] = out_train[1].mean(axis=0)
-
-        col = "train_epoch_0"
-
-        # enter the percentiles
-        # losses_over_examples = out_train[1].T
-        # self.update_percentiles(losses_over_examples.T, train, col)
-        self.update_percentiles(np.vstack(all_losses), train, col)
-
-        '''
-        part 2: finalize by looping over steps and tolerances  
-        2.1: threshold 
-        2.2: sample convergence bound
-        2.3: McAllester bound
-        '''
-
-        # frac_solved_list = []
-        if train:
-            frac_solved_df_list = self.frac_solved_df_list_train
-        else:
-            frac_solved_df_list = self.frac_solved_df_list_test
-
-        for i in range(len(self.frac_solved_accs)):
-            # 2.1: compute frac solved
-            # fs = (out_train[1] < self.frac_solved_accs[i])
-            # frac_solved = fs.mean(axis=0)
-            # frac_solved_list.append(frac_solved)
-            frac_solved = mean_frac_solved[:, i]
-            final_pac_bayes_loss = jnp.zeros(frac_solved.size)
-            for j in range(frac_solved.size):
-                # 2.2: sample convergence bound
-                # R_bar = invert_kl(1 - frac_solved[j], sample_conv_penalty)
-                R_bar = invert_kl(
-                    1 - mean_frac_solved[j, i], sample_conv_penalty)
-
-                # 2.3: McAllester
-                if train:
-                    R_star = invert_kl(R_bar, mcallester_penalty)
-                else:
-                    # R_star = invert_kl(1 - frac_solved[j], mcallester_penalty)
-                    R_star = invert_kl(
-                        1 - mean_frac_solved[j, i], mcallester_penalty)
-
-                final_pac_bayes_loss = final_pac_bayes_loss.at[j].set(
-                    1 - R_star)
-                # print('risk', 1 - frac_solved[j], 'R_bar', R_bar, 'R_star', R_star)
-
-            final_pac_bayes_frac_solved = jnp.clip(
-                final_pac_bayes_loss, a_min=0)
-
-            # update the df
-            frac_solved_df_list[i][col] = frac_solved
-            frac_solved_df_list[i][col + '_pinsker'] = jnp.clip(
-                frac_solved - jnp.sqrt(mcallester_penalty / 2), a_min=0)
-            # jnp.clip(frac_solved - penalty, a_min=0)
-            frac_solved_df_list[i][col +
-                                   '_pac_bayes'] = final_pac_bayes_frac_solved
-            ylabel = f"frac solved tol={self.frac_solved_accs[i]}"
-            filename = f"frac_solved/tol={self.frac_solved_accs[i]}"
-            curr_df = frac_solved_df_list[i]
-
-            # plot and update csv
-            self.plot_eval_iters_df(curr_df, train, col, ylabel, filename, yscale='standard',
-                                    pac_bayes=True)
-            csv_filename = filename + '_train.csv' if train else filename + '_test.csv'
-            curr_df.to_csv(csv_filename)
 
     def load_weights(self, example, datetime, nn_type):
         if self.l2ws_model.algo[:5] == 'lasco':
@@ -846,23 +728,6 @@ class Workspace:
                 q_mat.shape[0], N - N_train, replace=False)
             self.q_mat_test = q_mat[test_indices, :]
 
-            # load factors
-            # factors0, factors1 = jnp_load_obj['factors0'], jnp_load_obj['factors1']
-            # factors = (factors0, factors1)
-            # jnp_load_obj['factors'] = factors
-
-            # compute factors
-            # all_factors_train is a tuple with shapes ((N, n + m, n + m), (N, n + m))
-            # factors0, factors1 = self.batch_factors(q_mat)
-
-            # if we are in the dynamic case, then we need to get q from the sparse format
-            # jnp_load_obj['q_mat'] = jnp.array(q_mat_sparse)
-
-            # self.factors_train = (jnp.array(factors0[:N_train, :, :]),
-            #                       jnp.array(factors1[:N_train, :]))
-            # self.factors_test = (jnp.array(factors0[N_train:N, :, :]),
-            #                      jnp.array(factors1[N_train:N, :]))
-
         if 'q_mat' in jnp_load_obj.keys():
             q_mat = jnp.array(jnp_load_obj['q_mat'])
             q_mat_train = q_mat[:N_train, :]
@@ -966,6 +831,10 @@ class Workspace:
             dual_residuals = out_train[5].mean(axis=0)
         elif len(out_train) == 5:
             obj_vals_diff = out_train[4].mean(axis=0)
+        elif len(out_train) == 9:
+            primal_residuals = out_train[4].mean(axis=0)
+            dual_residuals = out_train[5].mean(axis=0)
+            dist_opts = out_train[8].mean(axis=0)
 
         self.update_percentiles(losses_over_examples.T, train, col)
 
@@ -973,9 +842,10 @@ class Workspace:
             iter_losses_mean, train, col,
             primal_residuals=primal_residuals,
             dual_residuals=dual_residuals,
-            obj_vals_diff=obj_vals_diff
+            obj_vals_diff=obj_vals_diff,
+            dist_opts=dist_opts
         )
-        iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df = df_out
+        iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df = df_out
 
         if not self.skip_startup:
             # write accuracies dataframe to csv
@@ -983,7 +853,7 @@ class Workspace:
 
         # plot the evaluation iterations
         self.plot_eval_iters(iters_df, primal_residuals_df,
-                             dual_residuals_df, plot_pretrain, obj_vals_diff_df, train, col)
+                             dual_residuals_df, plot_pretrain, obj_vals_diff_df, dist_opts_df, train, col)
 
         skip_pac_bayes = True
         if not skip_pac_bayes:
@@ -1575,43 +1445,36 @@ class Workspace:
         return self.l2ws_model.z_stars_train[indices, :]
 
     def setup_dataframes(self):
-        self.iters_df_train = pd.DataFrame(
-            columns=['iterations', 'no_train'])
+        self.iters_df_train = pd.DataFrame(columns=['iterations', 'no_train'])
         self.iters_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
 
-        self.iters_df_test = pd.DataFrame(
-            columns=['iterations', 'no_train'])
+        self.iters_df_test = pd.DataFrame(columns=['iterations', 'no_train'])
         self.iters_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
 
         # primal and dual residuals
-        self.primal_residuals_df_train = pd.DataFrame(
-            columns=['iterations'])
+        self.primal_residuals_df_train = pd.DataFrame(columns=['iterations'])
         self.primal_residuals_df_train['iterations'] = np.arange(
             1, self.eval_unrolls+1)
-        self.dual_residuals_df_train = pd.DataFrame(
-            columns=['iterations'])
+        self.dual_residuals_df_train = pd.DataFrame(columns=['iterations'])
         self.dual_residuals_df_train['iterations'] = np.arange(
             1, self.eval_unrolls+1)
 
-        self.primal_residuals_df_test = pd.DataFrame(
-            columns=['iterations'])
-        self.primal_residuals_df_test['iterations'] = np.arange(
-            1, self.eval_unrolls+1)
-        self.dual_residuals_df_test = pd.DataFrame(
-            columns=['iterations'])
-        self.dual_residuals_df_test['iterations'] = np.arange(
-            1, self.eval_unrolls+1)
+        self.primal_residuals_df_test = pd.DataFrame(columns=['iterations'])
+        self.primal_residuals_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
+        self.dual_residuals_df_test = pd.DataFrame(columns=['iterations'])
+        self.dual_residuals_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
 
         # obj_vals_diff
-        self.obj_vals_diff_df_train = pd.DataFrame(
-            columns=['iterations'])
-        self.obj_vals_diff_df_train['iterations'] = np.arange(
-            1, self.eval_unrolls+1)
-        self.obj_vals_diff_df_test = pd.DataFrame(
-            columns=['iterations'])
-        self.obj_vals_diff_df_test['iterations'] = np.arange(
-            1, self.eval_unrolls+1)
+        self.obj_vals_diff_df_train = pd.DataFrame(columns=['iterations'])
+        self.obj_vals_diff_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
+        self.obj_vals_diff_df_test = pd.DataFrame(columns=['iterations'])
+        self.obj_vals_diff_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
 
+        # dist_opts
+        self.dist_opts_df_train = pd.DataFrame(columns=['iterations'])
+        self.dist_opts_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
+        self.dist_opts_df_test = pd.DataFrame(columns=['iterations'])
+        self.dist_opts_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
 
         self.frac_solved_df_list_train = []
         for i in range(len(self.frac_solved_accs)):
@@ -1732,7 +1595,7 @@ class Workspace:
                 self.percentiles_df_list_test[i].to_csv(filename)
 
     def update_eval_csv(self, iter_losses_mean, train, col, primal_residuals=None,
-                        dual_residuals=None, obj_vals_diff=None):
+                        dual_residuals=None, obj_vals_diff=None, dist_opts=None):
         # def update_eval_csv(self, iter_losses_mean, train, col):
         """
         update the eval csv files
@@ -1743,6 +1606,7 @@ class Workspace:
         """
         primal_residuals_df, dual_residuals_df = None, None
         obj_vals_diff_df = None
+        dist_opts_df = None
         if train:
             self.iters_df_train[col] = iter_losses_mean
             self.iters_df_train.to_csv('iters_compared_train.csv')
@@ -1758,6 +1622,10 @@ class Workspace:
                 self.obj_vals_diff_df_train[col] = obj_vals_diff
                 self.obj_vals_diff_df_train.to_csv('obj_vals_diff_train.csv')
                 obj_vals_diff_df = self.obj_vals_diff_df_train
+            if dist_opts is not None:
+                self.dist_opts_df_train[col] = dist_opts
+                self.dist_opts_df_train.to_csv('dist_opts_df_train.csv')
+                dist_opts_df = self.dist_opts_df_train
             iters_df = self.iters_df_train
 
         else:
@@ -1775,10 +1643,14 @@ class Workspace:
                 self.obj_vals_diff_df_test[col] = obj_vals_diff
                 self.obj_vals_diff_df_test.to_csv('obj_vals_diff_test.csv')
                 obj_vals_diff_df = self.obj_vals_diff_df_test
+            if dist_opts is not None:
+                self.dist_opts_df_test[col] = dist_opts
+                self.dist_opts_df_test.to_csv('dist_opts_df_test.csv')
+                dist_opts_df = self.dist_opts_df_test
 
             iters_df = self.iters_df_test
 
-        return iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df
+        return iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df
 
     def plot_eval_iters_df(self, df, train, col, ylabel, filename,
                            xlabel='evaluation iterations',
@@ -1820,7 +1692,7 @@ class Workspace:
         plt.clf()
 
     def plot_eval_iters(self, iters_df, primal_residuals_df, dual_residuals_df, plot_pretrain,
-                        obj_vals_diff_df,
+                        obj_vals_diff_df, dist_opts_df,
                         train, col):
         # self.plot_eval_iters_df(curr_df, train, col, ylabel, filename, yscale=yscale,
         #                         pac_bayes=True)
@@ -1838,6 +1710,10 @@ class Workspace:
         if obj_vals_diff_df is not None:
             self.plot_eval_iters_df(
                 obj_vals_diff_df, train, col, 'obj diff', 'obj_diffs')
+
+        if dist_opts_df is not None:
+            self.plot_eval_iters_df(
+                dist_opts_df, train, col, 'opt diff', 'dist_opts')
 
     def plot_losses_over_examples(self, losses_over_examples, train, col, yscalelog=True):
         """

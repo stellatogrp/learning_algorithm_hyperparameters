@@ -17,11 +17,12 @@ def k_steps_train_lasco_scs(k, z0, q, params, supervised, z_star, proj, jit, hsd
 
     scalar_params, all_factors, scaled_vecs = params[0], params[1], params[2]
     alphas = jnp.exp(scalar_params[:, 2])
+    betas = scalar_params[:, 3:]
     factors1, factors2 = all_factors
 
     fp_train_partial = partial(fp_train_lasco_scs, q_r=q, all_factors=all_factors,
                                supervised=supervised, z_star=z_star, proj=proj, hsde=hsde,
-                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas)
+                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, betas=betas)
     
     if hsde:
         # first step: iteration 0
@@ -45,7 +46,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, supervised, z_star, proj, jit, hsd
 
 
 def fp_train_lasco_scs(i, val, q_r, all_factors, supervised, z_star, proj, hsde, homogeneous, 
-                       scaled_vecs, alphas):
+                       scaled_vecs, alphas, betas):
     """
     q_r = r if hsde else q_r = q
     homogeneous tells us if we set tau = 1.0 or use the root_plus method
@@ -55,6 +56,9 @@ def fp_train_lasco_scs(i, val, q_r, all_factors, supervised, z_star, proj, hsde,
     factors1, factors2 = all_factors
     z_next, u, u_tilde, v = fixed_point_hsde(z, homogeneous, r, factors1[i, :, :], 
                                              factors2[i, :], proj, scaled_vecs[i, :], alphas[i])
+    
+    # add acceleration
+    # z_next = (1 - betas[i, 0]) * z_next + betas[i, 0] * z
 
     if supervised:
         diff = jnp.linalg.norm(z[:-1] - z_star) # / z[-1] - z_star)
@@ -75,12 +79,15 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
     all_z_plus_1 = all_z_plus_1.at[0, :].set(z0)
     all_v = jnp.zeros((k, z0.size))
     iter_losses = jnp.zeros(k)
+    dist_opts = jnp.zeros(k)
     primal_residuals, dual_residuals = jnp.zeros(k), jnp.zeros(k)
     m, n = A.shape
 
 
     scalar_params, all_factors, scaled_vecs = params[0], params[1], params[2]
     alphas = jnp.exp(scalar_params[:, 2])
+
+    betas = scalar_params[:, 3:]
     factors1, factors2 = all_factors
 
 
@@ -105,6 +112,7 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
         all_u = all_u.at[0, :].set(u)
         all_v = all_v.at[0, :].set(v)
         iter_losses = iter_losses.at[0].set(jnp.linalg.norm(z_next - z0))
+        dist_opts = dist_opts.at[0].set(jnp.linalg.norm((z0[:-1] - z_star)))
         z0 = z_next
     M = create_M(P, A)
     rhs = (M + jnp.diag(scaled_vecs[0, :])) @ q
@@ -112,41 +120,46 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
 
     fp_eval_partial = partial(fp_eval_lasco_scs, q_r=q, z_star=z_star, all_factors=all_factors,
                               proj=proj, P=P, A=A, c=c, b=b, hsde=hsde,
-                              homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas,
+                              homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, betas=betas,
                               custom_loss=custom_loss,
                               verbose=verbose)
-    val = z0, z0, iter_losses, all_z, all_u, all_v, primal_residuals, dual_residuals
+    val = z0, z0, iter_losses, all_z, all_u, all_v, primal_residuals, dual_residuals, dist_opts
     start_iter = 1 if hsde else 0
     if jit:
         out = lax.fori_loop(start_iter, k, fp_eval_partial, val)
     else:
         out = python_fori_loop(start_iter, k, fp_eval_partial, val)
-    z_final, z_penult, iter_losses, all_z, all_u, all_v, primal_residuals, dual_residuals = out
+    z_final, z_penult, iter_losses, all_z, all_u, all_v, primal_residuals, dual_residuals, dist_opts = out
     all_z_plus_1 = all_z_plus_1.at[1:, :].set(all_z)
 
     # return z_final, iter_losses, primal_residuals, dual_residuals, all_z_plus_1, all_u, all_v
     if lightweight:
         return z_final, iter_losses, all_z_plus_1[:10, :], primal_residuals, \
             dual_residuals, all_u[:10, :], all_v[:10, :]
-    return z_final, iter_losses, all_z_plus_1, primal_residuals, dual_residuals, all_u, all_v
+    return z_final, iter_losses, all_z_plus_1, primal_residuals, dual_residuals, all_u, all_v, dist_opts
 
 
 def fp_eval_lasco_scs(i, val, q_r, z_star, all_factors, proj, P, A, c, b, hsde, homogeneous, 
-                      scaled_vecs, alphas,
+                      scaled_vecs, alphas, betas,
             lightweight=False, custom_loss=None, verbose=False):
     """
     q_r = r if hsde else q_r = q
     homogeneous tells us if we set tau = 1.0 or use the root_plus method
     """
     m, n = A.shape
-    z, z_prev, loss_vec, all_z, all_u, all_v, primal_residuals, dual_residuals = val
+    z, z_prev, loss_vec, all_z, all_u, all_v, primal_residuals, dual_residuals, dist_opts = val
 
     r = q_r
     factors1, factors2 = all_factors
     z_next, u, u_tilde, v = fixed_point_hsde(
-        z, homogeneous, r, factors1[i, :, :], factors2[i, :], proj, scaled_vecs[i, :], alphas[i], verbose=verbose)
+        z, homogeneous, r, factors1[i, :, :], factors2[i, :], proj, scaled_vecs[i, :], alphas[i], 
+        verbose=verbose)
+    
+    # add acceleration
+    # z_next = (1 - betas[i, 0]) * z_next + betas[i, 0] * z
 
     # diff = jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
+    dist_opt = jnp.linalg.norm(z[:-1] - z_star)
     if custom_loss is None:
         diff = jnp.linalg.norm(z_next - z) #jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
     else:
@@ -160,10 +173,11 @@ def fp_eval_lasco_scs(i, val, q_r, z_star, all_factors, proj, P, A, c, b, hsde, 
         dr = jnp.linalg.norm(A.T @ y + P @ x + q_r[:n])
         primal_residuals = primal_residuals.at[i].set(pr)
         dual_residuals = dual_residuals.at[i].set(dr)
+        dist_opts = dist_opts.at[i].set(dist_opt)
     all_z = all_z.at[i, :].set(z_next)
     all_u = all_u.at[i, :].set(u)
     all_v = all_v.at[i, :].set(v)
-    return z_next, z_prev, loss_vec, all_z, all_u, all_v, primal_residuals, dual_residuals
+    return z_next, z_prev, loss_vec, all_z, all_u, all_v, primal_residuals, dual_residuals, dist_opts
 
 
 

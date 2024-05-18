@@ -55,7 +55,7 @@ class LASCOSCSmodel(L2WSmodel):
         lightweight = input_dict.get('lightweight', False)
 
         self.output_size = self.n + self.m
-        self.out_axes_length = 8
+        self.out_axes_length = 9
 
         # custom_loss
         custom_loss = input_dict.get('custom_loss')
@@ -76,9 +76,9 @@ class LASCOSCSmodel(L2WSmodel):
         
     def init_params(self):
         # p = jnp.diag(self.P)
-        self.mean_params = 0*jnp.ones((self.train_unrolls, 4))
+        self.mean_params = 0*jnp.ones((self.train_unrolls, 5))
 
-        self.sigma_params = -jnp.ones((self.train_unrolls, 4)) * 10
+        self.sigma_params = -jnp.ones((self.train_unrolls, 5)) * 10
 
         # initialize the prior
         self.prior_param = jnp.log(self.init_var) * jnp.ones(2)
