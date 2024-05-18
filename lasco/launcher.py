@@ -2,7 +2,6 @@ import csv
 import gc
 import os
 import time
-from functools import partial
 
 import hydra
 import jax.numpy as jnp
@@ -10,29 +9,33 @@ import jax.scipy as jsp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scs
 from jax import lax, vmap
-from scipy.sparse import csc_matrix, load_npz
-from scipy.spatial import distance_matrix
+from scipy.sparse import load_npz
 
-from lasco.algo_steps import (
-    create_projection_fn,
-    form_osqp_matrix,
-    get_psd_sizes,
-    unvec_symm,
-    vec_symm,
-)
+from lasco.algo_steps import create_projection_fn, form_osqp_matrix, get_psd_sizes, unvec_symm
 from lasco.gd_model import GDmodel
 from lasco.lasco_gd_model import LASCOGDmodel
 from lasco.lasco_osqp_model import LASCOOSQPmodel
 from lasco.lasco_scs_model import LASCOSCSmodel
+from lasco.launcher_helper import (
+    get_nearest_neighbors,
+    normalize_inputs_fn,
+    plot_samples,
+    plot_samples_scs,
+    stack_tuples,
+)
+from lasco.launcher_plotter import (
+    plot_eval_iters,
+    plot_eval_iters_df,
+    plot_lasco_weights,
+    plot_losses_over_examples,
+    plot_train_test_losses,
+    plot_warm_starts,
+)
+from lasco.launcher_writer import update_percentiles, write_accuracies_csv, write_train_results
 from lasco.osqp_model import OSQPmodel
 from lasco.scs_model import SCSmodel
-from lasco.utils.generic_utils import count_files_in_directory, sample_plot, setup_permutation
-
-from lasco.launcher_plotter import plot_lasco_weights, plot_losses_over_examples, plot_train_test_losses, plot_eval_iters_df, plot_eval_iters, plot_warm_starts
-from lasco.launcher_helper import get_nearest_neighbors, plot_samples, plot_samples_scs, stack_tuples
-
+from lasco.utils.generic_utils import count_files_in_directory, setup_permutation
 
 plt.rcParams.update({
     "text.usetex": True,
@@ -103,6 +106,7 @@ class Workspace:
         self.normalize_inputs = cfg.get('normalize_inputs', True)
         self.epochs_jit = cfg.epochs_jit
         self.accs = cfg.get('accuracies')
+        self.no_learning_accs = None
 
         # custom visualization
         self.init_custom_visualization(cfg, custom_visualize_fn)
@@ -129,9 +133,10 @@ class Workspace:
         self.thetas_train = thetas[:N_train, :]
         self.thetas_test = thetas[N_train:N, :]
 
-        train_inputs, test_inputs = self.normalize_inputs_fn(
-            thetas, N_train, N_test)
+        train_inputs, test_inputs, normalize_col_sums, normalize_std_dev = normalize_inputs_fn(
+            self.normalize_inputs, thetas, N_train, N_test)
         self.train_inputs, self.test_inputs = train_inputs, test_inputs
+        self.normalize_col_sums, self.normalize_std_dev = normalize_col_sums, normalize_std_dev
         self.skip_startup = cfg.get('skip_startup', False)
         self.setup_opt_sols(algo, jnp_load_obj, N_train, N)
 
@@ -153,15 +158,9 @@ class Workspace:
         elif algo == 'lasco_scs':
             self.create_lasco_scs_model(cfg, static_dict)
 
-        # write th z_stars_max
-        # Scalar value to be saved
-        # include the worst-case
+        # write the z_stars_max
         z_star_max = 1.0 * jnp.max(jnp.linalg.norm(self.z_stars_train, axis=1))
         theta_max = jnp.max(jnp.linalg.norm(self.thetas_train, axis=1))
-        # worst_case = jnp.zeros(frac_solved.size)
-        # steps = jnp.arange(frac_solved.size)
-        # indices = 1 / jnp.sqrt(steps + 2) * z_star_max / 100 < self.frac_solved_accs[i]
-        # worst_case = worst_case.at[indices].set(1.0)
 
         # Specify the CSV file name
         filename = 'z_star_max.csv'
@@ -174,7 +173,6 @@ class Workspace:
                 # Write the scalar value to the file
                 writer.writerow([z_star_max])
                 writer.writerow([theta_max])
-
 
     def create_gd_model(self, cfg, static_dict):
         # get A, lambd, ista_step
@@ -295,7 +293,6 @@ class Workspace:
                                         pac_bayes_cfg=cfg.pac_bayes_cfg,
                                         loss_method=cfg.loss_method,
                                         algo_dict=algo_dict)
-
 
     def create_osqp_model(self, cfg, static_dict):
         if self.static_flag:
@@ -448,7 +445,7 @@ class Workspace:
             z_stars_train = z_stars[:N_train, :]
             z_stars_test = z_stars[N_train:N, :]
             plot_samples(num_plot, self.thetas_train,
-                              self.train_inputs, z_stars_train)
+                         self.train_inputs, z_stars_train)
             self.z_stars_test = z_stars_test
             self.z_stars_train = z_stars_train
 
@@ -475,7 +472,7 @@ class Workspace:
                 z_stars_train, z_stars_test = None, None
                 self.m, self.n = int(jnp_load_obj['m']), int(jnp_load_obj['n'])
             plot_samples_scs(num_plot, self.thetas_train, self.train_inputs,
-                                  x_stars_train, y_stars_train, z_stars_train)
+                             x_stars_train, y_stars_train, z_stars_train)
             self.z_stars_train = z_stars_train
             self.z_stars_test = z_stars_test
 
@@ -513,7 +510,6 @@ class Workspace:
 
         # save prior
         # jnp.savez("nn_weights/prior/prior_val.npz", prior=nn_weights[2])
-
 
     def save_weights_stochastic(self):
         nn_weights = self.l2ws_model.params
@@ -558,7 +554,6 @@ class Workspace:
                 jnp.savez(f"nn_weights/layer_{i}_params.npz", weight=weight_matrix,
                           bias=bias_vector)
 
-
     def load_weights(self, example, datetime, nn_type):
         if self.l2ws_model.algo[:5] == 'lasco':
             self.load_weights_stochastic_lasco(example, datetime)
@@ -595,7 +590,6 @@ class Workspace:
         # prior = loaded_prior['prior']
 
         self.l2ws_model.params = [mean_params, variance_params]  # , prior]
-
 
     def load_weights_stochastic(self, example, datetime):
         # get the appropriate folder
@@ -659,26 +653,6 @@ class Workspace:
             self.l2ws_model.params[1][i] = (jnp.log(jnp.abs(weight_matrix / 100)),
                                             jnp.log(jnp.abs(bias_vector / 100)))
 
-    def normalize_inputs_fn(self, thetas, N_train, N_test):
-        # normalize the inputs if the option is on
-        N = N_train + N_test
-        if self.normalize_inputs:
-            col_sums = thetas.mean(axis=0)
-            std_devs = thetas.std(axis=0)
-            inputs_normalized = (thetas - col_sums) / \
-                std_devs  # thetas.std(axis=0)
-            inputs = jnp.array(inputs_normalized)
-
-            # save the col_sums and std deviations
-            self.normalize_col_sums = col_sums
-            self.normalize_std_dev = std_devs
-        else:
-            inputs = jnp.array(thetas)
-        train_inputs = inputs[:N_train, :]
-        test_inputs = inputs[N_train:N, :]
-
-        return train_inputs, test_inputs
-
     def normalize_theta(self, theta):
         normalized_input = (theta - self.normalize_col_sums) / \
             self.normalize_std_dev
@@ -718,7 +692,6 @@ class Workspace:
             self.closed_loop_rollout_dict['ref_traj_tensor'] = jnp_load_obj['ref_traj_tensor']
 
         return jnp_load_obj
-
 
     def init_custom_visualization(self, cfg, custom_visualize_fn):
         iterates_visualize = cfg.get('iterates_visualize', 0)
@@ -772,14 +745,8 @@ class Workspace:
         # extract information from the evaluation
         loss_train, out_train, train_time = eval_out
         iter_losses_mean = out_train[1].mean(axis=0)
-        # angles = out_train[3]
-        # iter_losses_mean = out_train[2].mean(axis=0)
-        # angles = out_train[3]
-        # primal_residuals = out_train[4].mean(axis=0)
-        # dual_residuals = out_train[5].mean(axis=0)
 
         # plot losses over examples
-        # losses_over_examples = out_train[2].T
         losses_over_examples = out_train[1].T
 
         yscalelog = False if self.l2ws_model.algo in [
@@ -801,7 +768,16 @@ class Workspace:
             dual_residuals = out_train[5].mean(axis=0)
             dist_opts = out_train[8].mean(axis=0)
 
-        self.update_percentiles(losses_over_examples.T, train, col)
+        if train:
+            self.percentiles_df_list_train = update_percentiles(self.percentiles_df_list_train,
+                                                                     self.percentiles, 
+                                                                     losses_over_examples.T, 
+                                                                     train, col)
+        else:
+            self.percentiles_df_list_test = update_percentiles(self.percentiles_df_list_test,
+                                                                     self.percentiles, 
+                                                                     losses_over_examples.T, 
+                                                                     train, col)
 
         df_out = self.update_eval_csv(
             iter_losses_mean, train, col,
@@ -812,123 +788,35 @@ class Workspace:
         )
         iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df = df_out
 
+
         if not self.skip_startup:
-            # write accuracies dataframe to csv
-            self.write_accuracies_csv(iter_losses_mean, train, col)
+            self.no_learning_accs = write_accuracies_csv(self.accs, iter_losses_mean, train, col, 
+                                                         self.no_learning_accs)
 
         # plot the evaluation iterations
         plot_eval_iters(iters_df, primal_residuals_df,
-                             dual_residuals_df, plot_pretrain, obj_vals_diff_df, dist_opts_df, train, col,
-                             self.eval_unrolls, self.train_unrolls)
-
-        skip_pac_bayes = True
-        if not skip_pac_bayes:
-
-            # take care of frac_solved
-            frac_solved_list = []
-            frac_solved_df_list = self.frac_solved_df_list_train if train else self.frac_solved_df_list_test
-
-            cache = {}
-            for i in range(len(self.frac_solved_accs)):
-                # compute frac solved
-                fs = (out_train[1] < self.frac_solved_accs[i])
-                frac_solved = fs.mean(axis=0)
-                frac_solved_list.append(frac_solved)
-
-                if col in ['no_train', 'nearest_neighbor']:
-                    penalty = jnp.log(2 / self.l2ws_model.delta) / \
-                        self.l2ws_model.N_train
-                else:
-                    penalty = self.l2ws_model.calculate_total_penalty(self.l2ws_model.N_train,
-                                                                      self.l2ws_model.params,
-                                                                      self.l2ws_model.c,
-                                                                      self.l2ws_model.b,
-                                                                      self.l2ws_model.delta
-                                                                      )
-                final_pac_bayes_loss = jnp.zeros(frac_solved.size)
-                for j in range(frac_solved.size):
-                    if self.rep:
-                        if float(frac_solved[j]) in cache.keys():
-                            kl_inv = cache[float(frac_solved[j])]
-                        else:
-                            kl_inv = invert_kl(1 - frac_solved[j], penalty)
-                            cache[float(frac_solved[j])] = kl_inv
-                        final_pac_bayes_loss = final_pac_bayes_loss.at[j].set(
-                            1 - kl_inv)
-                    else:
-                        kl_inv = jnp.clip(
-                            frac_solved[j] - jnp.sqrt(penalty / 2), a_min=0)
-                        final_pac_bayes_loss = final_pac_bayes_loss.at[j].set(
-                            kl_inv)
-                final_pac_bayes_frac_solved = jnp.clip(
-                    final_pac_bayes_loss, a_min=0)
-
-                # update the df
-                frac_solved_df_list[i][col] = frac_solved
-                frac_solved_df_list[i][col + '_pinsker'] = jnp.clip(
-                    frac_solved - jnp.sqrt(penalty / 2), a_min=0)
-                # jnp.clip(frac_solved - penalty, a_min=0)
-                frac_solved_df_list[i][col +
-                                       '_pac_bayes'] = final_pac_bayes_frac_solved
-                ylabel = f"frac solved tol={self.frac_solved_accs[i]}"
-                filename = f"frac_solved/tol={self.frac_solved_accs[i]}"
-                curr_df = frac_solved_df_list[i]
-
-                # plot and update csv
-                plot_eval_iters_df(curr_df, train, col, ylabel, filename, self.eval_unrolls, self.train_unrolls,
-                                        yscale='standard',
-                                        pac_bayes=True)
-                csv_filename = filename + '_train.csv' if train else filename + '_test.csv'
-                curr_df.to_csv(csv_filename)
+                        dual_residuals_df, plot_pretrain, obj_vals_diff_df, dist_opts_df, train, col,
+                        self.eval_unrolls, self.train_unrolls)
 
         # plot the warm-start predictions
         z_all = out_train[2]
 
         if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel):
             out_train[6]
-
             z_plot = z_all[:, :, :-1] / z_all[:, :, -1:]
         else:
             z_plot = z_all
 
-        plot_warm_starts(self.l2ws_model, self.plot_iterates, z_plot, train, col)
+        plot_warm_starts(self.l2ws_model, self.plot_iterates,
+                         z_plot, train, col)
 
-        if self.l2ws_model.algo == 'alista':
-            self.plot_alista_weights(self.l2ws_model.params, col)
-        elif self.l2ws_model.algo[:5] == 'lasco':
+        if self.l2ws_model.algo[:5] == 'lasco':
             plot_lasco_weights(self.l2ws_model.params, col)
 
         # custom visualize
         if self.has_custom_visualization:
-            # self.custom_visualize(z_all, train, col)
             if self.vis_num > 0:
                 self.custom_visualize(z_plot, train, col)
-
-        # closed loop control rollouts
-        if not train:
-            if self.closed_loop_rollout_dict is not None:
-                self.run_closed_loop_rollouts(col)
-
-        # Specify the CSV file name
-        filename = 'z_star_max2.csv'
-
-        if self.l2ws_model.algo == 'gd':
-            # Open the file in write mode
-            with open(filename, 'w', newline='') as file:
-                writer = csv.writer(file)
-
-                # Write the scalar value to the file
-                # writer.writerow([z_star_max])
-                # writer.writerow([theta_max])
-                for i in range(len(self.l2ws_model.params[0])):
-                    U, S, VT = jnp.linalg.svd(self.l2ws_model.params[0][i][0])
-
-                    max_size = jnp.max(
-                        jnp.array(self.l2ws_model.params[0][i][0].shape))
-
-                    sigma = jnp.exp(jnp.max(self.l2ws_model.params[1][i][0]))
-                    ti = S.max() + max_size * sigma * jnp.log(100 * 2 * max_size)
-                    writer.writerow([ti])
 
         if self.save_weights_flag:
             self.save_weights()
@@ -936,79 +824,12 @@ class Workspace:
 
         return out_train
 
-
-    def custom_visualize(self, z_all, train, col):
-        """
-        x_primals has shape [N, eval_iters]
-        """
-        visualize_path = 'visualize_train' if train else 'visualize_test'
-
-        if not os.path.exists(visualize_path):
-            os.mkdir(visualize_path)
-        if not os.path.exists(f"{visualize_path}/{col}"):
-            os.mkdir(f"{visualize_path}/{col}")
-
-        visual_path = f"{visualize_path}/{col}"
-
-        # call custom visualize fn
-        if train:
-            z_stars = self.z_stars_train
-            thetas = self.thetas_train
-            if 'z_nn_train' in dir(self):
-                z_nn = self.z_nn_train
-        else:
-            z_stars = self.z_stars_test
-            thetas = self.thetas_test
-            if 'z_nn_test' in dir(self):
-                z_nn = self.z_nn_test
-            if 'z_prev_sol_test' in dir(self):
-                z_prev_sol = self.z_prev_sol_test
-            else:
-                z_prev_sol = None
-
-        if col == 'no_train':
-            if train:
-                self.z_no_learn_train = z_all  # [:self.vis_num, :, :]
-            else:
-                self.z_no_learn_test = z_all  # x_primals[:self.vis_num, :, :]
-        elif col == 'nearest_neighbor':
-            if train:
-                self.z_nn_train = z_all  # x_primals[:self.vis_num, :, :]
-            else:
-                self.z_nn_test = z_all  # x_primals[:self.vis_num, :, :]
-        elif col == 'prev_sol':
-            if train:
-                self.z_prev_sol_train = z_all  # x_primals[:self.vis_num, :, :]
-            else:
-                self.z_prev_sol_test = z_all  # x_primals[:self.vis_num, :, :]
-        if train:
-            z_no_learn = self.z_no_learn_train
-        else:
-            z_no_learn = self.z_no_learn_test
-
-        if train:
-            if col != 'nearest_neighbor' and col != 'no_train' and col != 'prev_sol':
-                self.custom_visualize_fn(z_all, z_stars, z_no_learn, z_nn,
-                                         thetas, self.iterates_visualize, visual_path)
-        else:
-            if col != 'nearest_neighbor' and col != 'no_train' and col != 'prev_sol':
-                if z_prev_sol is None:
-                    self.custom_visualize_fn(z_all, z_stars, z_no_learn, z_nn,
-                                             thetas, self.iterates_visualize, visual_path,
-                                             num=self.vis_num)
-                else:
-                    self.custom_visualize_fn(z_all, z_stars, z_prev_sol, z_nn,
-                                             thetas, self.iterates_visualize, visual_path,
-                                             num=self.vis_num)
-
-
     def run(self):
         # setup logging and dataframes
         self._init_logging()
         self.setup_dataframes()
 
         if not self.skip_startup:
-
             # no learning evaluation
             self.eval_iters_train_and_test('no_train', False)
 
@@ -1041,13 +862,6 @@ class Workspace:
         num_epochs_jit = int(self.l2ws_model.epochs / self.epochs_jit)
         loop_size = int(self.l2ws_model.num_batches * self.epochs_jit)
 
-        # key_count updated to get random permutation for each epoch
-        if not self.skip_pac_bayes_full:
-            self.finalize_genL2O(
-                train=True, num_samples=self.pac_bayes_num_samples)
-            self.finalize_genL2O(train=False, num_samples=500)
-            return
-
         for epoch_batch in range(num_epochs_jit):
             epoch = int(epoch_batch * self.epochs_jit)
             if (test_zero and epoch == 0) or (epoch % self.eval_every_x_epochs == 0 and epoch > 0):
@@ -1067,24 +881,24 @@ class Workspace:
             self.l2ws_model.epoch += self.epochs_jit
             self.l2ws_model.params, self.l2ws_model.state = params, state
 
-            gc.collect()
-
             prev_batches = len(self.l2ws_model.tr_losses_batch)
             self.l2ws_model.tr_losses_batch = self.l2ws_model.tr_losses_batch + \
                 list(epoch_train_losses)
 
             # write train results
-            self.write_train_results(loop_size, prev_batches,
-                                     epoch_train_losses, time_train_per_epoch)
+            self.writer, self.logf = write_train_results(self.writer, self.logf, 
+                                                              self.l2ws_model.tr_losses_batch, 
+                                                              loop_size, prev_batches,
+                                                              epoch_train_losses, 
+                                                              time_train_per_epoch)
 
             # evaluate the test set and write results
             self.test_eval_write()
 
             # plot the train / test loss so far
             if epoch % self.save_every_x_epochs == 0:
-                # self.plot_train_test_losses()
                 plot_train_test_losses(self.l2ws_model.tr_losses_batch,
-                                       self.l2ws_model.te_losses, 
+                                       self.l2ws_model.te_losses,
                                        self.l2ws_model.num_batches, self.epochs_jit)
 
     def train_jitted_epochs(self, permutation, epoch):
@@ -1107,7 +921,6 @@ class Workspace:
 
             epoch_train_losses = epoch_train_losses.at[0].set(train_loss_first)
             start_index = 1
-            # self.train_over_epochs_body_simple_fn_jitted = jit(self.train_over_epochs_body_simple_fn)  # noqa
             self.train_over_epochs_body_simple_fn_jitted = self.train_over_epochs_body_simple_fn
         else:
             start_index = 0
@@ -1135,7 +948,6 @@ class Workspace:
         start_index = batch * self.l2ws_model.batch_size
         batch_indices = lax.dynamic_slice(
             permutation, (start_index,), (self.l2ws_model.batch_size,))
-        # batch_indices = permutation[start_index: start_index + self.l2ws_model.batch_size]
         train_loss, params, state = self.l2ws_model.train_batch(
             batch_indices, params, state)
         train_losses = train_losses.at[batch].set(train_loss)
@@ -1157,43 +969,6 @@ class Workspace:
         val = train_losses, params, state
         return val
 
-    def write_accuracies_csv(self, losses, train, col):
-        df_acc = pd.DataFrame()
-        df_acc['accuracies'] = np.array(self.accs)
-
-        if train:
-            accs_path = 'accuracies_train'
-        else:
-            accs_path = 'accuracies_test'
-        if not os.path.exists(accs_path):
-            os.mkdir(accs_path)
-        if not os.path.exists(f"{accs_path}/{col}"):
-            os.mkdir(f"{accs_path}/{col}")
-
-        # accuracies
-        iter_vals = np.zeros(len(self.accs))
-        for i in range(len(self.accs)):
-            if losses.min() < self.accs[i]:
-                iter_vals[i] = int(np.argmax(losses < self.accs[i]))
-            else:
-                iter_vals[i] = losses.size
-        int_iter_vals = iter_vals.astype(int)
-        df_acc[col] = int_iter_vals
-        df_acc.to_csv(f"{accs_path}/{col}/accuracies.csv")
-
-        # save no learning accuracies
-        if not hasattr(self, 'no_learning_accs'):  # col == 'no_train':
-            self.no_learning_accs = int_iter_vals
-
-        # percent reduction
-        df_percent = pd.DataFrame()
-        df_percent['accuracies'] = np.array(self.accs)
-
-        for col in df_acc.columns:
-            if col != 'accuracies':
-                val = 1 - df_acc[col] / self.no_learning_accs
-                df_percent[col] = np.round(val, decimals=2)
-        df_percent.to_csv(f"{accs_path}/{col}/reduction.csv")
 
     def eval_iters_train_and_test(self, col, pretrain_on):
         self.evaluate_iters(
@@ -1201,20 +976,6 @@ class Workspace:
         self.evaluate_iters(
             self.num_samples_train, col, train=True, plot_pretrain=pretrain_on)
 
-    def write_train_results(self, loop_size, prev_batches, epoch_train_losses,
-                            time_train_per_epoch):
-        for batch in range(loop_size):
-            start_window = prev_batches - 10 + batch
-            end_window = prev_batches + batch
-            last10 = np.array(
-                self.l2ws_model.tr_losses_batch[start_window:end_window])
-            moving_avg = last10.mean()
-            self.writer.writerow({
-                'train_loss': epoch_train_losses[batch],
-                'moving_avg_train': moving_avg,
-                'time_train_per_epoch': time_train_per_epoch
-            })
-            self.logf.flush()
 
     def evaluate_only(self, fixed_ws, num, train, col, batch_size):
         tag = 'train' if train else 'test'
@@ -1250,7 +1011,6 @@ class Workspace:
                                                 :] if train else self.l2ws_model.q_mat_test[:num, :]
 
         inputs = self.get_inputs_for_eval(fixed_ws, num, train, col)
-        # if inputs.shape[0]
 
         # do the batching
         num_batches = int(num / batch_size)
@@ -1298,7 +1058,6 @@ class Workspace:
         flattened_eval_out = (loss, out, time_per_prob)
         return flattened_eval_out
 
-
     def get_inputs_for_eval(self, fixed_ws, num, train, col):
         if fixed_ws:
             if col == 'nearest_neighbor':
@@ -1307,8 +1066,9 @@ class Workspace:
                     m, n = self.l2ws_model.m, self.l2ws_model.n
                 else:
                     m, n = 0, 0
-                inputs = get_nearest_neighbors(is_osqp, self.l2ws_model.train_inputs, 
-                                               self.l2ws_model.test_inputs, self.l2ws_model.z_stars_train, 
+                inputs = get_nearest_neighbors(is_osqp, self.l2ws_model.train_inputs,
+                                               self.l2ws_model.test_inputs, 
+                                               self.l2ws_model.z_stars_train,
                                                train, num, m=m, n=n)
                 # inputs = get_nearest_neighbors(train, num)
             elif col == 'prev_sol':
@@ -1330,7 +1090,6 @@ class Workspace:
                 inputs = self.l2ws_model.test_inputs[:num, :]
         return inputs
 
-
     def setup_dataframes(self):
         self.iters_df_train = pd.DataFrame(columns=['iterations', 'no_train'])
         self.iters_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
@@ -1340,11 +1099,9 @@ class Workspace:
 
         # primal and dual residuals
         self.primal_residuals_df_train = pd.DataFrame(columns=['iterations'])
-        self.primal_residuals_df_train['iterations'] = np.arange(
-            1, self.eval_unrolls+1)
+        self.primal_residuals_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
         self.dual_residuals_df_train = pd.DataFrame(columns=['iterations'])
-        self.dual_residuals_df_train['iterations'] = np.arange(
-            1, self.eval_unrolls+1)
+        self.dual_residuals_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
 
         self.primal_residuals_df_test = pd.DataFrame(columns=['iterations'])
         self.primal_residuals_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
@@ -1365,26 +1122,21 @@ class Workspace:
 
         self.frac_solved_df_list_train = []
         for i in range(len(self.frac_solved_accs)):
-            self.frac_solved_df_list_train.append(
-                pd.DataFrame(columns=['iterations']))
+            self.frac_solved_df_list_train.append(pd.DataFrame(columns=['iterations']))
         self.frac_solved_df_list_test = []
         for i in range(len(self.frac_solved_accs)):
-            self.frac_solved_df_list_test.append(
-                pd.DataFrame(columns=['iterations']))
+            self.frac_solved_df_list_test.append(pd.DataFrame(columns=['iterations']))
         if not os.path.exists('frac_solved'):
             os.mkdir('frac_solved')
 
         self.percentiles = [10, 20, 30, 40, 50, 60, 70, 80,
-                            90, 95, 96, 97, 98, 99]  # [30, 50, 80, 90, 95, 99]
+                            90, 95, 96, 97, 98, 99]
         self.percentiles_df_list_train = []
         self.percentiles_df_list_test = []
         for i in range(len(self.percentiles)):
-            self.percentiles_df_list_train.append(
-                pd.DataFrame(columns=['iterations']))
+            self.percentiles_df_list_train.append(pd.DataFrame(columns=['iterations']))
         for i in range(len(self.percentiles)):
-            self.percentiles_df_list_test.append(
-                pd.DataFrame(columns=['iterations']))
-
+            self.percentiles_df_list_test.append(pd.DataFrame(columns=['iterations']))
 
     def test_eval_write(self):
         test_loss, time_per_iter = self.l2ws_model.short_test_eval()
@@ -1427,28 +1179,8 @@ class Workspace:
             self.test_logf.flush()
 
 
-    def update_percentiles(self, losses, train, col):
-        # update the percentiles
-        path = 'percentiles'
-        if not os.path.exists(path):
-            os.mkdir(path)
-        for i in range(len(self.percentiles)):
-            if train:
-                filename = f"{path}/train_{self.percentiles[i]}.csv"
-                curr_percentile = np.percentile(
-                    losses, self.percentiles[i], axis=0)
-                self.percentiles_df_list_train[i][col] = curr_percentile
-                self.percentiles_df_list_train[i].to_csv(filename)
-            else:
-                filename = f"{path}/test_{self.percentiles[i]}.csv"
-                curr_percentile = np.percentile(
-                    losses, self.percentiles[i], axis=0)
-                self.percentiles_df_list_test[i][col] = curr_percentile
-                self.percentiles_df_list_test[i].to_csv(filename)
-
     def update_eval_csv(self, iter_losses_mean, train, col, primal_residuals=None,
                         dual_residuals=None, obj_vals_diff=None, dist_opts=None):
-        # def update_eval_csv(self, iter_losses_mean, train, col):
         """
         update the eval csv files
             fixed point residuals
@@ -1464,8 +1196,7 @@ class Workspace:
             self.iters_df_train.to_csv('iters_compared_train.csv')
             if primal_residuals is not None:
                 self.primal_residuals_df_train[col] = primal_residuals
-                self.primal_residuals_df_train.to_csv(
-                    'primal_residuals_train.csv')
+                self.primal_residuals_df_train.to_csv('primal_residuals_train.csv')
                 self.dual_residuals_df_train[col] = dual_residuals
                 self.dual_residuals_df_train.to_csv('dual_residuals_train.csv')
                 primal_residuals_df = self.primal_residuals_df_train

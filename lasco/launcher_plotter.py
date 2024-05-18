@@ -202,3 +202,68 @@ def plot_warm_starts(l2ws_model, plot_iterates, z_all, train, col):
         plt.title('diffs to optimal')
         plt.savefig(f"{ws_path}/{col}/prob_{i}_diffs_z.pdf")
         plt.clf()
+
+
+def custom_visualize(custom_visualize_fn, iterates_visualize, vis_num, z_all, train, col):
+    """
+    x_primals has shape [N, eval_iters]
+    """
+    visualize_path = 'visualize_train' if train else 'visualize_test'
+
+    if not os.path.exists(visualize_path):
+        os.mkdir(visualize_path)
+    if not os.path.exists(f"{visualize_path}/{col}"):
+        os.mkdir(f"{visualize_path}/{col}")
+
+    visual_path = f"{visualize_path}/{col}"
+
+    # call custom visualize fn
+    if train:
+        z_stars = self.z_stars_train
+        thetas = self.thetas_train
+        if 'z_nn_train' in dir(self):
+            z_nn = self.z_nn_train
+    else:
+        z_stars = self.z_stars_test
+        thetas = self.thetas_test
+        if 'z_nn_test' in dir(self):
+            z_nn = self.z_nn_test
+        if 'z_prev_sol_test' in dir(self):
+            z_prev_sol = self.z_prev_sol_test
+        else:
+            z_prev_sol = None
+
+    if col == 'no_train':
+        if train:
+            self.z_no_learn_train = z_all
+        else:
+            self.z_no_learn_test = z_all
+    elif col == 'nearest_neighbor':
+        if train:
+            self.z_nn_train = z_all
+        else:
+            self.z_nn_test = z_all
+    elif col == 'prev_sol':
+        if train:
+            self.z_prev_sol_train = z_all
+        else:
+            self.z_prev_sol_test = z_all
+    if train:
+        z_no_learn = self.z_no_learn_train
+    else:
+        z_no_learn = self.z_no_learn_test
+
+    if train:
+        if col != 'nearest_neighbor' and col != 'no_train' and col != 'prev_sol':
+            custom_visualize_fn(z_all, z_stars, z_no_learn, z_nn,
+                                        thetas, iterates_visualize, visual_path)
+    else:
+        if col != 'nearest_neighbor' and col != 'no_train' and col != 'prev_sol':
+            if z_prev_sol is None:
+                custom_visualize_fn(z_all, z_stars, z_no_learn, z_nn,
+                                            thetas, iterates_visualize, visual_path,
+                                            num=vis_num)
+            else:
+                custom_visualize_fn(z_all, z_stars, z_prev_sol, z_nn,
+                                            thetas, iterates_visualize, visual_path,
+                                            num=vis_num)

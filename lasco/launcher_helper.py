@@ -87,3 +87,23 @@ def stack_tuples(tuples_list):
         elif tuples_list[j][i].ndim == 3:
             result.append(jnp.vstack(stacked_entry))
     return result
+
+def normalize_inputs_fn(normalize_inputs, thetas, N_train, N_test):
+    # normalize the inputs if the option is on
+    N = N_train + N_test
+    if normalize_inputs:
+        col_sums = thetas.mean(axis=0)
+        std_devs = thetas.std(axis=0)
+        inputs_normalized = (thetas - col_sums) / std_devs
+        inputs = jnp.array(inputs_normalized)
+
+        # save the col_sums and std deviations
+        normalize_col_sums = col_sums
+        normalize_std_dev = std_devs
+    else:
+        inputs = jnp.array(thetas)
+        normalize_col_sums, normalize_std_dev = 0, 0
+    train_inputs = inputs[:N_train, :]
+    test_inputs = inputs[N_train:N, :]
+
+    return train_inputs, test_inputs, normalize_col_sums, normalize_std_dev
