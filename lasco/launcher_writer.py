@@ -10,25 +10,7 @@ import jax.scipy as jsp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scs
-from jax import lax, vmap
-from scipy.sparse import csc_matrix, load_npz
-from scipy.spatial import distance_matrix
 
-from lasco.algo_steps import (
-    create_projection_fn,
-    form_osqp_matrix,
-    get_psd_sizes,
-    unvec_symm,
-    vec_symm,
-)
-from lasco.gd_model import GDmodel
-from lasco.lasco_gd_model import LASCOGDmodel
-from lasco.lasco_osqp_model import LASCOOSQPmodel
-from lasco.lasco_scs_model import LASCOSCSmodel
-from lasco.osqp_model import OSQPmodel
-from lasco.scs_model import SCSmodel
-from lasco.utils.generic_utils import count_files_in_directory, sample_plot, setup_permutation
 
 
 def test_eval_write(test_writer, test_logf, l2ws_model):
@@ -38,7 +20,6 @@ def test_eval_write(test_writer, test_logf, l2ws_model):
     moving_avg = last_epoch.mean()
 
     print('mean', l2ws_model.params[0])
-    print('var', l2ws_model.params[1])
 
     if test_writer is not None:
         test_writer.writerow({
@@ -127,3 +108,9 @@ def write_train_results(writer, logf, tr_losses_batch, loop_size, prev_batches, 
         })
         logf.flush()
     return writer, logf
+
+
+def create_empty_df(eval_unrolls):
+    df = pd.DataFrame(columns=['iterations'])
+    df['iterations'] = np.arange(1, eval_unrolls + 1)
+    return df

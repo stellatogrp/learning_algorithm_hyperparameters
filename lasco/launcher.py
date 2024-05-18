@@ -22,7 +22,7 @@ from lasco.launcher_helper import (
     normalize_inputs_fn,
     plot_samples,
     plot_samples_scs,
-    stack_tuples,
+    setup_scs_opt_sols
 )
 from lasco.launcher_plotter import (
     plot_eval_iters,
@@ -32,6 +32,7 @@ from lasco.launcher_plotter import (
     plot_warm_starts,
 )
 from lasco.launcher_writer import (
+    create_empty_df,
     test_eval_write,
     update_percentiles,
     write_accuracies_csv,
@@ -39,7 +40,7 @@ from lasco.launcher_writer import (
 )
 from lasco.osqp_model import OSQPmodel
 from lasco.scs_model import SCSmodel
-from lasco.utils.generic_utils import count_files_in_directory, setup_permutation
+from lasco.utils.generic_utils import setup_permutation
 
 plt.rcParams.update({
     "text.usetex": True,
@@ -90,13 +91,10 @@ class Workspace:
         self.num_samples = cfg.get('num_samples', 10)
 
         self.num_samples_test = cfg.get('num_samples_test', self.num_samples)
-        self.num_samples_train = cfg.get(
-            'num_samples_train', self.num_samples_test)
+        self.num_samples_train = cfg.get('num_samples_train', self.num_samples_test)
 
-        self.eval_batch_size_test = cfg.get(
-            'eval_batch_size_test', self.num_samples_test)
-        self.eval_batch_size_train = cfg.get(
-            'eval_batch_size_train', self.num_samples_train)
+        self.eval_batch_size_test = cfg.get('eval_batch_size_test', self.num_samples_test)
+        self.eval_batch_size_train = cfg.get('eval_batch_size_train', self.num_samples_train)
 
         self.key_count = 0
         self.save_weights_flag = cfg.get('save_weights_flag', False)
@@ -368,102 +366,45 @@ class Workspace:
                          self.train_inputs, z_stars_train)
             self.z_stars_test = z_stars_test
             self.z_stars_train = z_stars_train
-
         else:
-            if 'x_stars' in jnp_load_obj.keys():
-                x_stars = jnp_load_obj['x_stars']
-                y_stars = jnp_load_obj['y_stars']
-                s_stars = jnp_load_obj['s_stars']
-                z_stars = jnp.hstack([x_stars, y_stars + s_stars])
-                x_stars_train = x_stars[:N_train, :]
-                y_stars_train = y_stars[:N_train, :]
+            opt_train_sols, opt_test_sols, self.m, self.n = setup_scs_opt_sols(jnp_load_obj, N_train, N)
+            self.x_stars_train, self.y_stars_train, self.z_stars_train = opt_train_sols
+            self.x_stars_test, self.y_stars_test, self.z_stars_test = opt_test_sols
 
-                self.x_stars_train = x_stars[:N_train, :]
-                self.y_stars_train = y_stars[:N_train, :]
-
-                z_stars_train = z_stars[:N_train, :]
-                self.x_stars_test = x_stars[N_train:N, :]
-                self.y_stars_test = y_stars[N_train:N, :]
-                z_stars_test = z_stars[N_train:N, :]
-                self.m, self.n = y_stars_train.shape[1], x_stars_train[0, :].size
-            else:
-                x_stars_train, self.x_stars_test = None, None
-                y_stars_train, self.y_stars_test = None, None
-                z_stars_train, z_stars_test = None, None
-                self.m, self.n = int(jnp_load_obj['m']), int(jnp_load_obj['n'])
             plot_samples_scs(num_plot, self.thetas_train, self.train_inputs,
-                             x_stars_train, y_stars_train, z_stars_train)
-            self.z_stars_train = z_stars_train
-            self.z_stars_test = z_stars_test
+                             self.x_stars_train, self.y_stars_train, self.z_stars_train)
+
 
     def save_weights(self):
-        nn_weights = self.l2ws_model.params
         if self.l2ws_model.algo[:5] == 'lasco':
-            self.save_weights_stochastic_lasco()
-        elif len(nn_weights) == 3 and not isinstance(nn_weights[2], tuple):
-            if self.l2ws_model.algo in ['alista', 'glista']:
-                self.save_weights_stochastic_alista()
-            elif self.l2ws_model.algo in ['lista', 'tilista']:
-                self.save_weights_stochastic_lista()
-            else:
-                self.save_weights_stochastic()
-        else:
-            self.save_weights_deterministic()
+            self.save_weights_lasco()
 
-    def save_weights_stochastic_lasco(self):
+    def save_weights_lasco(self):
         nn_weights = self.l2ws_model.params
         # create directory
         if not os.path.exists('nn_weights'):
             os.mkdir('nn_weights')
-            os.mkdir('nn_weights/mean')
-            os.mkdir('nn_weights/variance')
-            os.mkdir('nn_weights/prior')
 
         # Save mean weights
         mean_params = nn_weights[0]
-        jnp.savez("nn_weights/mean/mean_params.npz", mean_params=mean_params)
-
-        # Save variance weights
-        variance_params = nn_weights[1]
-        jnp.savez("nn_weights/variance/variance_params.npz",
-                  variance_params=variance_params)
-
-        # save prior
-        # jnp.savez("nn_weights/prior/prior_val.npz", prior=nn_weights[2])
+        jnp.savez("nn_weights/params.npz", mean_params=mean_params)
 
 
     def load_weights(self, example, datetime, nn_type):
         if self.l2ws_model.algo[:5] == 'lasco':
-            self.load_weights_stochastic_lasco(example, datetime)
-            return
-        if nn_type == 'deterministic':
-            # if self.l2ws_model.algo == 'alista':
-            if self.l2ws_model.algo in ['alista', 'glista', 'lista', 'tilista']:
-                self.load_weights_deterministic_alista(example, datetime)
-            else:
-                self.load_weights_deterministic(example, datetime)
-        elif nn_type == 'stochastic':
-            if self.l2ws_model.algo in ['alista', 'glista']:
-                self.load_weights_stochastic_alista(example, datetime)
-            elif self.l2ws_model.algo in ['lista', 'tilista']:
-                self.load_weights_stochastic_lista(example, datetime)
-            else:
-                self.load_weights_stochastic(example, datetime)
+            self.load_weights_lasco(example, datetime)
 
-    def load_weights_stochastic_lasco(self, example, datetime):
+
+    def load_weights_lasco(self, example, datetime):
         # get the appropriate folder
         orig_cwd = hydra.utils.get_original_cwd()
         folder = f"{orig_cwd}/outputs/{example}/train_outputs/{datetime}/nn_weights"
 
         # load the mean
-        loaded_mean = jnp.load(f"{folder}/mean/mean_params.npz")
+        loaded_mean = jnp.load(f"{folder}/params.npz")
         mean_params = loaded_mean['mean_params']
 
-        # load the variance
-        loaded_variance = jnp.load(f"{folder}/variance/variance_params.npz")
-        variance_params = loaded_variance['variance_params']
-
-        self.l2ws_model.params = [mean_params, variance_params]  # , prior]
+        self.l2ws_model.params = [mean_params]
 
 
     def normalize_theta(self, theta):
@@ -477,7 +418,6 @@ class Workspace:
         filename = f"{folder}/data_setup.npz"
 
         jnp_load_obj = jnp.load(filename)
-
 
         if 'q_mat' in jnp_load_obj.keys():
             q_mat = jnp.array(jnp_load_obj['q_mat'])
@@ -582,15 +522,14 @@ class Workspace:
         )
         iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df = df_out
 
-
         if not self.skip_startup:
             self.no_learning_accs = write_accuracies_csv(self.accs, iter_losses_mean, train, col, 
                                                          self.no_learning_accs)
 
         # plot the evaluation iterations
         plot_eval_iters(iters_df, primal_residuals_df,
-                        dual_residuals_df, plot_pretrain, obj_vals_diff_df, dist_opts_df, train, col,
-                        self.eval_unrolls, self.train_unrolls)
+                        dual_residuals_df, plot_pretrain, obj_vals_diff_df, dist_opts_df, train, 
+                        col, self.eval_unrolls, self.train_unrolls)
 
         # plot the warm-start predictions
         z_all = out_train[2]
@@ -723,7 +662,6 @@ class Workspace:
             params, state = self.l2ws_model.params, self.l2ws_model.state
 
         init_val = epoch_train_losses, params, state, permutation
-        # body_fn = self.train_over_epochs_body_simple_fn
         val = lax.fori_loop(start_index, loop_size,
                             self.train_over_epochs_body_simple_fn_jitted, init_val)
         epoch_batch_end_time = time.time()
@@ -775,22 +713,12 @@ class Workspace:
 
     def evaluate_only(self, fixed_ws, num, train, col, batch_size):
         tag = 'train' if train else 'test'
-        if self.static_flag:
-            factors = None
+        factors = None
+
+        if train:
+            z_stars = self.l2ws_model.z_stars_train[:num, :]
         else:
-            if train:
-                factors = (
-                    self.factors_train[0][:num, :, :], self.factors_train[1][:num, :])
-            else:
-                factors = (
-                    self.factors_test[0][:num, :, :], self.factors_test[1][:num, :])
-        if self.l2ws_model.z_stars_train is None:
-            z_stars = None
-        else:
-            if train:
-                z_stars = self.l2ws_model.z_stars_train[:num, :]
-            else:
-                z_stars = self.l2ws_model.z_stars_test[:num, :]
+            z_stars = self.l2ws_model.z_stars_test[:num, :]
         if col == 'prev_sol':
             if train:
                 q_mat_full = self.l2ws_model.q_mat_train[:num, :]
@@ -799,9 +727,6 @@ class Workspace:
             non_first_indices = jnp.mod(jnp.arange(num), self.traj_length) != 0
             q_mat = q_mat_full[non_first_indices, :]
             z_stars = z_stars[non_first_indices, :]
-            if factors is not None:
-                factors = (factors[0][non_first_indices, :, :],
-                           factors[1][non_first_indices, :])
         else:
             q_mat = self.l2ws_model.q_mat_train[:num,
                                                 :] if train else self.l2ws_model.q_mat_test[:num, :]
@@ -825,13 +750,10 @@ class Workspace:
                                                self.l2ws_model.test_inputs, 
                                                self.l2ws_model.z_stars_train,
                                                train, num, m=m, n=n)
-                # inputs = get_nearest_neighbors(train, num)
             elif col == 'prev_sol':
                 # now set the indices (0, num_traj, 2 * num_traj) to zero
                 non_last_indices = jnp.mod(jnp.arange(
                     num), self.traj_length) != self.traj_length - 1
-                # inputs = inputs[non_last_indices, :]
-                # inputs = self.shifted_sol_fn(inputs)
                 inputs = self.shifted_sol_fn(
                     self.z_stars_test[:num, :][non_last_indices, :])
         else:
@@ -842,51 +764,35 @@ class Workspace:
         return inputs
 
     def setup_dataframes(self):
-        self.iters_df_train = pd.DataFrame(columns=['iterations', 'no_train'])
-        self.iters_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
-
-        self.iters_df_test = pd.DataFrame(columns=['iterations', 'no_train'])
-        self.iters_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
+        self.iters_df_train = create_empty_df(self.eval_unrolls)
+        self.iters_df_test = create_empty_df(self.eval_unrolls)
 
         # primal and dual residuals
-        self.primal_residuals_df_train = pd.DataFrame(columns=['iterations'])
-        self.primal_residuals_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
-        self.dual_residuals_df_train = pd.DataFrame(columns=['iterations'])
-        self.dual_residuals_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
-
-        self.primal_residuals_df_test = pd.DataFrame(columns=['iterations'])
-        self.primal_residuals_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
-        self.dual_residuals_df_test = pd.DataFrame(columns=['iterations'])
-        self.dual_residuals_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
+        self.primal_residuals_df_train = create_empty_df(self.eval_unrolls)
+        self.dual_residuals_df_train = create_empty_df(self.eval_unrolls)
+        self.primal_residuals_df_test = create_empty_df(self.eval_unrolls)
+        self.dual_residuals_df_test = create_empty_df(self.eval_unrolls)
 
         # obj_vals_diff
-        self.obj_vals_diff_df_train = pd.DataFrame(columns=['iterations'])
-        self.obj_vals_diff_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
-        self.obj_vals_diff_df_test = pd.DataFrame(columns=['iterations'])
-        self.obj_vals_diff_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
+        self.obj_vals_diff_df_train = create_empty_df(self.eval_unrolls)
+        self.obj_vals_diff_df_test = create_empty_df(self.eval_unrolls)
 
         # dist_opts
-        self.dist_opts_df_train = pd.DataFrame(columns=['iterations'])
-        self.dist_opts_df_train['iterations'] = np.arange(1, self.eval_unrolls+1)
-        self.dist_opts_df_test = pd.DataFrame(columns=['iterations'])
-        self.dist_opts_df_test['iterations'] = np.arange(1, self.eval_unrolls+1)
+        self.dist_opts_df_train = create_empty_df(self.eval_unrolls)
+        self.dist_opts_df_test = create_empty_df(self.eval_unrolls)
 
-        self.frac_solved_df_list_train = []
+        self.frac_solved_df_list_train, self.frac_solved_df_list_test = [], []
         for i in range(len(self.frac_solved_accs)):
             self.frac_solved_df_list_train.append(pd.DataFrame(columns=['iterations']))
-        self.frac_solved_df_list_test = []
-        for i in range(len(self.frac_solved_accs)):
             self.frac_solved_df_list_test.append(pd.DataFrame(columns=['iterations']))
         if not os.path.exists('frac_solved'):
             os.mkdir('frac_solved')
 
         self.percentiles = [10, 20, 30, 40, 50, 60, 70, 80,
                             90, 95, 96, 97, 98, 99]
-        self.percentiles_df_list_train = []
-        self.percentiles_df_list_test = []
+        self.percentiles_df_list_train, self.percentiles_df_list_test = [], []
         for i in range(len(self.percentiles)):
             self.percentiles_df_list_train.append(pd.DataFrame(columns=['iterations']))
-        for i in range(len(self.percentiles)):
             self.percentiles_df_list_test.append(pd.DataFrame(columns=['iterations']))
 
 
