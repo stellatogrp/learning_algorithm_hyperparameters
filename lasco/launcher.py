@@ -30,6 +30,9 @@ from lasco.osqp_model import OSQPmodel
 from lasco.scs_model import SCSmodel
 from lasco.utils.generic_utils import count_files_in_directory, sample_plot, setup_permutation
 
+from lasco.launcher_plotter import plot_lasco_weights, plot_losses_over_examples, plot_train_test_losses, plot_eval_iters_df, plot_eval_iters, plot_warm_starts
+from lasco.launcher_helper import get_nearest_neighbors, plot_samples, plot_samples_scs, stack_tuples
+
 
 plt.rcParams.update({
     "text.usetex": True,
@@ -146,12 +149,8 @@ class Workspace:
             self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_gd_model(cfg, static_dict)
         elif algo == 'lasco_osqp':
-            # self.q_mat_train = thetas[:N_train, :]
-            # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_osqp_model(cfg, static_dict)
         elif algo == 'lasco_scs':
-            # self.q_mat_train = thetas[:N_train, :]
-            # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_scs_model(cfg, static_dict)
 
         # write th z_stars_max
@@ -259,10 +258,6 @@ class Workspace:
             static_M = static_dict['M']
             cones = static_dict['cones_dict']
 
-        # rho_x = cfg.get('rho_x', 1)
-        # scale = cfg.get('scale', 1)
-        # alpha_relax = cfg.get('alpha_relax', 1)
-
         # save cones
         self.cones = static_dict['cones_dict']
 
@@ -280,10 +275,6 @@ class Workspace:
                      'n': self.n,
                      'static_M': static_M,
                      'static_flag': self.static_flag,
-                     #  'static_algo_factor': static_algo_factor,
-                     #  'rho_x': rho_x,
-                     #  'scale': scale,
-                     #  'alpha_relax': alpha_relax,
                      'cones': cones,
                      'lightweight': cfg.get('lightweight', False),
                      'custom_loss': self.custom_loss
@@ -325,14 +316,6 @@ class Workspace:
                               n=n,
                               factor=factor,
                               custom_loss=self.custom_loss,
-                              #   train_inputs=self.train_inputs,
-                              #   test_inputs=self.test_inputs,
-                              #   train_unrolls=self.train_unrolls,
-                              #   eval_unrolls=self.eval_unrolls,
-                              #   nn_cfg=cfg.nn_cfg,
-                              #   z_stars_train=self.z_stars_train,
-                              #   z_stars_test=self.z_stars_test,
-                              #   jit=True,
                               plateau_decay=cfg.plateau_decay)
         else:
             self.m, self.n = static_dict['m'], static_dict['n']
@@ -396,11 +379,6 @@ class Workspace:
                               factors_train=self.factors_train,
                               factors_test=self.factors_test,
                               custom_loss=self.custom_loss,
-                              #   train_unrolls=self.train_unrolls,
-                              #   eval_unrolls=self.eval_unrolls,
-                              #   nn_cfg=cfg.nn_cfg,
-                              #   z_stars_train=self.z_stars_train,
-                              #   z_stars_test=self.z_stars_test,
                               jit=True)
         self.x_stars_train = self.z_stars_train[:, :self.n]
         self.x_stars_test = self.z_stars_test[:, :self.n]
@@ -469,7 +447,7 @@ class Workspace:
             z_stars = jnp_load_obj['z_stars']
             z_stars_train = z_stars[:N_train, :]
             z_stars_test = z_stars[N_train:N, :]
-            self.plot_samples(num_plot, self.thetas_train,
+            plot_samples(num_plot, self.thetas_train,
                               self.train_inputs, z_stars_train)
             self.z_stars_test = z_stars_test
             self.z_stars_train = z_stars_train
@@ -496,7 +474,7 @@ class Workspace:
                 y_stars_train, self.y_stars_test = None, None
                 z_stars_train, z_stars_test = None, None
                 self.m, self.n = int(jnp_load_obj['m']), int(jnp_load_obj['n'])
-            self.plot_samples_scs(num_plot, self.thetas_train, self.train_inputs,
+            plot_samples_scs(num_plot, self.thetas_train, self.train_inputs,
                                   x_stars_train, y_stars_train, z_stars_train)
             self.z_stars_train = z_stars_train
             self.z_stars_test = z_stars_test
@@ -741,19 +719,6 @@ class Workspace:
 
         return jnp_load_obj
 
-    def plot_samples(self, num_plot, thetas, train_inputs, z_stars):
-        sample_plot(thetas, 'theta', num_plot)
-        sample_plot(train_inputs, 'input', num_plot)
-        if z_stars is not None:
-            sample_plot(z_stars, 'z_stars', num_plot)
-
-    def plot_samples_scs(self, num_plot, thetas, train_inputs, x_stars, y_stars, z_stars):
-        sample_plot(thetas, 'theta', num_plot)
-        sample_plot(train_inputs, 'input', num_plot)
-        if x_stars is not None:
-            sample_plot(x_stars, 'x_stars', num_plot)
-            sample_plot(y_stars, 'y_stars', num_plot)
-            sample_plot(z_stars, 'z_stars', num_plot)
 
     def init_custom_visualization(self, cfg, custom_visualize_fn):
         iterates_visualize = cfg.get('iterates_visualize', 0)
@@ -821,7 +786,7 @@ class Workspace:
             'glista', 'lista_cpss', 'lista', 'alista', 'tilista'] else True
         if min(self.frac_solved_accs) < 0:
             yscalelog = False
-        self.plot_losses_over_examples(
+        plot_losses_over_examples(
             losses_over_examples, train, col, yscalelog=yscalelog)
 
         # update the eval csv files
@@ -852,8 +817,9 @@ class Workspace:
             self.write_accuracies_csv(iter_losses_mean, train, col)
 
         # plot the evaluation iterations
-        self.plot_eval_iters(iters_df, primal_residuals_df,
-                             dual_residuals_df, plot_pretrain, obj_vals_diff_df, dist_opts_df, train, col)
+        plot_eval_iters(iters_df, primal_residuals_df,
+                             dual_residuals_df, plot_pretrain, obj_vals_diff_df, dist_opts_df, train, col,
+                             self.eval_unrolls, self.train_unrolls)
 
         skip_pac_bayes = True
         if not skip_pac_bayes:
@@ -909,7 +875,8 @@ class Workspace:
                 curr_df = frac_solved_df_list[i]
 
                 # plot and update csv
-                self.plot_eval_iters_df(curr_df, train, col, ylabel, filename, yscale='standard',
+                plot_eval_iters_df(curr_df, train, col, ylabel, filename, self.eval_unrolls, self.train_unrolls,
+                                        yscale='standard',
                                         pac_bayes=True)
                 csv_filename = filename + '_train.csv' if train else filename + '_test.csv'
                 curr_df.to_csv(csv_filename)
@@ -917,25 +884,19 @@ class Workspace:
         # plot the warm-start predictions
         z_all = out_train[2]
 
-        # update the lin_conv csv files
-        fp = False if self.l2ws_model.algo in [
-            'glista', 'lista_cpss', 'lista', 'alista', 'tilista'] else True
-
         if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel):
             out_train[6]
-        # u_all = out_train[0][3]
-        # z_all = out_train[0][0]
-        # self.plot_warm_starts(u_all, z_all, train, col)
+
             z_plot = z_all[:, :, :-1] / z_all[:, :, -1:]
         else:
             z_plot = z_all
 
-        self.plot_warm_starts(None, z_plot, train, col)
+        plot_warm_starts(self.l2ws_model, self.plot_iterates, z_plot, train, col)
 
         if self.l2ws_model.algo == 'alista':
             self.plot_alista_weights(self.l2ws_model.params, col)
         elif self.l2ws_model.algo[:5] == 'lasco':
-            self.plot_lasco_weights(self.l2ws_model.params, col)
+            plot_lasco_weights(self.l2ws_model.params, col)
 
         # custom visualize
         if self.has_custom_visualization:
@@ -947,12 +908,6 @@ class Workspace:
         if not train:
             if self.closed_loop_rollout_dict is not None:
                 self.run_closed_loop_rollouts(col)
-
-        # solve with scs
-        # z0_mat = z_all[:, 0, :]
-        # self.solve_scs(z0_mat, train, col)
-        # self.solve_scs(z_all, u_all, train, col)
-        # z0_mat = z_all[:, 0, :]
 
         # Specify the CSV file name
         filename = 'z_star_max2.csv'
@@ -980,18 +935,6 @@ class Workspace:
         gc.collect()
 
         return out_train
-
-    def get_xys_from_z(self, z_init):
-        """
-        z = (x, y + s, 1)
-        we always set the last entry of z to be 1
-        we allow s to be zero (we just need z[n:m + n] = y + s)
-        """
-        m, n = self.l2ws_model.m, self.l2ws_model.n
-        x = z_init[:n]
-        y = z_init[n:n + m]
-        s = jnp.zeros(m)
-        return x, y, s
 
 
     def custom_visualize(self, z_all, train, col):
@@ -1064,7 +1007,6 @@ class Workspace:
         self._init_logging()
         self.setup_dataframes()
 
-
         if not self.skip_startup:
 
             # no learning evaluation
@@ -1100,7 +1042,6 @@ class Workspace:
         loop_size = int(self.l2ws_model.num_batches * self.epochs_jit)
 
         # key_count updated to get random permutation for each epoch
-        # key_count = 0
         if not self.skip_pac_bayes_full:
             self.finalize_genL2O(
                 train=True, num_samples=self.pac_bayes_num_samples)
@@ -1112,9 +1053,6 @@ class Workspace:
             if (test_zero and epoch == 0) or (epoch % self.eval_every_x_epochs == 0 and epoch > 0):
                 self.eval_iters_train_and_test(
                     f"train_epoch_{epoch}", False)
-
-            # if epoch > self.l2ws_model.dont_decay_until:
-            #     self.l2ws_model.decay_upon_plateau()
 
             # setup the permutations
             permutation = setup_permutation(
@@ -1144,7 +1082,10 @@ class Workspace:
 
             # plot the train / test loss so far
             if epoch % self.save_every_x_epochs == 0:
-                self.plot_train_test_losses()
+                # self.plot_train_test_losses()
+                plot_train_test_losses(self.l2ws_model.tr_losses_batch,
+                                       self.l2ws_model.te_losses, 
+                                       self.l2ws_model.num_batches, self.epochs_jit)
 
     def train_jitted_epochs(self, permutation, epoch):
         """
@@ -1185,7 +1126,6 @@ class Workspace:
 
         return params, state, epoch_train_losses, time_train_per_epoch
 
-    # @jit
     def train_over_epochs_body_simple_fn(self, batch, val):
         """
         to be used as the body_fn in lax.fori_loop
@@ -1339,9 +1279,7 @@ class Workspace:
             eval_out = self.l2ws_model.evaluate(
                 self.eval_unrolls, curr_inputs, curr_q_mat, curr_z_stars, fixed_ws,
                 factors=curr_factors, tag=tag)
-            # full_eval_out.append(eval_out)
-            # eval_out_cpu = tuple(item.copy_to_host() for item in eval_out)
-            # full_eval_out.append(eval_out_cpu)
+
             eval_out1_list = [eval_out[1][i] for i in range(len(eval_out[1]))]
             eval_out1_list[2] = eval_out1_list[2][:, :25, :]
             if isinstance(self.l2ws_model, SCSmodel):
@@ -1355,37 +1293,24 @@ class Workspace:
         loss = np.array([curr_out[0] for curr_out in full_eval_out]).mean()
         time_per_prob = np.array([curr_out[2]
                                  for curr_out in full_eval_out]).mean()
-        out = self.stack_tuples([curr_out[1] for curr_out in full_eval_out])
+        out = stack_tuples([curr_out[1] for curr_out in full_eval_out])
 
         flattened_eval_out = (loss, out, time_per_prob)
         return flattened_eval_out
 
-    def stack_tuples(self, tuples_list):
-        result = []
-        num_tuples = len(tuples_list)
-        tuple_length = len(tuples_list[0])
-
-        for i in range(tuple_length):
-            stacked_entry = []
-            for j in range(num_tuples):
-                stacked_entry.append(tuples_list[j][i])
-            # result.append(tuple(stacked_entry))
-            if tuples_list[j][i] is None:
-                result.append(None)
-            elif tuples_list[j][i].ndim == 2:
-                result.append(jnp.vstack(stacked_entry))
-            elif tuples_list[j][i].ndim == 1:
-                result.append(jnp.hstack(stacked_entry))
-            # elif tuples_list[j][i].ndim == 3 and i == 0:
-            #     result.append(jnp.vstack(stacked_entry))
-            elif tuples_list[j][i].ndim == 3:
-                result.append(jnp.vstack(stacked_entry))
-        return result
 
     def get_inputs_for_eval(self, fixed_ws, num, train, col):
         if fixed_ws:
             if col == 'nearest_neighbor':
-                inputs = self.get_nearest_neighbors(train, num)
+                is_osqp = isinstance(self.l2ws_model, OSQPmodel)
+                if is_osqp:
+                    m, n = self.l2ws_model.m, self.l2ws_model.n
+                else:
+                    m, n = 0, 0
+                inputs = get_nearest_neighbors(is_osqp, self.l2ws_model.train_inputs, 
+                                               self.l2ws_model.test_inputs, self.l2ws_model.z_stars_train, 
+                                               train, num, m=m, n=n)
+                # inputs = get_nearest_neighbors(train, num)
             elif col == 'prev_sol':
                 # z_size = self.z_stars_test.shape[1]
                 # inputs = jnp.zeros((num, z_size))
@@ -1405,44 +1330,6 @@ class Workspace:
                 inputs = self.l2ws_model.test_inputs[:num, :]
         return inputs
 
-    def theta_2_nearest_neighbor(self, theta):
-        """
-        given a new theta returns the closest training problem solution
-        """
-        # first normalize theta
-        test_input = self.normalize_theta(theta)
-
-        # make it a matrix
-        test_inputs = jnp.expand_dims(test_input, 0)
-
-        distances = distance_matrix(
-            np.array(test_inputs),
-            np.array(self.l2ws_model.train_inputs))
-        indices = np.argmin(distances, axis=1)
-        if isinstance(self.l2ws_model, OSQPmodel):
-            return self.l2ws_model.z_stars_train[indices, :self.m + self.n]
-        else:
-            return self.l2ws_model.z_stars_train[indices, :]
-
-    def get_nearest_neighbors(self, train, num):
-        if train:
-            distances = distance_matrix(
-                np.array(self.l2ws_model.train_inputs[:num, :]),
-                np.array(self.l2ws_model.train_inputs))
-        else:
-            distances = distance_matrix(
-                np.array(self.l2ws_model.test_inputs[:num, :]),
-                np.array(self.l2ws_model.train_inputs))
-        indices = np.argmin(distances, axis=1)
-        plt.plot(indices)
-        if train:
-            plt.savefig("indices_train_plot.pdf", bbox_inches='tight')
-        else:
-            plt.savefig("indices_train_plot.pdf", bbox_inches='tight')
-        plt.clf()
-        if isinstance(self.l2ws_model, OSQPmodel):
-            return self.l2ws_model.z_stars_train[indices, :self.m + self.n]
-        return self.l2ws_model.z_stars_train[indices, :]
 
     def setup_dataframes(self):
         self.iters_df_train = pd.DataFrame(columns=['iterations', 'no_train'])
@@ -1539,41 +1426,6 @@ class Workspace:
             })
             self.test_logf.flush()
 
-    def plot_train_test_losses(self):
-        batch_losses = np.array(self.l2ws_model.tr_losses_batch)
-        te_losses = np.array(self.l2ws_model.te_losses)
-        num_data_points = batch_losses.size
-        epoch_axis = np.arange(num_data_points) / \
-            self.l2ws_model.num_batches
-
-        epoch_test_axis = self.epochs_jit * np.arange(te_losses.size)
-        plt.plot(epoch_axis, batch_losses, label='train')
-        plt.plot(epoch_test_axis, te_losses, label='test')
-        plt.yscale('log')
-        plt.xlabel('epochs')
-        plt.ylabel('fixed point residual average')
-        plt.legend()
-        plt.savefig('losses_over_training.pdf', bbox_inches='tight')
-        plt.clf()
-
-        plt.plot(epoch_axis, batch_losses, label='train')
-
-        # include when learning rate decays
-        if len(self.l2ws_model.epoch_decay_points) > 0:
-            epoch_decay_points = self.l2ws_model.epoch_decay_points
-            epoch_decay_points_np = np.array(epoch_decay_points)
-            batch_decay_points = epoch_decay_points_np * self.l2ws_model.num_batches
-
-            batch_decay_points_int = batch_decay_points.astype('int')
-            decay_vals = batch_losses[batch_decay_points_int]
-            plt.scatter(epoch_decay_points_np, decay_vals,
-                        c='r', label='lr decay')
-        plt.yscale('log')
-        plt.xlabel('epochs')
-        plt.ylabel('fixed point residual average')
-        plt.legend()
-        plt.savefig('train_losses_over_training.pdf', bbox_inches='tight')
-        plt.clf()
 
     def update_percentiles(self, losses, train, col):
         # update the percentiles
@@ -1651,169 +1503,3 @@ class Workspace:
             iters_df = self.iters_df_test
 
         return iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df
-
-    def plot_eval_iters_df(self, df, train, col, ylabel, filename,
-                           xlabel='evaluation iterations',
-                           xvals=None,
-                           yscale='log', pac_bayes=False):
-        if xvals is None:
-            xvals = np.arange(self.eval_unrolls)
-        # plot the cold-start if applicable
-        if 'no_train' in df.keys():
-
-            plt.plot(xvals, df['no_train'], 'k-', label='no learning')
-
-        # plot the nearest_neighbor if applicable
-        if col != 'no_train' and 'nearest_neighbor' in df.keys():
-            plt.plot(xvals, df['nearest_neighbor'],
-                     'm-', label='nearest neighbor')
-
-        # plot the prev_sol if applicable
-        if col != 'no_train' and col != 'nearest_neighbor' and 'prev_sol' in df.keys():
-            plt.plot(xvals, df['prev_sol'], 'c-', label='prev solution')
-
-        # plot the learned warm-start if applicable
-        if col != 'no_train' and col != 'pretrain' and col != 'nearest_neighbor' and col != 'prev_sol':  # noqa
-            plt.plot(xvals, df[col], label=f"train k={self.train_unrolls}")
-            if pac_bayes:
-                plt.plot(xvals, df[col + '_pac_bayes'], label="pac_bayes")
-        if yscale == 'log':
-            plt.yscale('log')
-        # plt.xlabel('evaluation iterations')
-        plt.xlabel(xlabel)
-        plt.ylabel(f"test {ylabel}")
-        plt.legend()
-        if train:
-            plt.title('train problems')
-            plt.savefig(f"{filename}_train.pdf", bbox_inches='tight')
-        else:
-            plt.title('test problems')
-            plt.savefig(f"{filename}_test.pdf", bbox_inches='tight')
-        plt.clf()
-
-    def plot_eval_iters(self, iters_df, primal_residuals_df, dual_residuals_df, plot_pretrain,
-                        obj_vals_diff_df, dist_opts_df,
-                        train, col):
-        # self.plot_eval_iters_df(curr_df, train, col, ylabel, filename, yscale=yscale,
-        #                         pac_bayes=True)
-        yscale = 'standard' if self.l2ws_model.algo in [
-            'glista', 'lista_cpss', 'lista', 'alista', 'tilista'] else 'log'
-        if self.nmse:
-            yscale = 'standard'
-        self.plot_eval_iters_df(
-            iters_df, train, col, 'fixed point residual', 'eval_iters', yscale=yscale)
-        if primal_residuals_df is not None:
-            self.plot_eval_iters_df(primal_residuals_df, train, col,
-                                    'primal residual', 'primal_residuals')
-            self.plot_eval_iters_df(dual_residuals_df, train, col,
-                                    'dual residual', 'dual_residuals')
-        if obj_vals_diff_df is not None:
-            self.plot_eval_iters_df(
-                obj_vals_diff_df, train, col, 'obj diff', 'obj_diffs')
-
-        if dist_opts_df is not None:
-            self.plot_eval_iters_df(
-                dist_opts_df, train, col, 'opt diff', 'dist_opts')
-
-    def plot_losses_over_examples(self, losses_over_examples, train, col, yscalelog=True):
-        """
-        plots the fixed point residuals over eval steps for each individual problem
-        """
-        if train:
-            loe_folder = 'losses_over_examples_train'
-        else:
-            loe_folder = 'losses_over_examples_test'
-        if not os.path.exists(loe_folder):
-            os.mkdir(loe_folder)
-
-        plt.plot(losses_over_examples)
-
-        if yscalelog:
-            plt.yscale('log')
-        plt.savefig(f"{loe_folder}/losses_{col}_plot.pdf", bbox_inches='tight')
-        plt.clf()
-
-
-    def plot_lasco_weights(self, params, col):
-        path = 'lasco_weights'
-        if not os.path.exists(path):
-            os.mkdir(path)
-        if not os.path.exists(f"{path}/{col}"):
-            os.mkdir(f"{path}/{col}")
-
-        mean_params = params[0]
-        if mean_params.ndim == 1:
-            mean_params = jnp.expand_dims(mean_params, axis=1)
-
-        num_params = mean_params.shape[1]
-        for i in range(num_params):
-            plt.plot(mean_params[:, i])
-            # plt.yscale('log')
-            plt.xlabel('evaluation steps')
-            plt.ylabel('step size')
-            plt.savefig(f"lasco_weights/{col}/param_{i}.pdf")
-            plt.clf()
-
-    def plot_warm_starts(self, u_all, z_all, train, col):
-        """
-        plots the warm starts for the given method
-
-        we give plots for
-            x: primal variable
-            y: dual variable
-            z: base Douglas-Rachford iterate (dual of primal-dual variable)
-
-        train is a boolean
-
-        plots the first 5 problems and
-
-        self.plot_iterates is a list
-            e.g. [0, 10, 20]
-            tells us to plot
-                (z^0, z^10, z^20, z_opt) for each of the first 5 problems
-                AND do a separate plot for
-                (z^0 - z_opt, z^10 - z_opt, z^20 - z_opt) for each of the first 5 problems
-        """
-        if train:
-            ws_path = 'warm-starts_train'
-        else:
-            ws_path = 'warm-starts_test'
-        if not os.path.exists(ws_path):
-            os.mkdir(ws_path)
-        if not os.path.exists(f"{ws_path}/{col}"):
-            os.mkdir(f"{ws_path}/{col}")
-        # m, n = self.l2ws_model.m, self.l2ws_model.n
-        for i in range(5):
-
-            # plot for z
-            for j in self.plot_iterates:
-                plt.plot(z_all[i, j, :], label=f"prediction_{j}")
-            if train:
-                plt.plot(self.l2ws_model.z_stars_train[i, :], label='optimal')
-            else:
-                plt.plot(self.l2ws_model.z_stars_test[i, :], label='optimal')
-            plt.legend()
-            plt.savefig(f"{ws_path}/{col}/prob_{i}_z_ws.pdf")
-            plt.clf()
-
-            for j in self.plot_iterates:
-                if isinstance(self.l2ws_model, OSQPmodel):
-                    try:
-                        plt.plot(z_all[i, j, :self.l2ws_model.m + self.l2ws_model.n] -
-                                 self.l2ws_model.z_stars_train[i, :],
-                                 label=f"prediction_{j}")
-                    except:
-                        plt.plot(z_all[i, j, :self.l2ws_model.m + self.l2ws_model.n] -
-                                 self.l2ws_model.z_stars_train[i, :self.l2ws_model.m + self.l2ws_model.n],  # noqa
-                                 label=f"prediction_{j}")
-                else:
-                    if train:
-                        plt.plot(z_all[i, j, :] - self.l2ws_model.z_stars_train[i, :],
-                                 label=f"prediction_{j}")
-                    else:
-                        plt.plot(z_all[i, j, :] - self.l2ws_model.z_stars_test[i, :],
-                                 label=f"prediction_{j}")
-            plt.legend()
-            plt.title('diffs to optimal')
-            plt.savefig(f"{ws_path}/{col}/prob_{i}_diffs_z.pdf")
-            plt.clf()
