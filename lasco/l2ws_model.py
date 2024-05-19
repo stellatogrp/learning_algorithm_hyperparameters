@@ -176,8 +176,8 @@ class L2WSmodel(object):
             loss = self.final_loss(loss_method, z_final, iter_losses, supervised, z0, z_star)
 
             # penalty_loss = calculate_total_penalty(self.N_train, params, self.b, self.c, self.delta)
-            penalty_loss = calculate_pinsker_penalty(self.N_train, params, self.b, self.c, self.delta)
-            loss = loss #+ self.penalty_coeff * penalty_loss
+            # penalty_loss = calculate_pinsker_penalty(self.N_train, params, self.b, self.c, self.delta)
+            # loss = loss #+ self.penalty_coeff * penalty_loss
 
             if diff_required:
                 return loss
@@ -189,6 +189,7 @@ class L2WSmodel(object):
 
     def train_batch(self, batch_indices, params, state):
         batch_inputs = self.train_inputs[batch_indices, :]
+        print('batch_inputs', batch_inputs)
         batch_q_data = self.q_mat_train[batch_indices, :]
         batch_z_stars = self.z_stars_train[batch_indices, :] if self.supervised else None
 

@@ -100,13 +100,19 @@ class LASCOSCSmodel(L2WSmodel):
 
         def predict(params, input, q, iters, z_star, key, factor):
             # q = lin_sys_solve(factor, q)
-            z0 = jnp.zeros(z_star.size + 1) #self.predict_warm_start(params, input, key, bypass_nn)
-            z0 = z0.at[-1].set(1)
-            # if diff_required:
-            #     z0 = input
-            # else:
-            #     z0 = jnp.zeros(z_star.size + 1)
-            #     z0 = z0.at[-1].set(1)
+            # z0 = jnp.zeros(z_star.size + 1) #self.predict_warm_start(params, input, key, bypass_nn)
+            # z0 = z0.at[-1].set(1)
+            if diff_required:
+                z0 = jnp.zeros(z_star.size + 1)
+                z0 = z0.at[-1].set(1)
+                # import pdb
+                # pdb.set_trace()
+                z0 = z0.at[:-1].set(input)
+            else:
+                z0 = jnp.zeros(z_star.size + 1)
+                z0 = z0.at[-1].set(1)
+            print('z0', z0)
+
 
             if self.train_fn is not None:
                 train_fn = self.train_fn

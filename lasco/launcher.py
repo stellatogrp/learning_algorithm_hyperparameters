@@ -127,9 +127,15 @@ class Workspace:
         train_inputs, test_inputs, normalize_col_sums, normalize_std_dev = normalize_inputs_fn(
             self.normalize_inputs, thetas, N_train, N_test)
         self.train_inputs, self.test_inputs = train_inputs, test_inputs
+
+        
+
         self.normalize_col_sums, self.normalize_std_dev = normalize_col_sums, normalize_std_dev
         self.skip_startup = cfg.get('skip_startup', False)
         self.setup_opt_sols(algo, jnp_load_obj, N_train, N)
+
+        # progressive train_inputs
+        self.train_inputs = 0 * self.z_stars_train
 
         # everything below is specific to the algo
         if algo == 'osqp':
@@ -148,6 +154,8 @@ class Workspace:
             self.create_lasco_osqp_model(cfg, static_dict)
         elif algo == 'lasco_scs':
             self.create_lasco_scs_model(cfg, static_dict)
+        
+        
 
 
     def create_gd_model(self, cfg, static_dict):
@@ -555,15 +563,15 @@ class Workspace:
 
         if not self.skip_startup:
             # no learning evaluation
-            self.eval_iters_train_and_test('no_train', False)
+            self.eval_iters_train_and_test('no_train', None)
 
             # fixed ws evaluation
-            if self.l2ws_model.z_stars_train is not None and self.l2ws_model.algo != 'maml':
-                self.eval_iters_train_and_test('nearest_neighbor', False)
+            # if self.l2ws_model.z_stars_train is not None and self.l2ws_model.algo != 'maml':
+            #     self.eval_iters_train_and_test('nearest_neighbor', False)
 
             # prev sol eval
             if self.prev_sol_eval and self.l2ws_model.z_stars_train is not None:
-                self.eval_iters_train_and_test('prev_sol', False)
+                self.eval_iters_train_and_test('prev_sol', None)
 
         # load the weights AFTER the cold-start
         if self.load_weights_datetime is not None:
@@ -594,14 +602,18 @@ class Workspace:
             window_indices = jnp.arange(10 * window, 10 * (window + 1))
 
             # update the train inputs
+            update_train_inputs_flag = window > 0
 
             for epoch_batch in range(num_epochs_jit):
                 epoch = int(epoch_batch * self.epochs_jit) + window * num_epochs_jit * self.epochs_jit
                 print('epoch', epoch)
 
                 if (test_zero and epoch == 0) or (epoch % self.eval_every_x_epochs == 0 and epoch > 0):
-                    self.eval_iters_train_and_test(
-                        f"train_epoch_{epoch}", False)
+                    if update_train_inputs_flag:
+                        self.eval_iters_train_and_test(f"train_epoch_{epoch}", window * 10)
+                        update_train_inputs_flag = False
+                    else:
+                        self.eval_iters_train_and_test(f"train_epoch_{epoch}", None)
 
                 # setup the permutations
                 permutation = setup_permutation(
@@ -711,11 +723,16 @@ class Workspace:
         return val
 
 
-    def eval_iters_train_and_test(self, col, pretrain_on):
+    def eval_iters_train_and_test(self, col, new_start_index):
         self.evaluate_iters(
-            self.num_samples_test, col, train=False, plot_pretrain=pretrain_on)
-        self.evaluate_iters(
-            self.num_samples_train, col, train=True, plot_pretrain=pretrain_on)
+            self.num_samples_test, col, train=False)
+        out_train = self.evaluate_iters(
+            self.num_samples_train, col, train=True)
+        
+        # update self.l2ws_model.train_inputs
+        print('new_start_index', new_start_index)
+        if new_start_index is not None:
+            self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :-1]
 
 
     def evaluate_only(self, fixed_ws, num, train, col, batch_size):

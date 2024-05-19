@@ -74,7 +74,7 @@ iterates_visualize: [10, 19] #[10, 20, 50, 90, 200, 300, 500, 1000] #[10, 20, 50
 vis_num: 5
 skip_startup: False
 
-eval_unrolls: 500
+eval_unrolls: 50
 solve_c_num: 0
 supervised: True
 train_unrolls: 10
