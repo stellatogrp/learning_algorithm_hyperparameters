@@ -67,7 +67,7 @@ class LASCOSCSmodel(L2WSmodel):
                                        lightweight=lightweight)
         
     def init_params(self):
-        self.mean_params = 0*jnp.ones((self.train_unrolls, 5))
+        self.mean_params = 0*jnp.ones((self.eval_unrolls, 5))
         self.params = [self.mean_params]
 
 
@@ -102,6 +102,11 @@ class LASCOSCSmodel(L2WSmodel):
             # q = lin_sys_solve(factor, q)
             z0 = jnp.zeros(z_star.size + 1) #self.predict_warm_start(params, input, key, bypass_nn)
             z0 = z0.at[-1].set(1)
+            # if diff_required:
+            #     z0 = input
+            # else:
+            #     z0 = jnp.zeros(z_star.size + 1)
+            #     z0 = z0.at[-1].set(1)
 
             if self.train_fn is not None:
                 train_fn = self.train_fn

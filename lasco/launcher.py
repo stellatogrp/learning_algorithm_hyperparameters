@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 from jax import lax
 
+from functools import partial
+
 from lasco.algo_steps import create_projection_fn, get_psd_sizes
 from lasco.gd_model import GDmodel
 from lasco.lasco_gd_model import LASCOGDmodel
@@ -586,48 +588,61 @@ class Workspace:
         num_epochs_jit = int(self.l2ws_model.epochs / self.epochs_jit)
         loop_size = int(self.l2ws_model.num_batches * self.epochs_jit)
 
-        for epoch_batch in range(num_epochs_jit):
-            epoch = int(epoch_batch * self.epochs_jit)
-            if (test_zero and epoch == 0) or (epoch % self.eval_every_x_epochs == 0 and epoch > 0):
-                self.eval_iters_train_and_test(
-                    f"train_epoch_{epoch}", False)
 
-            # setup the permutations
-            permutation = setup_permutation(
-                self.key_count, self.l2ws_model.N_train, self.epochs_jit)
+        for window in range(10):
+            # update window_indices
+            window_indices = jnp.arange(10 * window, 10 * (window + 1))
 
-            # train the jitted epochs
-            params, state, epoch_train_losses, time_train_per_epoch = self.train_jitted_epochs(
-                permutation, epoch)
+            # update the train inputs
 
-            # reset the global (params, state)
-            self.key_count += 1
-            self.l2ws_model.epoch += self.epochs_jit
-            self.l2ws_model.params, self.l2ws_model.state = params, state
+            for epoch_batch in range(num_epochs_jit):
+                epoch = int(epoch_batch * self.epochs_jit) + window * num_epochs_jit * self.epochs_jit
+                print('epoch', epoch)
 
-            prev_batches = len(self.l2ws_model.tr_losses_batch)
-            self.l2ws_model.tr_losses_batch = self.l2ws_model.tr_losses_batch + \
-                list(epoch_train_losses)
+                if (test_zero and epoch == 0) or (epoch % self.eval_every_x_epochs == 0 and epoch > 0):
+                    self.eval_iters_train_and_test(
+                        f"train_epoch_{epoch}", False)
 
-            # write train results
-            self.writer, self.logf = write_train_results(self.writer, self.logf, 
-                                                              self.l2ws_model.tr_losses_batch, 
-                                                              loop_size, prev_batches,
-                                                              epoch_train_losses, 
-                                                              time_train_per_epoch)
+                # setup the permutations
+                permutation = setup_permutation(
+                    self.key_count, self.l2ws_model.N_train, self.epochs_jit)
 
-            # evaluate the test set and write results
-            self.test_writer, self.test_logf, self.l2ws_model = test_eval_write(self.test_writer, 
-                                                                            self.test_logf, 
-                                                                            self.l2ws_model)
+                # train the jitted epochs
+                curr_params, state, epoch_train_losses, time_train_per_epoch = self.train_jitted_epochs(
+                    permutation, epoch, window_indices)
+                
+                # insert the curr_params into the entire params
+                pp = self.l2ws_model.params[0].at[window_indices, :].set(curr_params[0])
+                params = [pp]
 
-            # plot the train / test loss so far
-            if epoch % self.save_every_x_epochs == 0:
-                plot_train_test_losses(self.l2ws_model.tr_losses_batch,
-                                       self.l2ws_model.te_losses,
-                                       self.l2ws_model.num_batches, self.epochs_jit)
+                # reset the global (params, state)
+                self.key_count += 1
+                self.l2ws_model.epoch += self.epochs_jit
+                self.l2ws_model.params, self.l2ws_model.state = params, state
 
-    def train_jitted_epochs(self, permutation, epoch):
+                prev_batches = len(self.l2ws_model.tr_losses_batch)
+                self.l2ws_model.tr_losses_batch = self.l2ws_model.tr_losses_batch + \
+                    list(epoch_train_losses)
+
+                # write train results
+                self.writer, self.logf = write_train_results(self.writer, self.logf, 
+                                                                self.l2ws_model.tr_losses_batch, 
+                                                                loop_size, prev_batches,
+                                                                epoch_train_losses, 
+                                                                time_train_per_epoch)
+
+                # evaluate the test set and write results
+                self.test_writer, self.test_logf, self.l2ws_model = test_eval_write(self.test_writer, 
+                                                                                self.test_logf, 
+                                                                                self.l2ws_model)
+
+                # plot the train / test loss so far
+                if epoch % self.save_every_x_epochs == 0:
+                    plot_train_test_losses(self.l2ws_model.tr_losses_batch,
+                                        self.l2ws_model.te_losses,
+                                        self.l2ws_model.num_batches, self.epochs_jit)
+
+    def train_jitted_epochs(self, permutation, epoch, window_indices):
         """
         train self.epochs_jit at a time
         special case: the first time we call train_batch (i.e. epoch = 0)
@@ -643,14 +658,15 @@ class Workspace:
                 permutation, (0,), (self.l2ws_model.batch_size,))
 
             train_loss_first, params, state = self.l2ws_model.train_batch(
-                batch_indices, self.l2ws_model.params, self.l2ws_model.state)
-
+                batch_indices, [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state)
+            
             epoch_train_losses = epoch_train_losses.at[0].set(train_loss_first)
             start_index = 1
-            self.train_over_epochs_body_simple_fn_jitted = self.train_over_epochs_body_simple_fn
+            self.train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, 
+                                                                   window_indices=window_indices)
         else:
             start_index = 0
-            params, state = self.l2ws_model.params, self.l2ws_model.state
+            params, state = [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state
 
         init_val = epoch_train_losses, params, state, permutation
         val = lax.fori_loop(start_index, loop_size,
@@ -664,7 +680,7 @@ class Workspace:
 
         return params, state, epoch_train_losses, time_train_per_epoch
 
-    def train_over_epochs_body_simple_fn(self, batch, val):
+    def train_over_epochs_body_simple_fn(self, batch, val, window_indices):
         """
         to be used as the body_fn in lax.fori_loop
         need to call partial for the specific permutation
@@ -674,7 +690,7 @@ class Workspace:
         batch_indices = lax.dynamic_slice(
             permutation, (start_index,), (self.l2ws_model.batch_size,))
         train_loss, params, state = self.l2ws_model.train_batch(
-            batch_indices, params, state)
+            batch_indices, [params[0][window_indices, :]], state)
         train_losses = train_losses.at[batch].set(train_loss)
         val = train_losses, params, state, permutation
         return val

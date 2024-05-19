@@ -287,27 +287,13 @@ class L2WSmodel(object):
         self.epochs, self.lr = nn_cfg.get('epochs', 10), nn_cfg.get('lr', 1e-3)
         self.decay_lr, self.min_lr = nn_cfg.get('decay_lr', False), nn_cfg.get('min_lr', 1e-7)
 
-        # auto-decay learning rate
-        # self.plateau_decay = input_dict.get('plateau_decay')
-        self.plateau_decay = plateau_decay
-
-        if self.plateau_decay is None:
-            self.plateau_decay = dict(min_lr=1e-7, decay_factor=5,
-                                      avg_window_size=50, tolerance=1e-2, patience=2)
-
-        self.dont_decay_until = 2 * self.plateau_decay.get('avg_window_size', 10)
-        self.epoch_decay_points = []
-
         # batching
         batch_size = nn_cfg.get('batch_size', self.N_train)
         self.batch_size = min([batch_size, self.N_train])
         self.num_batches = int(self.N_train/self.batch_size)
 
         # layer sizes
-        if self.algo == 'maml':
-            input_size = 1
-        else:
-            input_size = self.train_inputs.shape[1]
+        input_size = self.train_inputs.shape[1]
 
         output_size = self.output_size
         hidden_layer_sizes = nn_cfg.get('intermediate_layer_sizes', [])
@@ -315,46 +301,11 @@ class L2WSmodel(object):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
         self.layer_sizes = layer_sizes
 
-        init_var, init_stddev_var = self.init_var, 1e-8
         self.init_params()
-        # if self.algo == 'alista':
-        #     # self.mean_params = jnp.ones((self.train_unrolls, 2))
-
-        #     # # initialize with ista values
-        #     # # alista_step = alista_cfg['step']
-        #     # # alista_eta = alista_cfg['eta']
-        #     # # self.mean_params = self.mean_params.at[:, 0].set(alista_step)
-        #     # # self.mean_params = self.mean_params.at[:, 1].set(alista_eta)
-            
-        #     # self.sigma_params = -jnp.ones((self.train_unrolls, 2)) * 10
-        #     self.init_params()
-        # elif self.algo == 'tilista':
-        #     # self.mean_params = (jnp.ones((self.train_unrolls, 2)), 
-        #     #                     jnp.ones((self.m, self.n)))
-        #     # self.mean_params = (jnp.ones((self.train_unrolls, 2)), 
-        #     #                     self.W + .001)
-        #     # self.sigma_params = (-jnp.ones((self.train_unrolls, 2)) * 10, 
-        #     #                      -jnp.ones((self.m, self.n)) * 10)
-        #     self.init_params()
-        # else:
-        #     # initialize weights of neural network
-        #     self.mean_params = init_network_params(layer_sizes, random.PRNGKey(0))
-
-        #     # initialize the stddev
-        #     self.sigma_params = init_variance_network_params(layer_sizes, init_var, random.PRNGKey(1), 
-        #                                                   init_stddev_var)
-        
-        # # initialize the prior
-        # self.prior_param = jnp.log(init_var)
-
-        # self.params = [self.mean_params, self.sigma_params, self.prior_param]
 
         # initializes the optimizer
         self.optimizer_method = nn_cfg.get('method', 'adam')
         if self.optimizer_method == 'adam':
-            # mask = [True, True, True]
-            # masked_optimizer = optax.masked(optax.adam(self.lr), mask)
-            # self.optimizer = OptaxSolver(opt=masked_optimizer, fun=self.loss_fn_train, has_aux=False)
             self.optimizer = OptaxSolver(opt=optax.adam(
                 self.lr), fun=self.loss_fn_train, has_aux=False)
         elif self.optimizer_method == 'sgd':
@@ -379,7 +330,7 @@ class L2WSmodel(object):
                                                    key=self.key
                                                    )
         else:
-            self.state = self.optimizer.init_state(init_params=self.params,
+            self.state = self.optimizer.init_state(init_params=[self.params[0][:self.train_unrolls - 1, :]],
                                                    inputs=input_init,
                                                    b=q_init,
                                                    iters=self.train_unrolls,
