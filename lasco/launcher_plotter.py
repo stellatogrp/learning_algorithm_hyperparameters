@@ -30,6 +30,12 @@ from lasco.osqp_model import OSQPmodel
 from lasco.scs_model import SCSmodel
 from lasco.utils.generic_utils import count_files_in_directory, sample_plot, setup_permutation
 
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",   # For talks, use sans-serif
+    "font.size": 16,
+})
+
 
 def plot_eval_iters(iters_df, primal_residuals_df, dual_residuals_df, plot_pretrain,
                         obj_vals_diff_df, dist_opts_df,

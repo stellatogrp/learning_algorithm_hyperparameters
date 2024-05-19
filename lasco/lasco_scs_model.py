@@ -6,6 +6,7 @@ import jax.scipy as jsp
 import numpy as np
 import scs
 from scipy.sparse import csc_matrix
+import jax
 
 from lasco.algo_steps import (
     create_M,
@@ -116,6 +117,7 @@ class LASCOSCSmodel(L2WSmodel):
             factors2 = jnp.zeros((self.train_unrolls, self.m + self.n), dtype=jnp.int32)
             scaled_vecs = jnp.zeros((self.train_unrolls, self.m + self.n))
 
+            # params[0] = params[0].at[:, 0].set(jax.lax.stop_gradient(params[0][:, 0]))
             rho_xs, rho_ys = params[0][:, 0], params[0][:, 1]
             for i in range(self.train_unrolls):
                 rho_x, rho_y = jnp.exp(rho_xs[i]), jnp.exp(rho_ys[i])

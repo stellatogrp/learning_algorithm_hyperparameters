@@ -1,18 +1,14 @@
 import csv
-import gc
 import os
 import time
 
 import hydra
 import jax.numpy as jnp
-import jax.scipy as jsp
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from jax import lax, vmap
-from scipy.sparse import load_npz
+from jax import lax
 
-from lasco.algo_steps import create_projection_fn, form_osqp_matrix, get_psd_sizes, unvec_symm
+from lasco.algo_steps import create_projection_fn, get_psd_sizes
 from lasco.gd_model import GDmodel
 from lasco.lasco_gd_model import LASCOGDmodel
 from lasco.lasco_osqp_model import LASCOOSQPmodel
@@ -22,7 +18,7 @@ from lasco.launcher_helper import (
     normalize_inputs_fn,
     plot_samples,
     plot_samples_scs,
-    setup_scs_opt_sols
+    setup_scs_opt_sols,
 )
 from lasco.launcher_plotter import (
     plot_eval_iters,
@@ -42,11 +38,6 @@ from lasco.osqp_model import OSQPmodel
 from lasco.scs_model import SCSmodel
 from lasco.utils.generic_utils import setup_permutation
 
-plt.rcParams.update({
-    "text.usetex": True,
-    "font.family": "serif",   # For talks, use sans-serif
-    "font.size": 16,
-})
 # config.update("jax_enable_x64", True)
 
 
