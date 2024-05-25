@@ -103,7 +103,13 @@ class LASCOSCSmodel(L2WSmodel):
             # q = lin_sys_solve(factor, q)
             # z0 = jnp.zeros(z_star.size + 1) #self.predict_warm_start(params, input, key, bypass_nn)
             # z0 = z0.at[-1].set(1)
-            # if diff_required:
+            # n_iters = self.train_unrolls
+            if diff_required:
+                n_iters = self.train_unrolls
+            else:
+                n_iters = iters
+
+
             z0 = jnp.zeros(z_star.size + 1)
             z0 = z0.at[-1].set(1)
             z0 = z0.at[:-1].set(input)
@@ -123,13 +129,13 @@ class LASCOSCSmodel(L2WSmodel):
                 eval_fn = self.k_steps_eval_fn
 
             # do all of the factorizations
-            factors1 = jnp.zeros((iters, self.m + self.n, self.m + self.n))
-            factors2 = jnp.zeros((iters, self.m + self.n), dtype=jnp.int32)
-            scaled_vecs = jnp.zeros((iters, self.m + self.n))
+            factors1 = jnp.zeros((n_iters, self.m + self.n, self.m + self.n))
+            factors2 = jnp.zeros((n_iters, self.m + self.n), dtype=jnp.int32)
+            scaled_vecs = jnp.zeros((n_iters, self.m + self.n))
 
             rho_xs, rho_ys = params[0][:, 0], params[0][:, 1]
             # for i in range(self.train_unrolls):
-            for i in range(iters):
+            for i in range(n_iters):
                 rho_x, rho_y = jnp.exp(rho_xs[i]), jnp.exp(rho_ys[i])
                 
                 factor, scale_vec = get_scaled_vec_and_factor(self.M, rho_x, rho_y, 
