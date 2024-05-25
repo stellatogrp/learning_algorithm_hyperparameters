@@ -787,7 +787,7 @@ class Workspace:
         inputs = self.get_inputs_for_eval(fixed_ws, num, train, col)
 
         eval_out = self.l2ws_model.evaluate(
-            self.eval_unrolls, inputs, q_mat, z_stars, fixed_ws, factors=factors, tag=tag)
+            self.eval_unrolls, z_stars * 0, q_mat, z_stars, fixed_ws, factors=factors, tag=tag)
         return eval_out
 
 
