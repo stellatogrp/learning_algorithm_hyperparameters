@@ -63,7 +63,7 @@ def setup_permutation(key_count, N_train, epochs_jit):
     for i in range(epochs_jit):
         key = random.PRNGKey(key_count)
         key_count += 1
-        epoch_permutation = random.permutation(key, N_train)
+        epoch_permutation = jnp.arange(N_train) #random.permutation(key, N_train)
         permutations.append(epoch_permutation)
     stacked_permutation = jnp.stack(permutations)
     permutation = jnp.ravel(stacked_permutation)

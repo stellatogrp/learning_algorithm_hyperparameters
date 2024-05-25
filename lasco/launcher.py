@@ -99,6 +99,7 @@ class Workspace:
         self.epochs_jit = cfg.epochs_jit
         self.accs = cfg.get('accuracies')
         self.no_learning_accs = None
+        self.nn_cfg = cfg.nn_cfg
 
         # custom visualization
         self.init_custom_visualization(cfg, custom_visualize_fn)
@@ -493,6 +494,7 @@ class Workspace:
 
         # update the eval csv files
         primal_residuals, dual_residuals, obj_vals_diff = None, None, None
+        dist_opts = None
         if len(out_train) == 6 or len(out_train) == 8:
             primal_residuals = out_train[4].mean(axis=0)
             dual_residuals = out_train[5].mean(axis=0)
@@ -599,7 +601,8 @@ class Workspace:
 
         for window in range(10):
             # update window_indices
-            window_indices = jnp.arange(10 * window, 10 * (window + 1))
+            # window_indices = jnp.arange(10 * window, 10 * (window + 1))
+            window_indices = jnp.arange(self.train_unrolls * window, self.train_unrolls * (window + 1))
 
             # update the train inputs
             update_train_inputs_flag = window > 0
@@ -610,8 +613,9 @@ class Workspace:
 
                 if (test_zero and epoch == 0) or (epoch % self.eval_every_x_epochs == 0 and epoch > 0):
                     if update_train_inputs_flag:
-                        self.eval_iters_train_and_test(f"train_epoch_{epoch}", window * 10)
+                        self.eval_iters_train_and_test(f"train_epoch_{epoch}",self.train_unrolls * window)
                         update_train_inputs_flag = False
+                        # self.l2ws_model.initialize_neural_network(self.nn_cfg, 'dont_init')
                     else:
                         self.eval_iters_train_and_test(f"train_epoch_{epoch}", None)
 
@@ -626,6 +630,7 @@ class Workspace:
                 # insert the curr_params into the entire params
                 pp = self.l2ws_model.params[0].at[window_indices, :].set(curr_params[0])
                 params = [pp]
+                # print('curr_params', curr_params)
 
                 # reset the global (params, state)
                 self.key_count += 1
@@ -668,25 +673,30 @@ class Workspace:
             #   lax.while_loop and lax.scan.
             batch_indices = lax.dynamic_slice(
                 permutation, (0,), (self.l2ws_model.batch_size,))
+            # batch_indices = lax.dynamic_slice(
+            #     jnp.arange(permutation.size), (0,), (self.l2ws_model.batch_size,))
 
             train_loss_first, params, state = self.l2ws_model.train_batch(
-                batch_indices, [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state)
+                batch_indices, self.l2ws_model.train_inputs, [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state)
             
             epoch_train_losses = epoch_train_losses.at[0].set(train_loss_first)
             start_index = 1
-            self.train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, 
-                                                                   window_indices=window_indices)
+            # self.train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, 
+            #                                                        window_indices=window_indices)
         else:
             start_index = 0
             params, state = [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state
+            # self.train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, 
+            #                                                        window_indices=window_indices)
+        train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, window_indices=window_indices)
 
-        init_val = epoch_train_losses, params, state, permutation
+        init_val = epoch_train_losses, self.l2ws_model.train_inputs, params, state, permutation
         val = lax.fori_loop(start_index, loop_size,
-                            self.train_over_epochs_body_simple_fn_jitted, init_val)
+                            train_over_epochs_body_simple_fn_jitted, init_val)
         epoch_batch_end_time = time.time()
         time_diff = epoch_batch_end_time - epoch_batch_start_time
         time_train_per_epoch = time_diff / self.epochs_jit
-        epoch_train_losses, params, state, permutation = val
+        epoch_train_losses, inputs, params, state, permutation = val
 
         self.l2ws_model.key = state.iter_num
 
@@ -697,30 +707,34 @@ class Workspace:
         to be used as the body_fn in lax.fori_loop
         need to call partial for the specific permutation
         """
-        train_losses, params, state, permutation = val
+        train_losses, inputs, params, state, permutation = val
         start_index = batch * self.l2ws_model.batch_size
         batch_indices = lax.dynamic_slice(
             permutation, (start_index,), (self.l2ws_model.batch_size,))
+        # batch_indices = lax.dynamic_slice(
+        #         jnp.arange(permutation.size), (start_index,), (self.l2ws_model.batch_size,))
         train_loss, params, state = self.l2ws_model.train_batch(
-            batch_indices, [params[0][window_indices, :]], state)
+            batch_indices, inputs, params, state)
+        # train_loss, params, state = self.l2ws_model.train_batch(
+        #     batch_indices, inputs, [params[0][window_indices, :]], state)
         train_losses = train_losses.at[batch].set(train_loss)
-        val = train_losses, params, state, permutation
+        val = train_losses, inputs, params, state, permutation
         return val
 
-    def train_over_epochs_body_fn(self, batch, val, permutation):
-        """
-        to be used as the body_fn in lax.fori_loop
-        need to call partial for the specific permutation
-        """
-        train_losses, params, state = val
-        start_index = batch * self.l2ws_model.batch_size
-        batch_indices = lax.dynamic_slice(
-            permutation, (start_index,), (self.l2ws_model.batch_size,))
-        train_loss, params, state = self.l2ws_model.train_batch(
-            batch_indices, params, state)
-        train_losses = train_losses.at[batch].set(train_loss)
-        val = train_losses, params, state
-        return val
+    # def train_over_epochs_body_fn(self, batch, val, permutation):
+    #     """
+    #     to be used as the body_fn in lax.fori_loop
+    #     need to call partial for the specific permutation
+    #     """
+    #     train_losses, inputs, params, state = val
+    #     start_index = batch * self.l2ws_model.batch_size
+    #     batch_indices = lax.dynamic_slice(
+    #         permutation, (start_index,), (self.l2ws_model.batch_size,))
+    #     train_loss, params, state = self.l2ws_model.train_batch(
+    #         batch_indices, inputs, params, state)
+    #     train_losses = train_losses.at[batch].set(train_loss)
+    #     val = train_losses, params, state
+    #     return val
 
 
     def eval_iters_train_and_test(self, col, new_start_index):
@@ -732,8 +746,23 @@ class Workspace:
         # update self.l2ws_model.train_inputs
         print('new_start_index', new_start_index)
         if new_start_index is not None:
-            self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :-1]
+            # k = self.train_unrolls
+            # self.evaluate_diff_only(k, self.l2ws_model.train_inputs, [self.l2ws_model.params[0][:1, :]])
+            
+            self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :]
+            self.l2ws_model.init_optimizer()
+        
 
+    def evaluate_diff_only(self, k, inputs, params):
+        if inputs is None:
+            inputs = self.l2ws_model.train_inputs
+        # self.params, inputs, b, k, z_stars, key, factors
+        return self.l2ws_model.loss_fn_train(params,
+                                             inputs, 
+                                             self.l2ws_model.q_mat_train,
+                                             k, 
+                                             self.l2ws_model.z_stars_train,
+                                             0)
 
     def evaluate_only(self, fixed_ws, num, train, col, batch_size):
         tag = 'train' if train else 'test'

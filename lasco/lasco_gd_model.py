@@ -3,6 +3,8 @@ from functools import partial
 import jax.numpy as jnp
 from jax import random
 
+import numpy as np
+
 from lasco.algo_steps import k_steps_eval_lasco_gd, k_steps_train_lasco_gd
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
@@ -42,24 +44,27 @@ class LASCOGDmodel(L2WSmodel):
         # self.mean_params = self.mean_params[:, 0]
         # self.mean_params =
         p = jnp.diag(self.P)
-        self.mean_params = (p.max() + p.min()) / 2 * \
-            jnp.ones(self.train_unrolls)
+        noise = np.random.normal(size=(self.eval_unrolls, 1)) / 10
+        self.mean_params = (p.max() + p.min()) / 2 * jnp.ones((self.eval_unrolls, 1)) + jnp.array(noise)
         # self.mean_params = self.mean_params.at[2].set(0.1)
 
-        self.sigma_params = -jnp.ones(self.train_unrolls) * 10
+        # self.sigma_params = -jnp.ones(self.train_unrolls) * 10
 
         # initialize the prior
-        self.prior_param = jnp.log(self.init_var) * jnp.ones(2)
+        # self.prior_param = jnp.log(self.init_var) * jnp.ones(2)
 
         # , self.prior_param]
-        self.params = [self.mean_params, self.sigma_params]
+        self.params = [self.mean_params]
 
     def create_end2end_loss_fn(self, bypass_nn, diff_required):
         supervised = True  # self.supervised and diff_required
         loss_method = self.loss_method
 
         def predict(params, input, q, iters, z_star, key, factor):
-            z0 = jnp.zeros(z_star.size)
+            if diff_required:
+                z0 = input
+            else:
+                z0 = jnp.zeros(z_star.size)
 
             if self.train_fn is not None:
                 train_fn = self.train_fn

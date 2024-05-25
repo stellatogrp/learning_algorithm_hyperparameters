@@ -68,6 +68,7 @@ class LASCOSCSmodel(L2WSmodel):
         
     def init_params(self):
         self.mean_params = 0*jnp.ones((self.eval_unrolls, 5))
+        # self.mean_params = self.mean_params.at[10:20, :].set(1*jnp.ones((10, 5)))
         self.params = [self.mean_params]
 
 
@@ -105,14 +106,12 @@ class LASCOSCSmodel(L2WSmodel):
             if diff_required:
                 z0 = jnp.zeros(z_star.size + 1)
                 z0 = z0.at[-1].set(1)
-                # import pdb
-                # pdb.set_trace()
                 z0 = z0.at[:-1].set(input)
             else:
                 z0 = jnp.zeros(z_star.size + 1)
                 z0 = z0.at[-1].set(1)
-            print('z0', z0)
-
+            print('z0', z0[:3])
+            # print('params within loss fn', params)
 
             if self.train_fn is not None:
                 train_fn = self.train_fn
@@ -128,7 +127,6 @@ class LASCOSCSmodel(L2WSmodel):
             factors2 = jnp.zeros((self.train_unrolls, self.m + self.n), dtype=jnp.int32)
             scaled_vecs = jnp.zeros((self.train_unrolls, self.m + self.n))
 
-            # params[0] = params[0].at[:, 0].set(jax.lax.stop_gradient(params[0][:, 0]))
             rho_xs, rho_ys = params[0][:, 0], params[0][:, 1]
             for i in range(self.train_unrolls):
                 rho_x, rho_y = jnp.exp(rho_xs[i]), jnp.exp(rho_ys[i])
@@ -153,6 +151,8 @@ class LASCOSCSmodel(L2WSmodel):
                                                 supervised=supervised,
                                                 z_star=z_star) #,
                                                 #factor=factor)
+                print(jnp.linalg.norm(z_final[:-1] - z_star))
+                print('z_final', z_final[:3])
             else:
                 eval_out = eval_fn(k=iters,
                                     z0=z0,
@@ -161,6 +161,7 @@ class LASCOSCSmodel(L2WSmodel):
                                     supervised=supervised,
                                     z_star=z_star)
                 z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
+                
 
                 angles = None
 

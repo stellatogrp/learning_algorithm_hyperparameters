@@ -105,8 +105,8 @@ class L2WSmodel(object):
 
     def initialize_essentials(self, jit, eval_unrolls, train_unrolls, train_inputs, test_inputs):
         self.jit = jit
-        self.eval_unrolls = eval_unrolls + 1
-        self.train_unrolls = train_unrolls + 1
+        self.eval_unrolls = eval_unrolls
+        self.train_unrolls = train_unrolls
         self.train_inputs, self.test_inputs = train_inputs, test_inputs
         self.N_train, self.N_test = self.train_inputs.shape[0], self.test_inputs.shape[0]
         self.batch_angle = vmap(self.compute_angle, in_axes=(0, 0), out_axes=(0))
@@ -172,7 +172,7 @@ class L2WSmodel(object):
                 z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
 
                 angles = None
-
+            print('z_final', z_final)
             loss = self.final_loss(loss_method, z_final, iter_losses, supervised, z0, z_star)
 
             # penalty_loss = calculate_total_penalty(self.N_train, params, self.b, self.c, self.delta)
@@ -187,9 +187,13 @@ class L2WSmodel(object):
         loss_fn = self.predict_2_loss(predict, diff_required)
         return loss_fn
 
-    def train_batch(self, batch_indices, params, state):
-        batch_inputs = self.train_inputs[batch_indices, :]
-        print('batch_inputs', batch_inputs)
+    def train_batch(self, batch_indices, inputs, params, state):
+        # batch_inputs = self.train_inputs[batch_indices, :]
+        batch_inputs = inputs[batch_indices, :]
+        print('inputs', inputs[:3])
+        # print('batch_inputs', batch_inputs[:])
+        # print('params', params)
+        # print('batch_indices', batch_indices)
         batch_q_data = self.q_mat_train[batch_indices, :]
         batch_z_stars = self.z_stars_train[batch_indices, :] if self.supervised else None
 
@@ -302,10 +306,15 @@ class L2WSmodel(object):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
         self.layer_sizes = layer_sizes
 
-        self.init_params()
+        if plateau_decay != 'dont_init':
+            self.init_params()
 
-        # initializes the optimizer
         self.optimizer_method = nn_cfg.get('method', 'adam')
+        self.init_optimizer()
+
+
+    def init_optimizer(self):
+        # initializes the optimizer
         if self.optimizer_method == 'adam':
             self.optimizer = OptaxSolver(opt=optax.adam(
                 self.lr), fun=self.loss_fn_train, has_aux=False)
@@ -331,7 +340,7 @@ class L2WSmodel(object):
                                                    key=self.key
                                                    )
         else:
-            self.state = self.optimizer.init_state(init_params=[self.params[0][:self.train_unrolls - 1, :]],
+            self.state = self.optimizer.init_state(init_params=[self.params[0][:self.train_unrolls, :]],
                                                    inputs=input_init,
                                                    b=q_init,
                                                    iters=self.train_unrolls,

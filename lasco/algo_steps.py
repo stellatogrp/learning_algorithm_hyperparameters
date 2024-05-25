@@ -23,8 +23,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, supervised, z_star, proj, jit, hsd
     fp_train_partial = partial(fp_train_lasco_scs, q_r=q, all_factors=all_factors,
                                supervised=supervised, z_star=z_star, proj=proj, hsde=hsde,
                                homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, betas=betas)
-    
-    if hsde:
+    if False and hsde:
         # first step: iteration 0
         # we set homogeneous = False for the first iteration
         #   to match the SCS code which has the global variable FEASIBLE_ITERS
@@ -36,7 +35,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, supervised, z_star, proj, jit, hsd
         iter_losses = iter_losses.at[0].set(jnp.linalg.norm(z_next - z0))
         z0 = z_next
     val = z0, iter_losses
-    start_iter = 1 if hsde else 0
+    start_iter = 0 #1 if hsde else 0
     if jit:
         out = lax.fori_loop(start_iter, k, fp_train_partial, val)
     else:
@@ -61,9 +60,9 @@ def fp_train_lasco_scs(i, val, q_r, all_factors, supervised, z_star, proj, hsde,
     # z_next = (1 - betas[i, 0]) * z_next + betas[i, 0] * z
 
     if supervised:
-        diff = jnp.linalg.norm(z[:-1] - z_star) # / z[-1] - z_star)
+        diff = jnp.linalg.norm(z_next[:-1] - z_star) # / z[-1] - z_star)
     else:
-        diff = jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
+        diff = 0 #jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
     loss_vec = loss_vec.at[i].set(diff)
     return z_next, loss_vec
 
@@ -99,7 +98,7 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
     #     verbose = True
     verbose = not jit
 
-    if hsde:
+    if False and hsde:
         # first step: iteration 0
         # we set homogeneous = False for the first iteration
         #   to match the SCS code which has the global variable FEASIBLE_ITERS
@@ -114,17 +113,17 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
         iter_losses = iter_losses.at[0].set(jnp.linalg.norm(z_next - z0))
         dist_opts = dist_opts.at[0].set(jnp.linalg.norm((z0[:-1] - z_star)))
         z0 = z_next
-    M = create_M(P, A)
-    rhs = (M + jnp.diag(scaled_vecs[0, :])) @ q
-    c, b = rhs[:n], rhs[n:]
+    # M = create_M(P, A)
+    # rhs = (M + jnp.diag(scaled_vecs[0, :])) @ q
+    # c, b = rhs[:n], rhs[n:]
 
     fp_eval_partial = partial(fp_eval_lasco_scs, q_r=q, z_star=z_star, all_factors=all_factors,
-                              proj=proj, P=P, A=A, c=c, b=b, hsde=hsde,
+                              proj=proj, P=P, A=A, c=None, b=None, hsde=hsde,
                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, betas=betas,
                               custom_loss=custom_loss,
                               verbose=verbose)
     val = z0, z0, iter_losses, all_z, all_u, all_v, primal_residuals, dual_residuals, dist_opts
-    start_iter = 1 if hsde else 0
+    start_iter = 0 #start_iter = 1 if hsde else 0
     if jit:
         out = lax.fori_loop(start_iter, k, fp_eval_partial, val)
     else:
@@ -133,9 +132,9 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
     all_z_plus_1 = all_z_plus_1.at[1:, :].set(all_z)
 
     # return z_final, iter_losses, primal_residuals, dual_residuals, all_z_plus_1, all_u, all_v
-    if lightweight:
-        return z_final, iter_losses, all_z_plus_1[:10, :], primal_residuals, \
-            dual_residuals, all_u[:10, :], all_v[:10, :]
+    # if lightweight:
+    #     return z_final, iter_losses, all_z_plus_1[:10, :], primal_residuals, \
+    #         dual_residuals, all_u[:10, :], all_v[:10, :]
     return z_final, iter_losses, all_z_plus_1, primal_residuals, dual_residuals, all_u, all_v, dist_opts
 
 
@@ -344,10 +343,10 @@ def k_steps_train_lasco_gd(k, z0, q, params, P, supervised, z_star, jit):
 def fp_eval_lasco_gd(i, val, supervised, z_star, P, c, gd_steps):
     z, loss_vec, z_all, obj_diffs = val
     z_next = fixed_point_gd(z, P, c, gd_steps[i])
-    if supervised:
-        diff = jnp.linalg.norm(z - z_star)
-    else:
-        diff = jnp.linalg.norm(z_next - z)
+    # if supervised:
+    diff = jnp.linalg.norm(z - z_star)
+    # else:
+    #     diff = jnp.linalg.norm(z_next - z)
     loss_vec = loss_vec.at[i].set(diff)
     obj = .5 * z_next @ P @ z_next + c @ z_next
     opt_obj = .5 * z_star @ P @ z_star + c @ z_star
@@ -359,10 +358,10 @@ def fp_eval_lasco_gd(i, val, supervised, z_star, P, c, gd_steps):
 def fp_train_lasco_gd(i, val, supervised, z_star, P, c, gd_steps):
     z, loss_vec = val
     z_next = fixed_point_gd(z, P, c, gd_steps[i])
-    if supervised:
-        diff = jnp.linalg.norm(z - z_star)
-    else:
-        diff = jnp.linalg.norm(z_next - z)
+    # if supervised:
+    diff = jnp.linalg.norm(z_next - z_star)
+    # else:
+    #     diff = jnp.linalg.norm(z_next - z)
     loss_vec = loss_vec.at[i].set(diff)
     return z_next, loss_vec
 
@@ -1927,8 +1926,8 @@ def fixed_point_hsde(z_init, homogeneous, r, factor1, factor2, proj, scale_vec, 
         tau_tilde = 1 (bias towards feasibility)
     """
     homogeneous = False
-    if homogeneous:
-        z_init = z_init / jnp.linalg.norm(z_init) * jnp.sqrt(z_init.size)
+    # if homogeneous:
+    #     z_init = z_init / jnp.linalg.norm(z_init) * jnp.sqrt(z_init.size)
 
     # z = (mu, eta)
     mu, eta = z_init[:-1], z_init[-1]
@@ -1944,20 +1943,22 @@ def fixed_point_hsde(z_init, homogeneous, r, factor1, factor2, proj, scale_vec, 
 
     # non identity DR scaling
     # p = jnp.multiply(scale_vec, p)
-    if homogeneous:
-        tau_tilde = root_plus(mu, eta, p, r, scale_vec)
-    else:
-        tau_tilde = 1.0
+    # if homogeneous:
+    #     tau_tilde = root_plus(mu, eta, p, r, scale_vec)
+    # else:
+    tau_tilde = 1.0
     w_tilde = p - r * tau_tilde
 
     # u, tau update
     w_temp = 2 * w_tilde - mu
     w = proj(w_temp)
-    tau = jnp.clip(2 * tau_tilde - eta, a_min=0)
+    tau = 1.0 #jnp.clip(2 * tau_tilde - eta, a_min=0)
 
     # mu, eta update
     mu = mu + alpha * (w - w_tilde)
-    eta = eta + alpha * (tau - tau_tilde)
+    # eta = eta + 1 * (tau - tau_tilde)
+
+    # eta, tau, tau_tilde = 1, 1, 1
 
     # concatenate for z, u
     z = jnp.concatenate([mu, jnp.array([eta])])
