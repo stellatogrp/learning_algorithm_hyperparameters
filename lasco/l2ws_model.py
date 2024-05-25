@@ -194,7 +194,7 @@ class L2WSmodel(object):
         # print('params', params)
         # print('batch_indices', batch_indices)
         batch_q_data = self.q_mat_train[batch_indices, :]
-        batch_z_stars = self.z_stars_train[batch_indices, :] if self.supervised else None
+        batch_z_stars = self.z_stars_train[batch_indices, :] #if self.supervised else None
 
         if self.factors_required and not self.factor_static_bool:
             # for only the case where the factors are needed
