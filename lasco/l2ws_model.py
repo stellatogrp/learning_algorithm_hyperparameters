@@ -46,7 +46,6 @@ class L2WSmodel(object):
                  y_stars_train=None,
                  y_stars_test=None,
                  loss_method='fixed_k',
-                 alista_cfg=None,
                  algo_dict={}):
         dict = algo_dict
         self.key = 0
@@ -55,7 +54,7 @@ class L2WSmodel(object):
         self.c = pac_bayes_cfg.get('c', 2.0)
         self.delta = pac_bayes_cfg.get('delta', 0.0001)
         self.delta2 = pac_bayes_cfg.get('delta', 0.00001)
-        self.target_pen = pac_bayes_cfg['target_pen']
+        # self.target_pen = pac_bayes_cfg['target_pen']
         self.init_var = pac_bayes_cfg.get('init_var', 1e-1) # initializes all of s and the prior
         self.penalty_coeff = pac_bayes_cfg.get('penalty_coeff', 1.0)
         self.deterministic = pac_bayes_cfg.get('deterministic', False)
@@ -84,7 +83,7 @@ class L2WSmodel(object):
         self.create_all_loss_fns(loss_method, regression)
 
         # neural network setup
-        self.initialize_neural_network(nn_cfg, plateau_decay, alista_cfg=alista_cfg)
+        self.initialize_neural_network(nn_cfg, plateau_decay)
 
         # init to track training
         self.init_train_tracking()
@@ -326,7 +325,7 @@ class L2WSmodel(object):
         batch_indices = jnp.arange(self.N_train)
         input_init = self.train_inputs[batch_indices, :]
         q_init = self.q_mat_train[batch_indices, :]
-        z_stars_init = self.z_stars_train[batch_indices, :] if self.supervised else None
+        z_stars_init = self.z_stars_train[batch_indices, :] #if self.supervised else None
 
         if self.factors_required and not self.factor_static_bool:
             batch_factors = (self.factors_train[0][batch_indices, :, :], 

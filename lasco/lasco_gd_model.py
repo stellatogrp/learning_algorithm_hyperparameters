@@ -44,8 +44,8 @@ class LASCOGDmodel(L2WSmodel):
         # self.mean_params = self.mean_params[:, 0]
         # self.mean_params =
         p = jnp.diag(self.P)
-        noise = np.random.normal(size=(self.eval_unrolls, 1)) / 10
-        self.mean_params = (p.max() + p.min()) / 2 * jnp.ones((self.eval_unrolls, 1)) + jnp.array(noise)
+        noise = np.random.normal(size=(self.eval_unrolls, 1)) / 100
+        self.mean_params = 2 / (p.max() + p.min()) * jnp.ones((self.eval_unrolls, 1)) + 0 * jnp.array(noise)
         # self.mean_params = self.mean_params.at[2].set(0.1)
 
         # self.sigma_params = -jnp.ones(self.train_unrolls) * 10
@@ -61,10 +61,11 @@ class LASCOGDmodel(L2WSmodel):
         loss_method = self.loss_method
 
         def predict(params, input, q, iters, z_star, key, factor):
-            if diff_required:
-                z0 = input
-            else:
-                z0 = jnp.zeros(z_star.size)
+            # if diff_required:
+            #     z0 = input
+            # else:
+            #     z0 = jnp.zeros(z_star.size)
+            z0 = input
 
             if self.train_fn is not None:
                 train_fn = self.train_fn
@@ -76,13 +77,15 @@ class LASCOGDmodel(L2WSmodel):
                 eval_fn = self.k_steps_eval_fn
 
             # w_key = random.split(key)
-            w_key = random.PRNGKey(key)
-            perturb = random.normal(w_key, (self.train_unrolls, 2))
-            if self.deterministic:
-                stochastic_params = params[0]
-            else:
-                stochastic_params = params[0] + \
-                    jnp.sqrt(jnp.exp(params[1])) * perturb
+            # w_key = random.PRNGKey(key)
+            # perturb = random.normal(w_key, (self.train_unrolls, 2))
+
+            stochastic_params = params[0]
+            # if self.deterministic:
+            #     stochastic_params = params[0]
+            # else:
+            #     stochastic_params = params[0] + \
+            #         jnp.sqrt(jnp.exp(params[1])) * perturb
             print('stochastic_params', stochastic_params)
             print('self.deterministic', self.deterministic)
             print('iters', iters)
