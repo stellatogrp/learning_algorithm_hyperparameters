@@ -123,12 +123,13 @@ class LASCOSCSmodel(L2WSmodel):
                 eval_fn = self.k_steps_eval_fn
 
             # do all of the factorizations
-            factors1 = jnp.zeros((self.train_unrolls, self.m + self.n, self.m + self.n))
-            factors2 = jnp.zeros((self.train_unrolls, self.m + self.n), dtype=jnp.int32)
-            scaled_vecs = jnp.zeros((self.train_unrolls, self.m + self.n))
+            factors1 = jnp.zeros((iters, self.m + self.n, self.m + self.n))
+            factors2 = jnp.zeros((iters, self.m + self.n), dtype=jnp.int32)
+            scaled_vecs = jnp.zeros((iters, self.m + self.n))
 
             rho_xs, rho_ys = params[0][:, 0], params[0][:, 1]
-            for i in range(self.train_unrolls):
+            # for i in range(self.train_unrolls):
+            for i in range(iters):
                 rho_x, rho_y = jnp.exp(rho_xs[i]), jnp.exp(rho_ys[i])
                 
                 factor, scale_vec = get_scaled_vec_and_factor(self.M, rho_x, rho_y, 
