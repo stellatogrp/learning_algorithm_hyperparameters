@@ -379,7 +379,7 @@ def gd_setup_script(c_mat, P, output_filename):
     plt.clf()
 
 
-def setup_script(q_mat, theta_mat, solver, data, cones_dict, output_filename, solve=True):
+def setup_script(q_mat, theta_mat, solver, data, cones_dict, output_filename, solve=True, save=True):
     N = q_mat.shape[0]
     m, n = data['A'].shape
 
@@ -418,49 +418,51 @@ def setup_script(q_mat, theta_mat, solver, data, cones_dict, output_filename, so
             solve_times[i] = scs_instance.solve_time
 
             if i % 1000 == 0:
-                log.info(f"saving final data... after solving problem number {i}")
-                jnp.savez(
-                    output_filename,
-                    thetas=theta_mat,
-                    x_stars=x_stars,
-                    y_stars=y_stars,
-                    s_stars=s_stars,
-                    q_mat=q_mat
-                )
-    # save the data
-    log.info("final saving final data...")
-    t0 = time.time()
-    jnp.savez(
-        output_filename,
-        thetas=theta_mat,
-        x_stars=x_stars,
-        y_stars=y_stars,
-        s_stars=s_stars,
-        q_mat=q_mat
-    )
+                if save:
+                    log.info(f"saving final data... after solving problem number {i}")
+                    jnp.savez(
+                        output_filename,
+                        thetas=theta_mat,
+                        x_stars=x_stars,
+                        y_stars=y_stars,
+                        s_stars=s_stars,
+                        q_mat=q_mat
+                    )
+    if save:
+        # save the data
+        log.info("final saving final data...")
+        t0 = time.time()
+        jnp.savez(
+            output_filename,
+            thetas=theta_mat,
+            x_stars=x_stars,
+            y_stars=y_stars,
+            s_stars=s_stars,
+            q_mat=q_mat
+        )
 
-    # save solve times
-    df_solve_times = pd.DataFrame(solve_times, columns=['solve_times'])
-    df_solve_times.to_csv('solve_times.csv')
+        # save solve times
+        df_solve_times = pd.DataFrame(solve_times, columns=['solve_times'])
+        df_solve_times.to_csv('solve_times.csv')
 
-    save_time = time.time()
-    log.info(f"finished saving final data... took {save_time-t0}'")
+        save_time = time.time()
+        log.info(f"finished saving final data... took {save_time-t0}'")
 
-    # save plot of first 5 solutions
-    for i in range(5):
-        plt.plot(x_stars[i, :])
-    plt.savefig("x_stars.pdf")
-    plt.clf()
+        # save plot of first 5 solutions
+        for i in range(5):
+            plt.plot(x_stars[i, :])
+        plt.savefig("x_stars.pdf")
+        plt.clf()
 
-    for i in range(5):
-        plt.plot(y_stars[i, :])
-    plt.savefig("y_stars.pdf")
-    plt.clf()
+        for i in range(5):
+            plt.plot(y_stars[i, :])
+        plt.savefig("y_stars.pdf")
+        plt.clf()
 
-    # save plot of first 5 parameters
-    for i in range(5):
-        plt.plot(theta_mat[i, :])
-    plt.savefig("thetas.pdf")
-    plt.clf()
+        # save plot of first 5 parameters
+        for i in range(5):
+            plt.plot(theta_mat[i, :])
+        plt.savefig("thetas.pdf")
+        plt.clf()
 
     return x_stars, y_stars, s_stars

@@ -246,7 +246,8 @@ class L2WSmodel(object):
                                                                    key=self.key)
         else:
             test_loss, test_out, time_per_prob = self.static_eval(self.train_unrolls,
-                                                                  self.test_inputs,
+                                                                #   self.test_inputs,
+                                                                z_stars_test * 0,
                                                                   self.q_mat_test,
                                                                   z_stars_test,
                                                                   self.key)

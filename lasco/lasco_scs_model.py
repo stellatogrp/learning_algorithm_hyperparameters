@@ -103,13 +103,13 @@ class LASCOSCSmodel(L2WSmodel):
             # q = lin_sys_solve(factor, q)
             # z0 = jnp.zeros(z_star.size + 1) #self.predict_warm_start(params, input, key, bypass_nn)
             # z0 = z0.at[-1].set(1)
-            if diff_required:
-                z0 = jnp.zeros(z_star.size + 1)
-                z0 = z0.at[-1].set(1)
-                z0 = z0.at[:-1].set(input)
-            else:
-                z0 = jnp.zeros(z_star.size + 1)
-                z0 = z0.at[-1].set(1)
+            # if diff_required:
+            z0 = jnp.zeros(z_star.size + 1)
+            z0 = z0.at[-1].set(1)
+            z0 = z0.at[:-1].set(input)
+            # else:
+            #     z0 = jnp.zeros(z_star.size + 1)
+            #     z0 = z0.at[-1].set(1)
             print('z0', z0[:3])
             # print('params within loss fn', params)
 

@@ -748,8 +748,10 @@ class Workspace:
         if new_start_index is not None:
             # k = self.train_unrolls
             # self.evaluate_diff_only(k, self.l2ws_model.train_inputs, [self.l2ws_model.params[0][:1, :]])
-            
-            self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :]
+            if self.algo == 'lasco_scs':
+                self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :-1]
+            else:
+                self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :]
             self.l2ws_model.init_optimizer()
         
 

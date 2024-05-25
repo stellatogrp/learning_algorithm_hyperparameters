@@ -44,8 +44,9 @@ class LASCOGDmodel(L2WSmodel):
         # self.mean_params = self.mean_params[:, 0]
         # self.mean_params =
         p = jnp.diag(self.P)
-        noise = np.clip(np.random.normal(size=(self.eval_unrolls, 1)) / 100, a_min=0.0001, a_max=1e10)
+        noise = np.clip(np.random.normal(size=(self.eval_unrolls, 1)) / 10, a_min=0.0001, a_max=1e10)
         self.mean_params = 2 / (p.max() + p.min()) * jnp.ones((self.eval_unrolls, 1)) + 1 * jnp.array(noise)
+        print('self.mean_params', self.mean_params)
         # self.mean_params = self.mean_params.at[2].set(0.1)
 
         # self.sigma_params = -jnp.ones(self.train_unrolls) * 10
