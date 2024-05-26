@@ -135,6 +135,7 @@ class LASCOSCSmodel(L2WSmodel):
 
             rho_xs, rho_ys = params[0][:, 0], params[0][:, 1]
             # for i in range(self.train_unrolls):
+
             for i in range(n_iters):
                 rho_x, rho_y = jnp.exp(rho_xs[i]), jnp.exp(rho_ys[i])
                 

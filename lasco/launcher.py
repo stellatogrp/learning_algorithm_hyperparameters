@@ -549,9 +549,9 @@ class Workspace:
             plot_lasco_weights(self.l2ws_model.params, col)
 
         # custom visualize
-        if self.has_custom_visualization:
-            if self.vis_num > 0:
-                self.custom_visualize(z_plot, train, col)
+        # if self.has_custom_visualization:
+        #     if self.vis_num > 0:
+        #         self.custom_visualize(z_plot, train, col)
 
         if self.save_weights_flag:
             self.save_weights()
