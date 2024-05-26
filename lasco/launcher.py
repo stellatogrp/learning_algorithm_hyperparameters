@@ -198,7 +198,6 @@ class Workspace:
                                        test_inputs=self.test_inputs,
                                        regression=cfg.supervised,
                                        nn_cfg=cfg.nn_cfg,
-                                       pac_bayes_cfg=cfg.pac_bayes_cfg,
                                        z_stars_train=self.z_stars_train,
                                        z_stars_test=self.z_stars_test,
                                        loss_method=cfg.loss_method,
@@ -230,7 +229,6 @@ class Workspace:
                                          test_inputs=self.test_inputs,
                                          regression=cfg.supervised,
                                          nn_cfg=cfg.nn_cfg,
-                                         pac_bayes_cfg=cfg.pac_bayes_cfg,
                                          z_stars_train=self.z_stars_train,
                                          z_stars_test=self.z_stars_test,
                                          loss_method=cfg.loss_method,
@@ -273,7 +271,6 @@ class Workspace:
                                         regression=cfg.get(
                                             'supervised', False),
                                         nn_cfg=cfg.nn_cfg,
-                                        pac_bayes_cfg=cfg.pac_bayes_cfg,
                                         loss_method=cfg.loss_method,
                                         algo_dict=algo_dict)
 
