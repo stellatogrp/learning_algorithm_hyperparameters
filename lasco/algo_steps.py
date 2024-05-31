@@ -11,7 +11,7 @@ from lasco.utils.generic_utils import python_fori_loop, unvec_symm, vec_symm
 TAU_FACTOR = 1 #10
 
 
-def k_steps_train_lasco_scs(k, z0, q, params, supervised, z_star, proj, jit, hsde):
+def k_steps_train_lasco_scs(k, z0, q, params, P, A, supervised, z_star, proj, jit, hsde):
     iter_losses = jnp.zeros(k)
     # scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)
 
@@ -21,7 +21,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, supervised, z_star, proj, jit, hsd
     factors1, factors2 = all_factors
 
     fp_train_partial = partial(fp_train_lasco_scs, q_r=q, all_factors=all_factors,
-                               supervised=supervised, z_star=z_star, proj=proj, hsde=hsde,
+                               supervised=supervised, P=P, A=A, z_star=z_star, proj=proj, hsde=hsde,
                                homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, betas=betas)
     if False and hsde:
         # first step: iteration 0
@@ -44,7 +44,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, supervised, z_star, proj, jit, hsd
     return z_final, iter_losses
 
 
-def fp_train_lasco_scs(i, val, q_r, all_factors, supervised, z_star, proj, hsde, homogeneous, 
+def fp_train_lasco_scs(i, val, q_r, all_factors, P, A, supervised, z_star, proj, hsde, homogeneous, 
                        scaled_vecs, alphas, betas):
     """
     q_r = r if hsde else q_r = q
@@ -58,9 +58,14 @@ def fp_train_lasco_scs(i, val, q_r, all_factors, supervised, z_star, proj, hsde,
     
     # add acceleration
     # z_next = (1 - betas[i, 0]) * z_next + betas[i, 0] * z
+    m, n = A.shape
 
     if supervised:
-        diff = jnp.linalg.norm(z_next[:-1] - z_star) # / z[-1] - z_star)
+        # x, y, s = extract_sol(u, v, n, hsde)
+        # pr = jnp.linalg.norm(A @ x + s - q_r[n:])
+        # dr = jnp.linalg.norm(A.T @ y + P @ x + q_r[:n])
+        diff = jnp.linalg.norm(z_next[:-1] - z_star)
+        # diff = jnp.linalg.norm(z_next[:-1] - z_star) # / z[-1] - z_star)
     else:
         diff = 0 #jnp.linalg.norm(z_next / z_next[-1] - z / z[-1])
     loss_vec = loss_vec.at[i].set(diff)

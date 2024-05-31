@@ -1,5 +1,5 @@
 nn_cfg:
-  lr: 1e-2
+  lr: 1e-1
   method: adam
   batch_size: 1000
   epochs: 100
@@ -7,11 +7,11 @@ nn_cfg:
 data:
   datetime: ''
 
-eval_every_x_epochs: 20
+eval_every_x_epochs: 100
 save_every_x_epochs: 1
 test_every_x_epochs: 1
 write_csv_every_x_batches: 1
-epochs_jit: 2
+epochs_jit: 10
 
 N_train: 10
 N_test: 10
@@ -19,14 +19,14 @@ num_samples: 10
 
 
 plot_iterates: [0, 10, 20]
-loss_method: 'fixed_k' #'fixed_k' #'constant_sum'
+loss_method: 'constant_sum' #'fixed_k' #'constant_sum'
 
 
 accuracies: [.1, .01, .001, .0001]
 
 skip_startup: False
 
-eval_unrolls: 50
+eval_unrolls: 500
 supervised: True
 train_unrolls: 10
 

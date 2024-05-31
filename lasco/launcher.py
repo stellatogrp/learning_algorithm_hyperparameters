@@ -1,12 +1,16 @@
 import csv
 import os
 import time
+import gc
 
 import hydra
 import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 from jax import lax
+import jax
+
+from jax.interpreters import xla
 
 from functools import partial
 
@@ -552,6 +556,7 @@ class Workspace:
 
         if self.save_weights_flag:
             self.save_weights()
+        gc.collect()
 
         return out_train
 
@@ -613,8 +618,10 @@ class Workspace:
                         self.eval_iters_train_and_test(f"train_epoch_{epoch}",self.train_unrolls * window)
                         update_train_inputs_flag = False
                         # self.l2ws_model.initialize_neural_network(self.nn_cfg, 'dont_init')
+                        jax.clear_caches()
                     else:
                         self.eval_iters_train_and_test(f"train_epoch_{epoch}", None)
+                    # self.l2ws_model.reinit_losses()
 
                 # setup the permutations
                 permutation = setup_permutation(
@@ -633,6 +640,8 @@ class Workspace:
                 self.key_count += 1
                 self.l2ws_model.epoch += self.epochs_jit
                 self.l2ws_model.params, self.l2ws_model.state = params, state
+
+                gc.collect()
 
                 prev_batches = len(self.l2ws_model.tr_losses_batch)
                 self.l2ws_model.tr_losses_batch = self.l2ws_model.tr_losses_batch + \
@@ -685,7 +694,7 @@ class Workspace:
             params, state = [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state
             # self.train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, 
             #                                                        window_indices=window_indices)
-        train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, window_indices=window_indices)
+        train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn) #, window_indices=window_indices)
 
         init_val = epoch_train_losses, self.l2ws_model.train_inputs, params, state, permutation
         val = lax.fori_loop(start_index, loop_size,
@@ -699,7 +708,7 @@ class Workspace:
 
         return params, state, epoch_train_losses, time_train_per_epoch
 
-    def train_over_epochs_body_simple_fn(self, batch, val, window_indices):
+    def train_over_epochs_body_simple_fn(self, batch, val):
         """
         to be used as the body_fn in lax.fori_loop
         need to call partial for the specific permutation
@@ -750,7 +759,8 @@ class Workspace:
             else:
                 self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :]
             self.l2ws_model.init_optimizer()
-        
+
+                
 
     def evaluate_diff_only(self, k, inputs, params):
         if inputs is None:

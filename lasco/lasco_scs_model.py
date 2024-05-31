@@ -54,6 +54,8 @@ class LASCOSCSmodel(L2WSmodel):
 
         self.k_steps_train_fn = partial(k_steps_train_lasco_scs, proj=self.proj,
                                         jit=self.jit,
+                                        P=self.P,
+                                        A=self.A,
                                         # m=self.m,
                                         # n=self.n,
                                         # zero_cone_size=self.zero_cone_size,
@@ -107,7 +109,7 @@ class LASCOSCSmodel(L2WSmodel):
             if diff_required:
                 n_iters = self.train_unrolls
             else:
-                n_iters = iters
+                n_iters = min(iters, 50)
 
 
             z0 = jnp.zeros(z_star.size + 1)

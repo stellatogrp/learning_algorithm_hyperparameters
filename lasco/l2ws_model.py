@@ -81,12 +81,18 @@ class L2WSmodel(object):
 
         # create_all_loss_fns
         self.create_all_loss_fns(loss_method, regression)
+        self.loss_method = loss_method
+        self.regression = regression
 
         # neural network setup
         self.initialize_neural_network(nn_cfg, plateau_decay)
 
         # init to track training
         self.init_train_tracking()
+
+
+    def reinit_losses(self):
+        self.create_all_loss_fns(self.loss_method, self.regression)
 
     
     def post_init_changes(self):
@@ -283,6 +289,9 @@ class L2WSmodel(object):
 
         loss, out = curr_loss_fn(self.params, inputs, b, k, z_stars, key)
         time_per_prob = (time.time() - test_time0)/num_probs
+
+        import gc
+        gc.collect()
 
         return loss, out, time_per_prob
 
