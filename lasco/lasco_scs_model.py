@@ -109,7 +109,7 @@ class LASCOSCSmodel(L2WSmodel):
             if diff_required:
                 n_iters = self.train_unrolls
             else:
-                n_iters = min(iters, 50)
+                n_iters = min(iters, 51)
 
 
             z0 = jnp.zeros(z_star.size + 1)

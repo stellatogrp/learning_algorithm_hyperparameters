@@ -601,7 +601,7 @@ class Workspace:
         loop_size = int(self.l2ws_model.num_batches * self.epochs_jit)
 
 
-        for window in range(10):
+        for window in range(5):
             # update window_indices
             # window_indices = jnp.arange(10 * window, 10 * (window + 1))
             window_indices = jnp.arange(self.train_unrolls * window, self.train_unrolls * (window + 1))
