@@ -370,7 +370,7 @@ class Workspace:
             self.z_stars_test = z_stars_test
             self.z_stars_train = z_stars_train
         else:
-            opt_train_sols, opt_test_sols, self.m, self.n = setup_scs_opt_sols(jnp_load_obj, N_train, N)
+            opt_train_sols, opt_test_sols, self.m, self.n = setup_scs_opt_sols(jnp_load_obj, self.train_indices, self.test_indices)
             self.x_stars_train, self.y_stars_train, self.z_stars_train = opt_train_sols
             self.x_stars_test, self.y_stars_test, self.z_stars_test = opt_test_sols
 
@@ -424,9 +424,18 @@ class Workspace:
 
         if 'q_mat' in jnp_load_obj.keys():
             q_mat = jnp.array(jnp_load_obj['q_mat'])
-            q_mat_train = q_mat[:N_train, :]
-            q_mat_test = q_mat[N_train:N, :]
-            self.q_mat_train, self.q_mat_test = q_mat_train, q_mat_test
+            # q_mat_train = q_mat[:N_train, :]
+            # q_mat_test = q_mat[N_train:N, :]
+            # self.q_mat_train, self.q_mat_test = q_mat_train, q_mat_test
+
+            self.train_indices = np.random.choice(
+                q_mat.shape[0], N_train, replace=False)
+            self.q_mat_train = q_mat[self.train_indices, :]
+
+            self.test_indices = np.random.choice(
+                q_mat.shape[0], N - N_train, replace=False)
+            self.q_mat_test = q_mat[self.test_indices, :]
+            
 
         # load the closed_loop_rollout trajectories
         if 'ref_traj_tensor' in jnp_load_obj.keys():

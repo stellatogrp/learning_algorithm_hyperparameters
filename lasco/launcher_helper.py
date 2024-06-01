@@ -31,22 +31,24 @@ from lasco.scs_model import SCSmodel
 from lasco.utils.generic_utils import count_files_in_directory, sample_plot, setup_permutation
 
 
-def setup_scs_opt_sols(jnp_load_obj, N_train, N):
+
+# def setup_scs_opt_sols(jnp_load_obj, N_train, N):
+def setup_scs_opt_sols(jnp_load_obj, train_indices, test_indices):
     if 'x_stars' in jnp_load_obj.keys():
         x_stars = jnp_load_obj['x_stars']
         y_stars = jnp_load_obj['y_stars']
         s_stars = jnp_load_obj['s_stars']
         z_stars = jnp.hstack([x_stars, y_stars + s_stars])
-        x_stars_train = x_stars[:N_train, :]
-        y_stars_train = y_stars[:N_train, :]
+        x_stars_train = x_stars[train_indices, :]
+        y_stars_train = y_stars[train_indices, :]
 
-        x_stars_train = x_stars[:N_train, :]
-        y_stars_train = y_stars[:N_train, :]
+        x_stars_train = x_stars[train_indices, :]
+        y_stars_train = y_stars[train_indices, :]
 
-        z_stars_train = z_stars[:N_train, :]
-        x_stars_test = x_stars[N_train:N, :]
-        y_stars_test = y_stars[N_train:N, :]
-        z_stars_test = z_stars[N_train:N, :]
+        z_stars_train = z_stars[train_indices, :]
+        x_stars_test = x_stars[test_indices, :]
+        y_stars_test = y_stars[test_indices, :]
+        z_stars_test = z_stars[test_indices, :]
         m, n = y_stars_train.shape[1], x_stars_train[0, :].size
     else:
         x_stars_train, x_stars_test = None, None

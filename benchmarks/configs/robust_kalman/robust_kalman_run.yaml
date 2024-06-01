@@ -93,4 +93,4 @@ pac_bayes_cfg:
 #60: '2023-05-22/15-29-14'
 #120: '2023-05-22/16-37-55'
 #1: '2023-05-22/16-43-06'
-custom_loss: True #False
+custom_loss: False
