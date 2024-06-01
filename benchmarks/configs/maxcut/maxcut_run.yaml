@@ -2,12 +2,12 @@ nn_cfg:
   lr: 1e-1
   method: adam
   batch_size: 1000
-  epochs: 20
+  epochs: 100
 
 data:
   datetime: ''
 
-eval_every_x_epochs: 10
+eval_every_x_epochs: 50
 save_every_x_epochs: 1
 test_every_x_epochs: 1
 write_csv_every_x_batches: 1
@@ -26,7 +26,7 @@ accuracies: [.1, .01, .001, .0001]
 
 skip_startup: False
 
-eval_unrolls: 100
+eval_unrolls: 500
 supervised: True
 train_unrolls: 10
 
