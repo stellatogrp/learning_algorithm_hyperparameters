@@ -107,7 +107,7 @@ class LASCOSCSmodel(L2WSmodel):
             # z0 = z0.at[-1].set(1)
             # n_iters = self.train_unrolls
             if diff_required:
-                n_iters = self.train_unrolls
+                n_iters = key #self.train_unrolls if key else 1
             else:
                 n_iters = min(iters, 51)
 
@@ -151,7 +151,7 @@ class LASCOSCSmodel(L2WSmodel):
 
 
             all_factors = factors1, factors2
-            scs_params = (params[0], all_factors, scaled_vecs)
+            scs_params = (params[0][:n_iters, :], all_factors, scaled_vecs)
 
             if diff_required:
                 z_final, iter_losses = train_fn(k=iters,

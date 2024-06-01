@@ -192,13 +192,10 @@ class L2WSmodel(object):
         loss_fn = self.predict_2_loss(predict, diff_required)
         return loss_fn
 
-    def train_batch(self, batch_indices, inputs, params, state):
+
+    def train_batch(self, batch_indices, inputs, params, state, n_iters):
         # batch_inputs = self.train_inputs[batch_indices, :]
         batch_inputs = inputs[batch_indices, :]
-        print('inputs', inputs[:3])
-        # print('batch_inputs', batch_inputs[:])
-        # print('params', params)
-        # print('batch_indices', batch_indices)
         batch_q_data = self.q_mat_train[batch_indices, :]
         batch_z_stars = self.z_stars_train[batch_indices, :] #if self.supervised else None
 
@@ -220,7 +217,7 @@ class L2WSmodel(object):
             # for either of the following cases
             #   1. factors needed, but are the same for all problems
             #   2. no factors are needed
-            key = 0 #state.iter_num
+            key = n_iters #1 if params[0].shape[0] == 0 else self.train_unrolls #state.iter_num
             results = self.optimizer.update(params=params,
                                             state=state,
                                             inputs=batch_inputs,
@@ -237,7 +234,7 @@ class L2WSmodel(object):
             return self.dynamic_eval(k, inputs, b, z_stars, 
                                      factors=factors, key=self.key, tag=tag, fixed_ws=fixed_ws)
         else:
-            return self.static_eval(k, inputs, b, z_stars, self.key, tag=tag, 
+            return self.static_eval(k, inputs, b, z_stars, 0, tag=tag, 
                                     fixed_ws=fixed_ws, light=light)
 
     def short_test_eval(self):
@@ -256,7 +253,8 @@ class L2WSmodel(object):
                                                                 z_stars_test * 0,
                                                                   self.q_mat_test,
                                                                   z_stars_test,
-                                                                  self.key)
+                                                                  0)
+                                                                  #self.key+1)
 
         self.te_losses.append(test_loss)
 
@@ -354,7 +352,7 @@ class L2WSmodel(object):
                                                    b=q_init,
                                                    iters=self.train_unrolls,
                                                    z_stars=z_stars_init,
-                                                   key=self.key)
+                                                   key=self.train_unrolls) #self.key)
 
             
     def init_params(self):
@@ -600,7 +598,7 @@ class L2WSmodel(object):
                                     out_axes=out_axes)
             
 
-            @partial(jit, static_argnums=(3,))
+            @partial(jit, static_argnums=(3, 5,))
             def loss_fn(params, inputs, b, iters, z_stars, key):
                 if diff_required:
                     losses = batch_predict(params, inputs, b, iters, z_stars, key)

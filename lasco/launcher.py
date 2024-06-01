@@ -601,10 +601,12 @@ class Workspace:
         loop_size = int(self.l2ws_model.num_batches * self.epochs_jit)
 
 
-        for window in range(5):
+        for window in range(6):
             # update window_indices
-            # window_indices = jnp.arange(10 * window, 10 * (window + 1))
             window_indices = jnp.arange(self.train_unrolls * window, self.train_unrolls * (window + 1))
+            steady_state = window == 5
+            # if window == 5:
+            #     window_indices = jnp.arange(self.train_unrolls * window, self.train_unrolls * window + 1)
 
             # update the train inputs
             update_train_inputs_flag = window > 0
@@ -629,7 +631,7 @@ class Workspace:
 
                 # train the jitted epochs
                 curr_params, state, epoch_train_losses, time_train_per_epoch = self.train_jitted_epochs(
-                    permutation, epoch, window_indices)
+                    permutation, epoch, window_indices, steady_state=steady_state)
                 
                 # insert the curr_params into the entire params
                 pp = self.l2ws_model.params[0].at[window_indices, :].set(curr_params[0])
@@ -665,7 +667,7 @@ class Workspace:
                                         self.l2ws_model.te_losses,
                                         self.l2ws_model.num_batches, self.epochs_jit)
 
-    def train_jitted_epochs(self, permutation, epoch, window_indices):
+    def train_jitted_epochs(self, permutation, epoch, window_indices, steady_state):
         """
         train self.epochs_jit at a time
         special case: the first time we call train_batch (i.e. epoch = 0)
@@ -673,6 +675,8 @@ class Workspace:
         epoch_batch_start_time = time.time()
         loop_size = int(self.l2ws_model.num_batches * self.epochs_jit)
         epoch_train_losses = jnp.zeros(loop_size)
+        n_iters = 1 if steady_state else int(self.l2ws_model.train_unrolls)
+        print('n_iters', n_iters)
         if epoch == 0:
             # unroll the first iterate so that This allows `init_val` and `body_fun`
             #   below to have the same output type, which is a requirement of
@@ -683,7 +687,8 @@ class Workspace:
             #     jnp.arange(permutation.size), (0,), (self.l2ws_model.batch_size,))
 
             train_loss_first, params, state = self.l2ws_model.train_batch(
-                batch_indices, self.l2ws_model.train_inputs, [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state)
+                batch_indices, self.l2ws_model.train_inputs, [self.l2ws_model.params[0][window_indices, :]], 
+                self.l2ws_model.state, n_iters=n_iters)
             
             epoch_train_losses = epoch_train_losses.at[0].set(train_loss_first)
             start_index = 1
@@ -694,7 +699,8 @@ class Workspace:
             params, state = [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state
             # self.train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, 
             #                                                        window_indices=window_indices)
-        train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn) #, window_indices=window_indices)
+        
+        train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, n_iters=n_iters) #, window_indices=window_indices)
 
         init_val = epoch_train_losses, self.l2ws_model.train_inputs, params, state, permutation
         val = lax.fori_loop(start_index, loop_size,
@@ -708,7 +714,7 @@ class Workspace:
 
         return params, state, epoch_train_losses, time_train_per_epoch
 
-    def train_over_epochs_body_simple_fn(self, batch, val):
+    def train_over_epochs_body_simple_fn(self, batch, val, n_iters):
         """
         to be used as the body_fn in lax.fori_loop
         need to call partial for the specific permutation
@@ -720,7 +726,7 @@ class Workspace:
         # batch_indices = lax.dynamic_slice(
         #         jnp.arange(permutation.size), (start_index,), (self.l2ws_model.batch_size,))
         train_loss, params, state = self.l2ws_model.train_batch(
-            batch_indices, inputs, params, state)
+            batch_indices, inputs, params, state, n_iters)
         # train_loss, params, state = self.l2ws_model.train_batch(
         #     batch_indices, inputs, [params[0][window_indices, :]], state)
         train_losses = train_losses.at[batch].set(train_loss)
