@@ -517,6 +517,8 @@ class Workspace:
             primal_residuals = out_train[4].mean(axis=0)
             dual_residuals = out_train[5].mean(axis=0)
             dist_opts = out_train[8].mean(axis=0)
+            pr_dr_maxes = jnp.maximum(primal_residuals, dual_residuals)
+            pr_dr_max = pr_dr_maxes.mean(axis=0)
 
         if train:
             self.percentiles_df_list_train = update_percentiles(self.percentiles_df_list_train,
