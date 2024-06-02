@@ -17,12 +17,12 @@ def k_steps_train_lasco_scs(k, z0, q, params, P, A, supervised, z_star, proj, ji
 
     scalar_params, all_factors, scaled_vecs = params[0], params[1], params[2]
     alphas = jnp.exp(scalar_params[:, 2])
-    betas = scalar_params[:, 3:]
+    tau_factors = scalar_params[:, 3]
     factors1, factors2 = all_factors
 
     fp_train_partial = partial(fp_train_lasco_scs, q_r=q, all_factors=all_factors,
                                supervised=supervised, P=P, A=A, z_star=z_star, proj=proj, hsde=hsde,
-                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, betas=betas)
+                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, tau_factors=tau_factors)
     if hsde:
         # first step: iteration 0
         # we set homogeneous = False for the first iteration
@@ -31,7 +31,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, P, A, supervised, z_star, proj, ji
         homogeneous = False
         z_next, u, u_tilde, v = fixed_point_hsde(
             z0, homogeneous, q, factors1[0, :, :], 
-            factors2[0, :], proj, scaled_vecs[0, :], alphas[0])
+            factors2[0, :], proj, scaled_vecs[0, :], alphas[0], tau_factors[0])
         iter_losses = iter_losses.at[0].set(jnp.linalg.norm(z_next - z0))
         z0 = z_next
     val = z0, iter_losses
@@ -45,7 +45,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, P, A, supervised, z_star, proj, ji
 
 
 def fp_train_lasco_scs(i, val, q_r, all_factors, P, A, supervised, z_star, proj, hsde, homogeneous, 
-                       scaled_vecs, alphas, betas):
+                       scaled_vecs, alphas, tau_factors):
     """
     q_r = r if hsde else q_r = q
     homogeneous tells us if we set tau = 1.0 or use the root_plus method
@@ -54,7 +54,7 @@ def fp_train_lasco_scs(i, val, q_r, all_factors, P, A, supervised, z_star, proj,
     r = q_r
     factors1, factors2 = all_factors
     z_next, u, u_tilde, v = fixed_point_hsde(z, homogeneous, r, factors1[i, :, :], 
-                                             factors2[i, :], proj, scaled_vecs[i, :], alphas[i])
+                                             factors2[i, :], proj, scaled_vecs[i, :], alphas[i], tau_factors[i])
     
     # add acceleration
     # z_next = (1 - betas[i, 0]) * z_next + betas[i, 0] * z
@@ -91,7 +91,7 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
     scalar_params, all_factors, scaled_vecs = params[0], params[1], params[2]
     alphas = jnp.exp(scalar_params[:, 2])
 
-    betas = scalar_params[:, 3:]
+    tau_factors = scalar_params[:, 3]
     factors1, factors2 = all_factors
 
 
@@ -111,7 +111,7 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
         homogeneous = False
 
         z_next, u, u_tilde, v = fixed_point_hsde(
-            z0, homogeneous, q, factors1[0, :, :], factors2[0, :], proj, scaled_vecs[0, :], alphas[0], verbose=verbose)
+            z0, homogeneous, q, factors1[0, :, :], factors2[0, :], proj, scaled_vecs[0, :], alphas[0], tau_factors[0], verbose=verbose)
         all_z = all_z.at[1, :].set(z_next)
         all_u = all_u.at[1, :].set(u)
         all_v = all_v.at[1, :].set(v)
@@ -121,7 +121,7 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
 
     fp_eval_partial = partial(fp_eval_lasco_scs, q_r=q, z_star=z_star, all_factors=all_factors,
                               proj=proj, P=P, A=A, c=None, b=None, hsde=hsde,
-                              homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, betas=betas,
+                              homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, tau_factors=tau_factors,
                               custom_loss=custom_loss,
                               verbose=verbose)
     val = z0, z0, iter_losses, all_z, all_u, all_v, primal_residuals, dual_residuals, dist_opts
@@ -141,7 +141,7 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
 
 
 def fp_eval_lasco_scs(i, val, q_r, z_star, all_factors, proj, P, A, c, b, hsde, homogeneous, 
-                      scaled_vecs, alphas, betas,
+                      scaled_vecs, alphas, tau_factors,
             lightweight=False, custom_loss=None, verbose=False):
     """
     q_r = r if hsde else q_r = q
@@ -153,7 +153,7 @@ def fp_eval_lasco_scs(i, val, q_r, z_star, all_factors, proj, P, A, c, b, hsde, 
     r = q_r
     factors1, factors2 = all_factors
     z_next, u, u_tilde, v = fixed_point_hsde(
-        z, homogeneous, r, factors1[i, :, :], factors2[i, :], proj, scaled_vecs[i, :], alphas[i], 
+        z, homogeneous, r, factors1[i, :, :], factors2[i, :], proj, scaled_vecs[i, :], alphas[i], tau_factors[i],
         verbose=verbose)
     
     # add acceleration
@@ -1824,7 +1824,7 @@ def get_psd_sizes(cones):
     return psd_sizes
 
 
-def root_plus(mu, eta, p, r, scale_vec):
+def root_plus(mu, eta, p, r, scale_vec, tau_factor):
     """
     mu, p, r are vectors each with size (m + n)
     eta is a scalar
@@ -1845,8 +1845,8 @@ def root_plus(mu, eta, p, r, scale_vec):
         we take the positive root
     """
     r_scaled = jnp.multiply(r, scale_vec)
-    a = TAU_FACTOR + r @ r_scaled
-    b = mu @ r_scaled - 2 * r_scaled @ p - eta * TAU_FACTOR
+    a = tau_factor + r @ r_scaled
+    b = mu @ r_scaled - 2 * r_scaled @ p - eta * tau_factor
     c = jnp.multiply(p, scale_vec) @ (p - mu)
     return (-b + jnp.sqrt(b ** 2 - 4 * a * c)) / (2 * a)
 
@@ -1901,7 +1901,7 @@ def fixed_point(z_init, q, factor, proj, scale_vec, alpha, verbose=False):
     return z, u, u_tilde, v
 
 
-def fixed_point_hsde(z_init, homogeneous, r, factor1, factor2, proj, scale_vec, alpha, verbose=False):
+def fixed_point_hsde(z_init, homogeneous, r, factor1, factor2, proj, scale_vec, alpha, tau_factor, verbose=False):
     """
     implements 1 iteration of algorithm 5.1 in https://arxiv.org/pdf/2004.02177.pdf
 
@@ -1948,7 +1948,7 @@ def fixed_point_hsde(z_init, homogeneous, r, factor1, factor2, proj, scale_vec, 
     # non identity DR scaling
     # p = jnp.multiply(scale_vec, p)
     if homogeneous:
-        tau_tilde = root_plus(mu, eta, p, r, scale_vec)
+        tau_tilde = root_plus(mu, eta, p, r, scale_vec, tau_factor)
     else:
         tau_tilde = 1.0
     w_tilde = p - r * tau_tilde
@@ -1968,7 +1968,7 @@ def fixed_point_hsde(z_init, homogeneous, r, factor1, factor2, proj, scale_vec, 
     u_tilde = jnp.concatenate([w_tilde, jnp.array([tau_tilde])])
 
     # for s extraction - not needed for algorithm
-    full_scaled_vec = jnp.concatenate([scale_vec, jnp.array([TAU_FACTOR])])
+    full_scaled_vec = jnp.concatenate([scale_vec, jnp.array([tau_factor])])
     v = jnp.multiply(full_scaled_vec,  u + z_init - 2 * u_tilde)
 
     # z and u have size (m + n + 1)
