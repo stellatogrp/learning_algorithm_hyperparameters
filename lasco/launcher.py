@@ -103,6 +103,7 @@ class Workspace:
         self.epochs_jit = cfg.epochs_jit
         self.accs = cfg.get('accuracies')
         self.no_learning_accs = None
+        self.no_learning_pr_dr_max_accs = None
         self.nn_cfg = cfg.nn_cfg
 
         # custom visualization
@@ -533,11 +534,14 @@ class Workspace:
             obj_vals_diff=obj_vals_diff,
             dist_opts=dist_opts
         )
+        pr_dr_max = jnp.maximum(primal_residuals, dual_residuals)
         iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df, pr_dr_max_df = df_out
 
         if not self.skip_startup:
             self.no_learning_accs = write_accuracies_csv(self.accs, iter_losses_mean, train, col, 
                                                          self.no_learning_accs)
+            self.no_learning_pr_dr_max_accs = write_accuracies_csv(self.accs, pr_dr_max, train, col, 
+                                                         self.no_learning_pr_dr_max_accs, pr_dr_max=True)
 
         # plot the evaluation iterations
         plot_eval_iters(iters_df, primal_residuals_df,

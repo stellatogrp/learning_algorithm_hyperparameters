@@ -52,14 +52,20 @@ def update_percentiles(percentiles_df_list, percentiles, losses, train, col):
     return percentiles_df_list
 
 
-def write_accuracies_csv(accs, losses, train, col, no_learning_accs):
+def write_accuracies_csv(accs, losses, train, col, no_learning_accs, pr_dr_max=False):
     df_acc = pd.DataFrame()
     df_acc['accuracies'] = np.array(accs)
 
-    if train:
-        accs_path = 'accuracies_train'
+    if pr_dr_max:
+        if train:
+            accs_path = 'accuracies_pr_dr_max_train'
+        else:
+            accs_path = 'accuracies_pr_dr_max_test'
     else:
-        accs_path = 'accuracies_test'
+        if train:
+            accs_path = 'accuracies_train'
+        else:
+            accs_path = 'accuracies_test'
     if not os.path.exists(accs_path):
         os.mkdir(accs_path)
     if not os.path.exists(f"{accs_path}/{col}"):
