@@ -71,10 +71,13 @@ def write_accuracies_csv(accs, losses, train, col, no_learning_accs, pr_dr_max=F
     if not os.path.exists(f"{accs_path}/{col}"):
         os.mkdir(f"{accs_path}/{col}")
 
+    # import pdb
+    # pdb.set_trace()
+
     # accuracies
     iter_vals = np.zeros(len(accs))
     for i in range(len(accs)):
-        if losses.min() < accs[i]:
+        if jnp.nanmin(losses) < accs[i]:
             iter_vals[i] = int(np.argmax(losses < accs[i]))
         else:
             iter_vals[i] = losses.size

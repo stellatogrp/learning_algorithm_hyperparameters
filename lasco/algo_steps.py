@@ -117,6 +117,12 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
         all_v = all_v.at[1, :].set(v)
         iter_losses = iter_losses.at[0].set(jnp.linalg.norm(z_next - z0))
         dist_opts = dist_opts.at[0].set(jnp.linalg.norm((z0[:-1] - z_star)))
+
+        x, y, s = extract_sol(u, v, n, False)
+        pr = jnp.linalg.norm(A @ x + s - q[n:])
+        dr = jnp.linalg.norm(A.T @ y + P @ x + q[:n])
+        primal_residuals = primal_residuals.at[0].set(pr)
+        dual_residuals = dual_residuals.at[0].set(dr)
         z0 = z_next
 
     fp_eval_partial = partial(fp_eval_lasco_scs, q_r=q, z_star=z_star, all_factors=all_factors,
