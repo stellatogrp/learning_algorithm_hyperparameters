@@ -142,6 +142,8 @@ class Workspace:
 
         # progressive train_inputs
         self.train_inputs = 0 * self.z_stars_train
+        if algo == 'lasco_scs':
+            self.train_inputs = jnp.hstack([0 * self.z_stars_train, jnp.ones((N_train, 1))])
 
         # everything below is specific to the algo
         if algo == 'osqp':
@@ -774,9 +776,11 @@ class Workspace:
             # k = self.train_unrolls
             # self.evaluate_diff_only(k, self.l2ws_model.train_inputs, [self.l2ws_model.params[0][:1, :]])
             if self.algo == 'lasco_scs':
-                self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :-1]
+                self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :] #-1]
+                self.l2ws_model.k_steps_train_fn = self.l2ws_model.k_steps_train_fn2
             else:
                 self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :]
+            self.l2ws_model.reinit_losses()
             self.l2ws_model.init_optimizer()
 
                 
@@ -814,8 +818,11 @@ class Workspace:
 
         inputs = self.get_inputs_for_eval(fixed_ws, num, train, col)
 
+        z0_inits = z_stars * 0
+        if self.l2ws_model.algo == 'lasco_scs':
+            z0_inits = jnp.hstack([z0_inits, jnp.ones((z0_inits.shape[0], 1))])
         eval_out = self.l2ws_model.evaluate(
-            self.eval_unrolls, z_stars * 0, q_mat, z_stars, fixed_ws, factors=factors, tag=tag)
+            self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, factors=factors, tag=tag)
         return eval_out
 
 

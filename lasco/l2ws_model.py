@@ -248,9 +248,12 @@ class L2WSmodel(object):
                                                                    factors=self.factors_test,
                                                                    key=self.key)
         else:
+            z0_inits = z_stars_test * 0
+            if self.algo == 'lasco_scs':
+                z0_inits = jnp.hstack([z0_inits, jnp.ones((z0_inits.shape[0], 1))])
             test_loss, test_out, time_per_prob = self.static_eval(self.train_unrolls,
                                                                 #   self.test_inputs,
-                                                                z_stars_test * 0,
+                                                                z0_inits,
                                                                   self.q_mat_test,
                                                                   z_stars_test,
                                                                   0)
@@ -376,15 +379,18 @@ class L2WSmodel(object):
         self.loss_method = loss_method
         self.supervised = supervised
 
-        if not hasattr(self, 'train_fn') and not hasattr(self, 'k_steps_train_fn'):
-            train_fn = create_train_fn(self.fixed_point_fn)
-            eval_fn = create_eval_fn(self.fixed_point_fn)
-            self.train_fn = partial(train_fn, jit=self.jit)
-            self.eval_fn = partial(eval_fn, jit=self.jit)
+        # if not hasattr(self, 'train_fn') and not hasattr(self, 'k_steps_train_fn'):
+        #     train_fn = create_train_fn(self.fixed_point_fn)
+        #     eval_fn = create_eval_fn(self.fixed_point_fn)
+        #     self.train_fn = partial(train_fn, jit=self.jit)
+        #     self.eval_fn = partial(eval_fn, jit=self.jit)
 
-        if not hasattr(self, 'train_fn'):
-            self.train_fn = self.k_steps_train_fn
-            self.eval_fn = self.k_steps_eval_fn
+        # if not hasattr(self, 'train_fn'):
+        #     self.train_fn = self.k_steps_train_fn
+        #     self.eval_fn = self.k_steps_eval_fn
+        
+        self.train_fn = self.k_steps_train_fn
+        self.eval_fn = self.k_steps_eval_fn
 
         e2e_loss_fn = self.create_end2end_loss_fn
 

@@ -19,7 +19,7 @@ num_samples: 10
 
 
 plot_iterates: [0, 10, 20]
-loss_method: 'constant_sum' #'fixed_k' #'constant_sum'
+loss_method: 'fixed_k' #'fixed_k' #'constant_sum'
 
 
 accuracies: [.1, .01, .001, .0001]

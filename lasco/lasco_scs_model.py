@@ -60,6 +60,11 @@ class LASCOSCSmodel(L2WSmodel):
                                         # n=self.n,
                                         # zero_cone_size=self.zero_cone_size,
                                         hsde=True)
+        self.k_steps_train_fn2 = partial(k_steps_train_lasco_scs, proj=self.proj,
+                                        jit=self.jit,
+                                        P=self.P,
+                                        A=self.A,
+                                        hsde=False)
         self.k_steps_eval_fn = partial(k_steps_eval_lasco_scs, proj=self.proj,
                                        P=self.P, A=self.A,
                                        zero_cone_size=self.zero_cone_size,
@@ -111,14 +116,14 @@ class LASCOSCSmodel(L2WSmodel):
             else:
                 n_iters = min(iters, 51)
 
-
-            z0 = jnp.zeros(z_star.size + 1)
-            z0 = z0.at[-1].set(1)
-            z0 = z0.at[:-1].set(input)
+            z0 = input
+            # z0 = jnp.zeros(z_star.size + 1)
+            # z0 = z0.at[-1].set(1)
+            # z0 = z0.at[:-1].set(input)
             # else:
             #     z0 = jnp.zeros(z_star.size + 1)
             #     z0 = z0.at[-1].set(1)
-            print('z0', z0[:3])
+            # print('z0', z0[:3])
             # print('params within loss fn', params)
 
             if self.train_fn is not None:
