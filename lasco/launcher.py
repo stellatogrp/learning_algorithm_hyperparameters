@@ -32,6 +32,7 @@ from lasco.launcher_plotter import (
     plot_losses_over_examples,
     plot_train_test_losses,
     plot_warm_starts,
+    custom_visualize
 )
 from lasco.launcher_writer import (
     create_empty_df,
@@ -127,8 +128,9 @@ class Workspace:
         # load the data from problem to problem
         jnp_load_obj = self.load_setup_data(example, cfg.data.datetime, N_train, N)
         thetas = jnp.array(jnp_load_obj['thetas'])
-        self.thetas_train = thetas[:N_train, :]
-        self.thetas_test = thetas[N_train:N, :]
+
+        self.thetas_train = thetas[self.train_indices, :]
+        self.thetas_test = thetas[self.test_indices, :]
 
         train_inputs, test_inputs, normalize_col_sums, normalize_std_dev = normalize_inputs_fn(
             self.normalize_inputs, thetas, N_train, N_test)
@@ -554,10 +556,17 @@ class Workspace:
 
         # plot the warm-start predictions
         z_all = out_train[2]
+        
 
         if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel):
             out_train[6]
             z_plot = z_all[:, :, :-1] / z_all[:, :, -1:]
+
+            u_all = out_train[6]
+            # import pdb
+            # pdb.set_trace()
+            u_plot = u_all[:, :, :self.l2ws_model.n] / u_all[:, :, -1:]
+            # z_plot = u_plot
         else:
             z_plot = z_all
 
@@ -567,9 +576,20 @@ class Workspace:
             plot_lasco_weights(self.l2ws_model.params, col)
 
         # custom visualize
-        # if self.has_custom_visualization:
-        #     if self.vis_num > 0:
-        #         self.custom_visualize(z_plot, train, col)
+        z_stars = self.z_stars_train if train else self.z_stars_test
+        thetas = self.thetas_train if train else self.thetas_test
+        if not hasattr(self, 'z_no_learn_train') and train:
+            self.z_no_learn_train = z_plot
+        elif not hasattr(self, 'z_no_learn_test') and not train:
+            self.z_no_learn_test = z_plot
+        z_no_learn = self.z_no_learn_train if train else self.z_no_learn_test
+        z_nn = z_no_learn
+        z_prev_sol = z_no_learn
+        if self.has_custom_visualization:
+            if self.vis_num > 0:
+                # custom_visualize(z_plot, train, col)
+                custom_visualize(self.custom_visualize_fn, self.iterates_visualize, self.vis_num, 
+                                 thetas, u_plot, z_stars, z_no_learn, z_nn, z_prev_sol, train, col)
 
         if self.save_weights_flag:
             self.save_weights()
