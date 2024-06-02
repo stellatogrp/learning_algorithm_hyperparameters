@@ -140,15 +140,18 @@ class LASCOSCSmodel(L2WSmodel):
             factors2 = jnp.zeros((n_iters, self.m + self.n), dtype=jnp.int32)
             scaled_vecs = jnp.zeros((n_iters, self.m + self.n))
 
-            rho_xs, rho_ys = params[0][:, 0], params[0][:, 1]
+            rho_xs, rho_ys, rho_ys_zero = params[0][:, 0], params[0][:, 1], params[0][:, 4]
             # for i in range(self.train_unrolls):
 
             for i in range(n_iters):
                 rho_x, rho_y = jnp.exp(rho_xs[i]), jnp.exp(rho_ys[i])
+                rho_y_zero = jnp.exp(rho_ys_zero[i])
                 
                 factor, scale_vec = get_scaled_vec_and_factor(self.M, rho_x, rho_y, 
+                                                              rho_y_zero,
                                                               self.m, self.n, 
-                                                              zero_cone_size=0, hsde=True)
+                                                              zero_cone_size=self.zero_cone_size, 
+                                                              hsde=True)
                 
                 factors1 = factors1.at[i, :, :].set(factor[0])
                 factors2 = factors2.at[i, :].set(factor[1])

@@ -1672,7 +1672,7 @@ def k_steps_eval_scs(k, z0, q, factor, proj, P, A, supervised, z_star, jit, hsde
     return z_final, iter_losses, all_z_plus_1, primal_residuals, dual_residuals, all_u, all_v
 
 
-def get_scale_vec(rho_x, rho_y, m, n, zero_cone_size, hsde=True):
+def get_scale_vec(rho_x, rho_y, rho_y_zero, m, n, zero_cone_size, hsde=True):
     """
     Returns the non-identity DR scaling vector
         which is used as a diagonal matrix
@@ -1689,11 +1689,11 @@ def get_scale_vec(rho_x, rho_y, m, n, zero_cone_size, hsde=True):
     scale_vec = scale_vec.at[:n].set(rho_x)
 
     # zero cone of y-component of scale_vec set to 1 / (1000 * scale)
-    if hsde:
-        zero_scale_factor = 1 #1000
-    else:
-        zero_scale_factor = 1
-    scale_vec = scale_vec.at[n:n + zero_cone_size].set(rho_y)
+    # if hsde:
+    #     zero_scale_factor = 1 #1000
+    # else:
+    #     zero_scale_factor = 1
+    scale_vec = scale_vec.at[n:n + zero_cone_size].set(rho_y_zero)
 
     # other parts of y-component of scale_vec set to 1 / scale
     scale_vec = scale_vec.at[n + zero_cone_size:].set(rho_y)
@@ -1740,8 +1740,8 @@ def get_scaled_factor(M, scale_vec):
     return factor
 
 
-def get_scaled_vec_and_factor(M, rho_x, rho_y, m, n, zero_cone_size, hsde=True):
-    scale_vec = get_scale_vec(rho_x, rho_y, m, n, zero_cone_size, hsde=hsde)
+def get_scaled_vec_and_factor(M, rho_x, rho_y, rho_y_zero, m, n, zero_cone_size, hsde=True):
+    scale_vec = get_scale_vec(rho_x, rho_y, rho_y_zero, m, n, zero_cone_size, hsde=hsde)
     return get_scaled_factor(M, scale_vec), scale_vec
 
 
