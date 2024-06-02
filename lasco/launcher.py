@@ -533,7 +533,7 @@ class Workspace:
             obj_vals_diff=obj_vals_diff,
             dist_opts=dist_opts
         )
-        iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df = df_out
+        iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df, pr_dr_max_df = df_out
 
         if not self.skip_startup:
             self.no_learning_accs = write_accuracies_csv(self.accs, iter_losses_mean, train, col, 
@@ -541,7 +541,7 @@ class Workspace:
 
         # plot the evaluation iterations
         plot_eval_iters(iters_df, primal_residuals_df,
-                        dual_residuals_df, plot_pretrain, obj_vals_diff_df, dist_opts_df, train, 
+                        dual_residuals_df, plot_pretrain, obj_vals_diff_df, dist_opts_df, pr_dr_max_df, train, 
                         col, self.eval_unrolls, self.train_unrolls)
 
         # plot the warm-start predictions
@@ -849,6 +849,8 @@ class Workspace:
         self.dual_residuals_df_train = create_empty_df(self.eval_unrolls)
         self.primal_residuals_df_test = create_empty_df(self.eval_unrolls)
         self.dual_residuals_df_test = create_empty_df(self.eval_unrolls)
+        self.pr_dr_max_df_train = create_empty_df(self.eval_unrolls)
+        self.pr_dr_max_df_test = create_empty_df(self.eval_unrolls)
 
         # obj_vals_diff
         self.obj_vals_diff_df_train = create_empty_df(self.eval_unrolls)
@@ -882,7 +884,7 @@ class Workspace:
             dual residuals
         returns the new dataframes
         """
-        primal_residuals_df, dual_residuals_df = None, None
+        primal_residuals_df, dual_residuals_df, pr_dr_df = None, None, None
         obj_vals_diff_df = None
         dist_opts_df = None
         if train:
@@ -893,8 +895,12 @@ class Workspace:
                 self.primal_residuals_df_train.to_csv('primal_residuals_train.csv')
                 self.dual_residuals_df_train[col] = dual_residuals
                 self.dual_residuals_df_train.to_csv('dual_residuals_train.csv')
+                self.pr_dr_max_df_train[col] = jnp.maximum(primal_residuals, dual_residuals)
+                self.pr_dr_max_df_train.to_csv('pr_dr_max_train.csv')
+
                 primal_residuals_df = self.primal_residuals_df_train
                 dual_residuals_df = self.dual_residuals_df_train
+                pr_dr_df = self.pr_dr_max_df_train
             if obj_vals_diff is not None:
                 self.obj_vals_diff_df_train[col] = obj_vals_diff
                 self.obj_vals_diff_df_train.to_csv('obj_vals_diff_train.csv')
@@ -913,8 +919,12 @@ class Workspace:
                 self.primal_residuals_df_test.to_csv('primal_residuals_test.csv')
                 self.dual_residuals_df_test[col] = dual_residuals
                 self.dual_residuals_df_test.to_csv('dual_residuals_test.csv')
+                self.pr_dr_max_df_test[col] = jnp.maximum(primal_residuals, dual_residuals)
+                self.pr_dr_max_df_test.to_csv('pr_dr_max_test.csv')
+
                 primal_residuals_df = self.primal_residuals_df_test
                 dual_residuals_df = self.dual_residuals_df_test
+                pr_dr_df = self.pr_dr_max_df_test
             if obj_vals_diff is not None:
                 self.obj_vals_diff_df_test[col] = obj_vals_diff
                 self.obj_vals_diff_df_test.to_csv('obj_vals_diff_test.csv')
@@ -926,4 +936,4 @@ class Workspace:
 
             iters_df = self.iters_df_test
 
-        return iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df
+        return iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df, pr_dr_df

@@ -38,7 +38,7 @@ plt.rcParams.update({
 
 
 def plot_eval_iters(iters_df, primal_residuals_df, dual_residuals_df, plot_pretrain,
-                        obj_vals_diff_df, dist_opts_df,
+                        obj_vals_diff_df, dist_opts_df, pr_dr_max_df,
                         train, col, eval_unrolls, train_unrolls):
         yscale = 'log'
         plot_eval_iters_df(
@@ -49,6 +49,8 @@ def plot_eval_iters(iters_df, primal_residuals_df, dual_residuals_df, plot_pretr
                                     'primal residual', 'primal_residuals', eval_unrolls, train_unrolls)
             plot_eval_iters_df(dual_residuals_df, train, col,
                                     'dual residual', 'dual_residuals', eval_unrolls, train_unrolls)
+            plot_eval_iters_df(dual_residuals_df, train, col,
+                                    'pr dr max', 'pr_dr_max', eval_unrolls, train_unrolls)
         if obj_vals_diff_df is not None:
             plot_eval_iters_df(
                 obj_vals_diff_df, train, col, 'obj diff', 'obj_diffs', eval_unrolls, train_unrolls)
