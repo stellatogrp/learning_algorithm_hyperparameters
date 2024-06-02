@@ -1254,7 +1254,7 @@ def static_canon(T, gamma, dt, mu, rho, B_const, rho_x=1, scale=1):
 
     # factor for DR splitting
     # algo_factor = jsp.linalg.lu_factor(M + jnp.eye(n + m))
-    algo_factor, scale_vec = get_scaled_vec_and_factor(M, rho_x, scale, m, n,
+    algo_factor, scale_vec = get_scaled_vec_and_factor(M, rho_x, scale, scale, m, n,
                                                        cones['z'])
 
     A_sparse = csc_matrix(A)
