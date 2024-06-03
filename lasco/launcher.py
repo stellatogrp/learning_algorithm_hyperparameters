@@ -143,9 +143,9 @@ class Workspace:
         self.setup_opt_sols(algo, jnp_load_obj, N_train, N)
 
         # progressive train_inputs
-        self.train_inputs = 0 * self.z_stars_train
+        self.lasco_train_inputs = 0 * self.z_stars_train
         if algo == 'lasco_scs':
-            self.train_inputs = jnp.hstack([0 * self.z_stars_train, jnp.ones((N_train, 1))])
+            self.lasco_train_inputs = jnp.hstack([0 * self.z_stars_train, jnp.ones((N_train, 1))])
 
         # everything below is specific to the algo
         if algo == 'osqp':
@@ -608,7 +608,7 @@ class Workspace:
 
             # fixed ws evaluation
             # if self.l2ws_model.z_stars_train is not None and self.l2ws_model.algo != 'maml':
-            #     self.eval_iters_train_and_test('nearest_neighbor', False)
+            self.eval_iters_train_and_test('nearest_neighbor', None)
 
             # prev sol eval
             if self.prev_sol_eval and self.l2ws_model.z_stars_train is not None:
@@ -724,7 +724,7 @@ class Workspace:
             #     jnp.arange(permutation.size), (0,), (self.l2ws_model.batch_size,))
 
             train_loss_first, params, state = self.l2ws_model.train_batch(
-                batch_indices, self.l2ws_model.train_inputs, [self.l2ws_model.params[0][window_indices, :]], 
+                batch_indices, self.l2ws_model.lasco_train_inputs, [self.l2ws_model.params[0][window_indices, :]], 
                 self.l2ws_model.state, n_iters=n_iters)
             
             epoch_train_losses = epoch_train_losses.at[0].set(train_loss_first)
@@ -739,7 +739,7 @@ class Workspace:
         
         train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, n_iters=n_iters) #, window_indices=window_indices)
 
-        init_val = epoch_train_losses, self.l2ws_model.train_inputs, params, state, permutation
+        init_val = epoch_train_losses, self.l2ws_model.lasco_train_inputs, params, state, permutation
         val = lax.fori_loop(start_index, loop_size,
                             train_over_epochs_body_simple_fn_jitted, init_val)
         epoch_batch_end_time = time.time()
@@ -798,10 +798,10 @@ class Workspace:
             # k = self.train_unrolls
             # self.evaluate_diff_only(k, self.l2ws_model.train_inputs, [self.l2ws_model.params[0][:1, :]])
             if self.algo == 'lasco_scs':
-                self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :] #-1]
+                self.l2ws_model.lasco_train_inputs = out_train[2][:, new_start_index, :] #-1]
                 self.l2ws_model.k_steps_train_fn = self.l2ws_model.k_steps_train_fn2
             else:
-                self.l2ws_model.train_inputs = out_train[2][:, new_start_index, :]
+                self.l2ws_model.lasco_train_inputs = out_train[2][:, new_start_index, :]
             self.l2ws_model.reinit_losses()
             self.l2ws_model.init_optimizer()
 
@@ -837,10 +837,10 @@ class Workspace:
         else:
             q_mat = self.l2ws_model.q_mat_train[:num,
                                                 :] if train else self.l2ws_model.q_mat_test[:num, :]
-
-        inputs = self.get_inputs_for_eval(fixed_ws, num, train, col)
-
-        z0_inits = z_stars * 0
+        if fixed_ws:
+            z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
+        else:
+            z0_inits = z_stars * 0
         if self.l2ws_model.algo == 'lasco_scs':
             z0_inits = jnp.hstack([z0_inits, jnp.ones((z0_inits.shape[0], 1))])
         eval_out = self.l2ws_model.evaluate(

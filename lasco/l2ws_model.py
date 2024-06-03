@@ -334,7 +334,7 @@ class L2WSmodel(object):
 
         # Initialize state with first elements of training data as inputs
         batch_indices = jnp.arange(self.N_train)
-        input_init = self.train_inputs[batch_indices, :]
+        input_init = self.lasco_train_inputs[batch_indices, :] #self.train_inputs[batch_indices, :]
         q_init = self.q_mat_train[batch_indices, :]
         z_stars_init = self.z_stars_train[batch_indices, :] #if self.supervised else None
 

@@ -73,6 +73,7 @@ class LASCOSCSmodel(L2WSmodel):
                                        custom_loss=custom_loss,
                                        lightweight=lightweight)
         
+        
     def init_params(self):
         self.mean_params = 0*jnp.ones((self.eval_unrolls, 5))
         # self.mean_params = self.mean_params.at[10:20, :].set(1*jnp.ones((10, 5)))
@@ -101,6 +102,7 @@ class LASCOSCSmodel(L2WSmodel):
             self.z_stars_test = z_stars_test
         else:
             self.z_stars_train, self.z_stars_test = None, None
+        self.lasco_train_inputs = jnp.hstack([0 * self.z_stars_train, jnp.ones((self.z_stars_train.shape[0], 1))])
 
     def create_end2end_loss_fn(self, bypass_nn, diff_required):
         supervised = self.supervised and diff_required
@@ -115,7 +117,7 @@ class LASCOSCSmodel(L2WSmodel):
                 n_iters = key #self.train_unrolls if key else 1
             else:
                 n_iters = min(iters, 51)
-
+            
             z0 = input
             # z0 = jnp.zeros(z_star.size + 1)
             # z0 = z0.at[-1].set(1)
