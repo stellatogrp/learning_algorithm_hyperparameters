@@ -30,6 +30,11 @@ def robust_kalman_plot_eval_iters(cfg):
     create_lasco_results_constrained(example, cfg)
 
 
+@hydra.main(config_path='configs/maxcut', config_name='maxcut_plot.yaml')
+def maxcut_plot_eval_iters(cfg):
+    example = 'maxcut'
+    create_lasco_results_constrained(example, cfg)
+
 
 @hydra.main(config_path='configs/unconstrained_qp', config_name='unconstrained_qp_plot.yaml')
 def unconstrained_qp_plot_eval_iters(cfg):
@@ -768,6 +773,10 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'mnist/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         mnist_plot_eval_iters()
+    elif sys.argv[1] == 'maxcut':
+        sys.argv[1] = base + 'maxcut/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        maxcut_plot_eval_iters()
     elif sys.argv[1] == 'quadcopter':
         sys.argv[1] = base + 'quadcopter/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
