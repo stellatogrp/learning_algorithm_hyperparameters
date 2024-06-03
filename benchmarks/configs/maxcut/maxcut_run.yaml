@@ -26,7 +26,7 @@ accuracies: [.1, .01, .001, .0001]
 
 skip_startup: False
 
-eval_unrolls: 500
+eval_unrolls: 1000
 supervised: True
 train_unrolls: 10
 
