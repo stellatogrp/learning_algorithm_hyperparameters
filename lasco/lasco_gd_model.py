@@ -31,8 +31,14 @@ class LASCOGDmodel(L2WSmodel):
         # evals, evecs = jnp.linalg.eigh(D.T @ D)
         # lambd = 0.1
         # self.ista_step = lambd / evals.max()
-        p = jnp.diag(P)
-        cond_num = jnp.max(p) / jnp.min(p)
+        # p = jnp.diag(P)
+        # cond_num = jnp.max(p) / jnp.min(p)
+        evals, evecs = jnp.linalg.eigh(P)
+
+        self.str_cvx_param = jnp.min(evals)
+        self.smooth_param = jnp.max(evals)
+
+        cond_num = self.smooth_param / self.str_cvx_param
 
         self.k_steps_train_fn = partial(k_steps_train_lasco_gd, P=P,
                                         jit=self.jit)
@@ -49,10 +55,12 @@ class LASCOGDmodel(L2WSmodel):
         # self.mean_params = random.normal(w_key, (self.train_unrolls, 2))
         # self.mean_params = self.mean_params[:, 0]
         # self.mean_params =
-        p = jnp.diag(self.P)
+        # p = jnp.diag(self.P)
         noise = np.clip(np.random.normal(size=(self.eval_unrolls, 1)) / 10, a_min=0.0001, a_max=1e10)
         # self.mean_params = 2 / (p.max() + p.min()) * jnp.ones((self.eval_unrolls, 1))  #+ 1 * jnp.array(noise)
-        self.mean_params = 1 / p.max() * jnp.ones((self.eval_unrolls, 1))
+        # self.mean_params = 1 / p.max() * jnp.ones((self.eval_unrolls, 1))
+        # self.mean_params = 1 / self.smooth_param * jnp.ones((self.eval_unrolls, 1)) + .001 * jnp.array(noise)
+        self.mean_params = 2 / (self.smooth_param + self.str_cvx_param) * jnp.ones((self.eval_unrolls, 1)) #+ .001 * jnp.array(noise)
         print('self.mean_params', self.mean_params)
         # self.mean_params = self.mean_params.at[2].set(0.1)
 
@@ -63,6 +71,7 @@ class LASCOGDmodel(L2WSmodel):
 
         # , self.prior_param]
         self.params = [self.mean_params]
+
 
     def create_end2end_loss_fn(self, bypass_nn, diff_required):
         supervised = True  # self.supervised and diff_required

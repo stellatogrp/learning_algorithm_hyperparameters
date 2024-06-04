@@ -157,8 +157,8 @@ class Workspace:
             self.q_mat_test = thetas[N_train:N, :]
             self.create_gd_model(cfg, static_dict)
         elif algo == 'lasco_gd':
-            self.q_mat_train = thetas[:N_train, :]
-            self.q_mat_test = thetas[N_train:N, :]
+            # self.q_mat_train = thetas[:N_train, :]
+            # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_gd_model(cfg, static_dict)
         elif algo == 'lasco_osqp':
             self.create_lasco_osqp_model(cfg, static_dict)
@@ -368,8 +368,8 @@ class Workspace:
     def setup_opt_sols(self, algo, jnp_load_obj, N_train, N, num_plot=5):
         if algo != 'scs' and algo != 'lasco_scs':
             z_stars = jnp_load_obj['z_stars']
-            z_stars_train = z_stars[:N_train, :]
-            z_stars_test = z_stars[N_train:N, :]
+            z_stars_train = z_stars[self.train_indices, :]
+            z_stars_test = z_stars[self.test_indices, :]
             plot_samples(num_plot, self.thetas_train,
                          self.train_inputs, z_stars_train)
             self.z_stars_test = z_stars_test
@@ -619,7 +619,7 @@ class Workspace:
 
             # fixed ws evaluation
             # if self.l2ws_model.z_stars_train is not None and self.l2ws_model.algo != 'maml':
-            self.eval_iters_train_and_test('nearest_neighbor', None)
+            # self.eval_iters_train_and_test('nearest_neighbor', None)
 
             if self.l2ws_model.algo == 'lasco_gd':
                 self.eval_iters_train_and_test('nesterov', None)
