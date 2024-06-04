@@ -5,7 +5,7 @@ from jax import random
 
 import numpy as np
 
-from lasco.algo_steps import k_steps_eval_lasco_gd, k_steps_train_lasco_gd
+from lasco.algo_steps import k_steps_eval_lasco_gd, k_steps_train_lasco_gd, k_steps_eval_nesterov_gd
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
 
@@ -31,12 +31,18 @@ class LASCOGDmodel(L2WSmodel):
         # evals, evecs = jnp.linalg.eigh(D.T @ D)
         # lambd = 0.1
         # self.ista_step = lambd / evals.max()
+        p = jnp.diag(P)
+        cond_num = jnp.max(p) / jnp.min(p)
 
         self.k_steps_train_fn = partial(k_steps_train_lasco_gd, P=P,
                                         jit=self.jit)
         self.k_steps_eval_fn = partial(k_steps_eval_lasco_gd, P=P,
                                        jit=self.jit)
+        self.nesterov_eval_fn = partial(k_steps_eval_nesterov_gd, P=P, cond_num=cond_num,
+                                       jit=self.jit)
         self.out_axes_length = 5
+
+        self.lasco_train_inputs = self.q_mat_train
 
     def init_params(self):
         # w_key = random.PRNGKey(0)
@@ -45,7 +51,8 @@ class LASCOGDmodel(L2WSmodel):
         # self.mean_params =
         p = jnp.diag(self.P)
         noise = np.clip(np.random.normal(size=(self.eval_unrolls, 1)) / 10, a_min=0.0001, a_max=1e10)
-        self.mean_params = 2 / (p.max() + p.min()) * jnp.ones((self.eval_unrolls, 1)) + 1 * jnp.array(noise)
+        # self.mean_params = 2 / (p.max() + p.min()) * jnp.ones((self.eval_unrolls, 1))  #+ 1 * jnp.array(noise)
+        self.mean_params = 1 / p.max() * jnp.ones((self.eval_unrolls, 1))
         print('self.mean_params', self.mean_params)
         # self.mean_params = self.mean_params.at[2].set(0.1)
 
@@ -68,6 +75,9 @@ class LASCOGDmodel(L2WSmodel):
             #     z0 = jnp.zeros(z_star.size)
             z0 = input
 
+            # if bypass_nn:
+            #     eval_fn = self.nesterov_eval_fn
+
             if self.train_fn is not None:
                 train_fn = self.train_fn
             else:
@@ -77,22 +87,12 @@ class LASCOGDmodel(L2WSmodel):
             else:
                 eval_fn = self.k_steps_eval_fn
 
-            # w_key = random.split(key)
-            # w_key = random.PRNGKey(key)
-            # perturb = random.normal(w_key, (self.train_unrolls, 2))
-
             stochastic_params = params[0]
-            # if self.deterministic:
-            #     stochastic_params = params[0]
-            # else:
-            #     stochastic_params = params[0] + \
-            #         jnp.sqrt(jnp.exp(params[1])) * perturb
-            print('stochastic_params', stochastic_params)
-            print('self.deterministic', self.deterministic)
-            print('iters', iters)
 
             if bypass_nn:
-                eval_out = eval_fn(k=iters,
+                # import pdb
+                # pdb.set_trace()
+                eval_out = self.nesterov_eval_fn(k=iters,
                                    z0=z0,
                                    q=q,
                                    params=stochastic_params,

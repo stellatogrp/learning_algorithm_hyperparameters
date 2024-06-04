@@ -39,19 +39,19 @@ def maxcut_plot_eval_iters(cfg):
 @hydra.main(config_path='configs/unconstrained_qp', config_name='unconstrained_qp_plot.yaml')
 def unconstrained_qp_plot_eval_iters(cfg):
     example = 'unconstrained_qp'
-    create_journal_results(example, cfg, train=False)
+    create_lasco_results_constrained(example, cfg)
 
 
 @hydra.main(config_path='configs/mnist', config_name='mnist_plot.yaml')
 def mnist_plot_eval_iters(cfg):
     example = 'mnist'
-    create_journal_results(example, cfg, train=False)
+    create_lasco_results_constrained(example, cfg)
 
 
 @hydra.main(config_path='configs/quadcopter', config_name='quadcopter_plot.yaml')
 def quadcopter_plot_eval_iters(cfg):
     example = 'quadcopter'
-    create_journal_results(example, cfg, train=False)
+    create_lasco_results_constrained(example, cfg)
 
 
 def create_lasco_results_constrained(example, cfg):
@@ -299,4 +299,3 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'quadcopter/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         quadcopter_plot_eval_iters()
-

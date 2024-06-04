@@ -51,6 +51,7 @@ def run(run_cfg):
     # static_dict = static_canon(n_orig, d_mul, rho_x=rho_x, scale=scale)
     P, A, cones = get_P_A_cones(n_orig)
     static_dict = {'M': create_M(P, A), 'cones_dict': cones}
+    
 
     # we directly save q now
     get_q = None

@@ -303,6 +303,70 @@ def fp_eval_lasco_osqp(i, val, supervised, z_star, all_factors, P, A, q, rhos, s
     return z_next, loss_vec, z_all, primal_residuals, dual_residuals
 
 
+def fixed_point_nesterov(z, y, i, P, c, gd_step):
+    """
+    applies the fista fixed point operator
+    """
+    y_next = fixed_point_gd(z, P, c, gd_step)
+    # t_next = .5 * (1 + jnp.sqrt(1 + 4 * t ** 2))
+    z_next = y_next + i / (i + 3) * (y_next - y)
+    i_next = i + 1
+    return z_next, y_next, i_next
+
+
+def fixed_point_nesterov_str_cvx(z, y, i, P, c, gd_step, cond_num):
+    """
+    applies the fista fixed point operator
+    """
+    y_next = fixed_point_gd(z, P, c, gd_step)
+    # t_next = .5 * (1 + jnp.sqrt(1 + 4 * t ** 2))
+    sqrt_cond = jnp.sqrt(cond_num)
+    coeff = (sqrt_cond - 1) / (sqrt_cond + 1)
+    z_next = y_next + coeff * (y_next - y)
+    i_next = i + 1
+    return z_next, y_next, i_next
+
+
+def fp_eval_nesterov_str_cvx_gd(i, val, supervised, z_star, P, c, cond_num, gd_step):
+    z, y, t, loss_vec, z_all, obj_diffs = val
+    z_next, y_next, t_next = fixed_point_nesterov_str_cvx(z, y, t, P, c, gd_step, cond_num)
+    if supervised:
+        diff = jnp.linalg.norm(z - z_star)
+    else:
+        diff = jnp.linalg.norm(z_next - z)
+    loss_vec = loss_vec.at[i].set(diff)
+    z_all = z_all.at[i, :].set(z_next)
+    obj = .5 * y_next @ P @ y_next + c @ z_next
+    opt_obj = .5 * z_star @ P @ z_star + c @ z_star
+    obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
+    return z_next, y_next, t_next, loss_vec, z_all, obj_diffs
+
+
+def k_steps_eval_nesterov_gd(k, z0, q, params, P, cond_num, supervised, z_star, jit):
+    iter_losses = jnp.zeros(k)
+    z_all_plus_1 = jnp.zeros((k + 1, z0.size))
+    z_all_plus_1 = z_all_plus_1.at[0, :].set(z0)
+    fp_eval_partial = partial(fp_eval_nesterov_str_cvx_gd,
+                              supervised=supervised,
+                              z_star=z_star,
+                              P=P,
+                              c=q,
+                              gd_step=params[0],
+                              cond_num=cond_num
+                              )
+    z_all = jnp.zeros((k, z0.size))
+    obj_diffs = jnp.zeros(k)
+    y0 = z0
+    t0 = 0
+    val = z0, y0, t0, iter_losses, z_all, obj_diffs
+    start_iter = 0
+    if jit:
+        out = lax.fori_loop(start_iter, k, fp_eval_partial, val)
+    else:
+        out = python_fori_loop(start_iter, k, fp_eval_partial, val)
+    z_final, y_final, t_final, iter_losses, z_all, obj_diffs = out
+    z_all_plus_1 = z_all_plus_1.at[1:, :].set(z_all)
+    return z_final, iter_losses, z_all_plus_1, obj_diffs
 
 
 def k_steps_eval_lasco_gd(k, z0, q, params, P, supervised, z_star, jit):

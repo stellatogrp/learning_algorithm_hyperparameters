@@ -441,6 +441,12 @@ class Workspace:
                 q_mat.shape[0], N - N_train, replace=False)
             self.q_mat_test = q_mat[self.test_indices, :]
             
+        else:
+            thetas = jnp.array(jnp_load_obj['thetas'])
+            self.train_indices = np.random.choice(
+                thetas.shape[0], N_train, replace=False)
+            self.test_indices = np.random.choice(
+                thetas.shape[0], N_train, replace=False)
 
         # load the closed_loop_rollout trajectories
         if 'ref_traj_tensor' in jnp_load_obj.keys():
@@ -519,8 +525,9 @@ class Workspace:
             primal_residuals = out_train[4].mean(axis=0)
             dual_residuals = out_train[5].mean(axis=0)
             dist_opts = out_train[8].mean(axis=0)
-            pr_dr_maxes = jnp.maximum(primal_residuals, dual_residuals)
-            pr_dr_max = pr_dr_maxes.mean(axis=0)
+            if primal_residuals is not None:
+                pr_dr_maxes = jnp.maximum(primal_residuals, dual_residuals)
+                pr_dr_max = pr_dr_maxes.mean(axis=0)
 
         if train:
             self.percentiles_df_list_train = update_percentiles(self.percentiles_df_list_train,
@@ -540,13 +547,17 @@ class Workspace:
             obj_vals_diff=obj_vals_diff,
             dist_opts=dist_opts
         )
-        pr_dr_max = jnp.maximum(primal_residuals, dual_residuals)
+        if primal_residuals is not None:
+            pr_dr_max = jnp.maximum(primal_residuals, dual_residuals)
+        else:
+            pr_dr_max = None
         iters_df, primal_residuals_df, dual_residuals_df, obj_vals_diff_df, dist_opts_df, pr_dr_max_df = df_out
 
         if not self.skip_startup:
             self.no_learning_accs = write_accuracies_csv(self.accs, iter_losses_mean, train, col, 
                                                          self.no_learning_accs)
-            self.no_learning_pr_dr_max_accs = write_accuracies_csv(self.accs, pr_dr_max, train, col, 
+            if pr_dr_max is not None:
+                self.no_learning_pr_dr_max_accs = write_accuracies_csv(self.accs, pr_dr_max, train, col, 
                                                          self.no_learning_pr_dr_max_accs, pr_dr_max=True)
 
         # plot the evaluation iterations
@@ -609,6 +620,9 @@ class Workspace:
             # fixed ws evaluation
             # if self.l2ws_model.z_stars_train is not None and self.l2ws_model.algo != 'maml':
             self.eval_iters_train_and_test('nearest_neighbor', None)
+
+            if self.l2ws_model.algo == 'lasco_gd':
+                self.eval_iters_train_and_test('nesterov', None)
 
             # prev sol eval
             if self.prev_sol_eval and self.l2ws_model.z_stars_train is not None:
@@ -859,7 +873,7 @@ class Workspace:
                 inputs = get_nearest_neighbors(is_osqp, self.l2ws_model.train_inputs,
                                                self.l2ws_model.test_inputs, 
                                                self.l2ws_model.z_stars_train,
-                                               train, num, m=m, n=n)
+                                               train, num, m=m, n=n) * 0
             elif col == 'prev_sol':
                 # now set the indices (0, num_traj, 2 * num_traj) to zero
                 non_last_indices = jnp.mod(jnp.arange(
