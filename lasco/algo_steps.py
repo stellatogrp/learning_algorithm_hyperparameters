@@ -336,7 +336,7 @@ def fp_eval_nesterov_str_cvx_gd(i, val, supervised, z_star, P, c, cond_num, gd_s
         diff = jnp.linalg.norm(z_next - z)
     loss_vec = loss_vec.at[i].set(diff)
     z_all = z_all.at[i, :].set(z_next)
-    obj = .5 * y_next @ P @ y_next + c @ z_next
+    obj = .5 * y_next @ P @ y_next + c @ y_next
     opt_obj = .5 * z_star @ P @ z_star + c @ z_star
     obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
     return z_next, y_next, t_next, loss_vec, z_all, obj_diffs

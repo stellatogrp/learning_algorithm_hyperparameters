@@ -433,12 +433,12 @@ class Workspace:
             # q_mat_test = q_mat[N_train:N, :]
             # self.q_mat_train, self.q_mat_test = q_mat_train, q_mat_test
 
-            self.train_indices = np.random.choice(
-                q_mat.shape[0], N_train, replace=False)
+            rand_indices = np.arange(N) #np.random.choice(q_mat.shape[0], N, replace=False)
+
+            self.train_indices = rand_indices[:N_train] #np.random.choice(q_mat.shape[0], N_train, replace=False)
             self.q_mat_train = q_mat[self.train_indices, :]
 
-            self.test_indices = np.random.choice(
-                q_mat.shape[0], N - N_train, replace=False)
+            self.test_indices = rand_indices[N_train:] #np.random.choice(q_mat.shape[0], N - N_train, replace=False)
             self.q_mat_test = q_mat[self.test_indices, :]
             
         else:
@@ -497,7 +497,7 @@ class Workspace:
     def evaluate_iters(self, num, col, train=False, plot=True, plot_pretrain=False):
         if train and col == 'prev_sol':
             return
-        fixed_ws = col == 'nearest_neighbor' or col == 'prev_sol'
+        fixed_ws = col == 'nesterov' #col == 'nearest_neighbor' or col == 'prev_sol' or col == 'nesterov'
 
         # do the actual evaluation (most important step in thie method)
         eval_batch_size = self.eval_batch_size_train if train else self.eval_batch_size_test
@@ -622,7 +622,19 @@ class Workspace:
             # self.eval_iters_train_and_test('nearest_neighbor', None)
 
             if self.l2ws_model.algo == 'lasco_gd':
+                self.eval_iters_train_and_test('nearest_neighbor', None)
+
+
+                self.l2ws_model.set_params_for_nesterov()
                 self.eval_iters_train_and_test('nesterov', None)
+
+
+                self.l2ws_model.set_params_for_silver()
+                self.eval_iters_train_and_test('silver', None)
+
+
+                # perturb slightly for training
+                self.l2ws_model.perturb_params()
 
             # prev sol eval
             if self.prev_sol_eval and self.l2ws_model.z_stars_train is not None:
@@ -851,41 +863,46 @@ class Workspace:
         else:
             q_mat = self.l2ws_model.q_mat_train[:num,
                                                 :] if train else self.l2ws_model.q_mat_test[:num, :]
-        if fixed_ws:
-            z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
-        else:
-            z0_inits = z_stars * 0
+        # if fixed_ws:
+        #     z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
+        # else:
+        #     z0_inits = z_stars * 0
+        z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
         if self.l2ws_model.algo == 'lasco_scs':
             z0_inits = jnp.hstack([z0_inits, jnp.ones((z0_inits.shape[0], 1))])
+
         eval_out = self.l2ws_model.evaluate(
             self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, factors=factors, tag=tag)
         return eval_out
 
 
     def get_inputs_for_eval(self, fixed_ws, num, train, col):
-        if fixed_ws:
-            if col == 'nearest_neighbor':
-                is_osqp = isinstance(self.l2ws_model, OSQPmodel)
-                if is_osqp:
-                    m, n = self.l2ws_model.m, self.l2ws_model.n
-                else:
-                    m, n = 0, 0
-                inputs = get_nearest_neighbors(is_osqp, self.l2ws_model.train_inputs,
-                                               self.l2ws_model.test_inputs, 
-                                               self.l2ws_model.z_stars_train,
-                                               train, num, m=m, n=n) * 0
-            elif col == 'prev_sol':
-                # now set the indices (0, num_traj, 2 * num_traj) to zero
-                non_last_indices = jnp.mod(jnp.arange(
-                    num), self.traj_length) != self.traj_length - 1
-                inputs = self.shifted_sol_fn(
-                    self.z_stars_test[:num, :][non_last_indices, :])
+        if col == 'nearest_neighbor':
+            is_osqp = isinstance(self.l2ws_model, OSQPmodel)
+            if is_osqp:
+                m, n = self.l2ws_model.m, self.l2ws_model.n
+            else:
+                m, n = 0, 0
+            inputs = get_nearest_neighbors(is_osqp, 
+                                           self.thetas_train,
+                                           self.thetas_test,
+                                        #    self.l2ws_model.train_inputs,
+                                        #     self.l2ws_model.test_inputs, 
+                                            self.l2ws_model.z_stars_train,
+                                            train, num, m=m, n=n)
+        elif col == 'prev_sol':
+            # now set the indices (0, num_traj, 2 * num_traj) to zero
+            non_last_indices = jnp.mod(jnp.arange(
+                num), self.traj_length) != self.traj_length - 1
+            inputs = self.shifted_sol_fn(
+                self.z_stars_test[:num, :][non_last_indices, :])
         else:
             if train:
-                inputs = self.l2ws_model.train_inputs[:num, :]
+                inputs = self.l2ws_model.z_stars_train[:num, :] * 0
             else:
-                inputs = self.l2ws_model.test_inputs[:num, :]
+                inputs = self.l2ws_model.z_stars_train[:num, :] * 0
         return inputs
+
 
     def setup_dataframes(self):
         self.iters_df_train = create_empty_df(self.eval_unrolls)
