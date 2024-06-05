@@ -153,8 +153,8 @@ class Workspace:
         elif algo == 'scs':
             self.create_scs_model(cfg, static_dict)
         elif algo == 'gd':
-            self.q_mat_train = thetas[:N_train, :]
-            self.q_mat_test = thetas[N_train:N, :]
+            # self.q_mat_train = thetas[:N_train, :]
+            # self.q_mat_test = thetas[N_train:N, :]
             self.create_gd_model(cfg, static_dict)
         elif algo == 'lasco_gd':
             # self.q_mat_train = thetas[:N_train, :]
@@ -617,8 +617,9 @@ class Workspace:
             # no learning evaluation
             self.eval_iters_train_and_test('no_train', None)
 
-            # nearest neighbor
-            self.eval_iters_train_and_test('nearest_neighbor', None)
+            if self.l2ws_model.lasco:
+                # nearest neighbor
+                self.eval_iters_train_and_test('nearest_neighbor', None)
 
             if self.l2ws_model.algo == 'lasco_gd':
                 # nesterov
@@ -691,8 +692,11 @@ class Workspace:
                     permutation, epoch, window_indices, steady_state=steady_state)
                 
                 # insert the curr_params into the entire params
-                pp = self.l2ws_model.params[0].at[window_indices, :].set(curr_params[0])
-                params = [pp]
+                if self.l2ws_model.lasco:
+                    pp = self.l2ws_model.params[0].at[window_indices, :].set(curr_params[0])
+                    params = [pp]
+                else:
+                    params = curr_params
 
                 # reset the global (params, state)
                 self.key_count += 1
@@ -740,20 +744,31 @@ class Workspace:
             batch_indices = lax.dynamic_slice(
                 permutation, (0,), (self.l2ws_model.batch_size,))
 
-            train_loss_first, params, state = self.l2ws_model.train_batch(
-                batch_indices, self.l2ws_model.lasco_train_inputs, [self.l2ws_model.params[0][window_indices, :]], 
-                self.l2ws_model.state, n_iters=n_iters)
+            if self.l2ws_model.lasco:
+                train_loss_first, params, state = self.l2ws_model.train_batch(
+                    batch_indices, self.l2ws_model.lasco_train_inputs, [self.l2ws_model.params[0][window_indices, :]], 
+                    self.l2ws_model.state, n_iters=n_iters)
+            else:
+                train_loss_first, params, state = self.l2ws_model.train_batch(
+                    batch_indices, self.l2ws_model.train_inputs, self.l2ws_model.params, 
+                    self.l2ws_model.state, n_iters=n_iters)
             
             epoch_train_losses = epoch_train_losses.at[0].set(train_loss_first)
             start_index = 1
         else:
             start_index = 0
-            params, state = [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state
+            if self.l2ws_model.lasco:
+                params, state = [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state
+            else:
+                params, state = self.l2ws_model.params, self.l2ws_model.state
         
         train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, 
                                                           n_iters=n_iters)
 
-        init_val = epoch_train_losses, self.l2ws_model.lasco_train_inputs, params, state, permutation
+        if self.l2ws_model.lasco:
+            init_val = epoch_train_losses, self.l2ws_model.lasco_train_inputs, params, state, permutation
+        else:
+            init_val = epoch_train_losses, self.l2ws_model.train_inputs, params, state, permutation
         val = lax.fori_loop(start_index, loop_size,
                             train_over_epochs_body_simple_fn_jitted, init_val)
         epoch_batch_end_time = time.time()
@@ -860,10 +875,16 @@ class Workspace:
             inputs = self.shifted_sol_fn(
                 self.z_stars_test[:num, :][non_last_indices, :])
         else:
-            if train:
-                inputs = self.l2ws_model.z_stars_train[:num, :] * 0
+            if self.l2ws_model.lasco:
+                if train:
+                    inputs = self.l2ws_model.z_stars_train[:num, :] * 0
+                else:
+                    inputs = self.l2ws_model.z_stars_train[:num, :] * 0
             else:
-                inputs = self.l2ws_model.z_stars_train[:num, :] * 0
+                if train:
+                    inputs = self.l2ws_model.train_inputs[:num, :]
+                else:
+                    inputs = self.l2ws_model.test_inputs[:num, :]
         if self.l2ws_model.algo == 'lasco_scs':
             inputs = jnp.hstack([inputs, jnp.ones((inputs.shape[0], 1))])
         return inputs

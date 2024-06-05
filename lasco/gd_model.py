@@ -12,6 +12,7 @@ class GDmodel(L2WSmodel):
         self.factor_static = None
         self.algo = 'gd'
         self.factors_required = False
+        
         self.q_mat_train, self.q_mat_test = input_dict['c_mat_train'], input_dict['c_mat_test']
         P = input_dict['P']
         gd_step = input_dict['gd_step']
@@ -21,3 +22,4 @@ class GDmodel(L2WSmodel):
         self.k_steps_train_fn = partial(k_steps_train_gd, P=P, gd_step=gd_step, jit=self.jit)
         self.k_steps_eval_fn = partial(k_steps_eval_gd, P=P, gd_step=gd_step, jit=self.jit)
         self.out_axes_length = 5
+        self.lasco = False

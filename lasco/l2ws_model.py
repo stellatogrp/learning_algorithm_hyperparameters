@@ -66,6 +66,7 @@ class L2WSmodel(object):
         self.set_defaults()
 
         # initialize algorithm specifics
+        self.lasco = True
         self.initialize_algo(dict)
 
         # post init changes
@@ -209,9 +210,12 @@ class L2WSmodel(object):
     def short_test_eval(self):
         z_stars_test = self.z_stars_test
 
-        z0_inits = z_stars_test * 0
-        if self.algo == 'lasco_scs':
-            z0_inits = jnp.hstack([z0_inits, jnp.ones((z0_inits.shape[0], 1))])
+        if self.lasco:
+            z0_inits = z_stars_test * 0
+            if self.algo == 'lasco_scs':
+                z0_inits = jnp.hstack([z0_inits, jnp.ones((z0_inits.shape[0], 1))])
+        else:
+            z0_inits = self.test_inputs
         test_loss, test_out, time_per_prob = self.static_eval(self.train_unrolls,
                                                             z0_inits,
                                                                 self.q_mat_test,
@@ -281,11 +285,22 @@ class L2WSmodel(object):
 
         # Initialize state with first elements of training data as inputs
         batch_indices = jnp.arange(self.N_train)
-        input_init = self.lasco_train_inputs[batch_indices, :] #self.train_inputs[batch_indices, :]
+        if self.lasco:
+            input_init = self.lasco_train_inputs[batch_indices, :] #self.train_inputs[batch_indices, :]
+        else:
+            input_init = self.train_inputs[batch_indices, :]
         q_init = self.q_mat_train[batch_indices, :]
         z_stars_init = self.z_stars_train[batch_indices, :] #if self.supervised else None
 
-        self.state = self.optimizer.init_state(init_params=[self.params[0][:self.train_unrolls, :]],
+        if self.lasco:
+            self.state = self.optimizer.init_state(init_params=[self.params[0][:self.train_unrolls, :]],
+                                                   inputs=input_init,
+                                                   b=q_init,
+                                                   iters=self.train_unrolls,
+                                                   z_stars=z_stars_init,
+                                                   key=self.train_unrolls)
+        else:
+            self.state = self.optimizer.init_state(init_params=self.params,
                                                    inputs=input_init,
                                                    b=q_init,
                                                    iters=self.train_unrolls,
@@ -353,17 +368,20 @@ class L2WSmodel(object):
             # print('perturbed_weights', perturbed_weights)
 
             # new stochastic
-            mean_params, sigma_params, prior_var = params[0], params[1], params[2]
-            if self.deterministic:
-                nn_output = predict_y(mean_params, input)
-            else:
-                perturb = get_perturbed_weights(random.PRNGKey(key), self.layer_sizes, 1)
-                perturbed_weights = [(perturb[i][0] * jnp.sqrt(jnp.exp(sigma_params[i][0])) + mean_params[i][0], 
-                                    perturb[i][1] * jnp.sqrt(jnp.exp(sigma_params[i][1])) + mean_params[i][1]) for i in range(len(mean_params))]
-                # perturbed_weights = [(perturb[i][0] * jnp.sqrt(1 / (1 + jnp.exp(-sigma_params[i][0]))) + mean_params[i][0], 
-                #                     perturb[i][1] * jnp.sqrt(1 / (1 + jnp.exp(-sigma_params[i][1]))) + mean_params[i][1]) for i in range(len(mean_params))]
+            mean_params = params[0]
+            nn_output = predict_y(mean_params, input)
 
-                nn_output = predict_y(perturbed_weights, input)
+            # mean_params, sigma_params, prior_var = params[0], params[1], params[2]
+            # if self.deterministic:
+            #     nn_output = predict_y(mean_params, input)
+            # else:
+            #     perturb = get_perturbed_weights(random.PRNGKey(key), self.layer_sizes, 1)
+            #     perturbed_weights = [(perturb[i][0] * jnp.sqrt(jnp.exp(sigma_params[i][0])) + mean_params[i][0], 
+            #                         perturb[i][1] * jnp.sqrt(jnp.exp(sigma_params[i][1])) + mean_params[i][1]) for i in range(len(mean_params))]
+            #     # perturbed_weights = [(perturb[i][0] * jnp.sqrt(1 / (1 + jnp.exp(-sigma_params[i][0]))) + mean_params[i][0], 
+            #     #                     perturb[i][1] * jnp.sqrt(1 / (1 + jnp.exp(-sigma_params[i][1]))) + mean_params[i][1]) for i in range(len(mean_params))]
+
+            #     nn_output = predict_y(perturbed_weights, input)
 
             # deterministic
             # nn_output = predict_y(params, input)

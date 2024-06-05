@@ -257,6 +257,19 @@ def main_run_ridge_regression(cfg):
     ridge_regression.run(cfg)
 
 
+@hydra.main(config_path='configs/ridge_regression', config_name='ridge_regression_l2ws_run.yaml')
+def main_run_ridge_regression_l2ws(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'ridge_regression'
+    agg_datetime = cfg.data.datetime
+    if agg_datetime == '':
+        # get the most recent datetime and update datetimes
+        agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = agg_datetime
+    copy_data_file(example, agg_datetime)
+    ridge_regression.l2ws_run(cfg)
+
+
 if __name__ == '__main__':
     if sys.argv[2] == 'cluster':
         base = 'hydra.run.dir=/scratch/gpfs/rajivs/learn2warmstart/outputs/'
@@ -337,3 +350,7 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'ridge_regression/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_ridge_regression()
+    elif sys.argv[1] == 'ridge_regression_l2ws':
+        sys.argv[1] = base + 'ridge_regression/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_run_ridge_regression_l2ws()

@@ -4,4 +4,5 @@ methods:
   silver: 2024-06-05/13-59-02
   nearest_neighbor: 2024-06-05/15-42-53
   nesterov: 2024-06-05/15-42-53
+  l2ws: 2024-06-05/18-13-44
 num_iters: 100

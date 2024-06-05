@@ -346,6 +346,8 @@ def get_eval_array(df, title):
         data = df['silver']
     elif title == 'nesterov':
         data = df['nesterov']
+    elif title == 'l2ws':
+        data = df.iloc[:, -1]
     else:
         # case of the learned warm-start, take the latest column
         data = df.iloc[:, -1]

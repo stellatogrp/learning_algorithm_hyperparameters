@@ -41,6 +41,44 @@ def run(run_cfg):
     workspace.run()
 
 
+def l2ws_run(run_cfg):
+    example = "ridge_regression"
+    data_yaml_filename = 'data_setup_copied.yaml'
+
+    # read the yaml file
+    with open(data_yaml_filename, "r") as stream:
+        try:
+            setup_cfg = yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+            setup_cfg = {}
+
+    # set the seed
+    np.random.seed(setup_cfg['seed'])
+    n_orig = setup_cfg['n_orig']
+    m_orig = setup_cfg['m_orig']
+
+    lambd = setup_cfg['lambd']
+    A = np.random.normal(size=(m_orig, n_orig))
+    P = A.T @ A + lambd * np.identity(n_orig)
+
+    evals, evecs = np.linalg.eigh(P)
+    mu = evals.min()
+    L = evals.max()
+
+    gd_step = 2 / (mu + L)
+
+    static_dict = dict(P=P, gd_step=gd_step)
+
+    # we directly save q now
+    static_flag = True
+    algo = 'gd'
+    workspace = Workspace(algo, run_cfg, static_flag, static_dict, example)
+
+    # run the workspace
+    workspace.run()
+
+
 def setup_probs(setup_cfg):
     cfg = setup_cfg
     N_train, N_test = cfg.N_train, cfg.N_test
