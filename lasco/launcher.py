@@ -617,21 +617,17 @@ class Workspace:
             # no learning evaluation
             self.eval_iters_train_and_test('no_train', None)
 
-            # fixed ws evaluation
-            # if self.l2ws_model.z_stars_train is not None and self.l2ws_model.algo != 'maml':
-            # self.eval_iters_train_and_test('nearest_neighbor', None)
+            # nearest neighbor
+            self.eval_iters_train_and_test('nearest_neighbor', None)
 
             if self.l2ws_model.algo == 'lasco_gd':
-                self.eval_iters_train_and_test('nearest_neighbor', None)
-
-
+                # nesterov
                 self.l2ws_model.set_params_for_nesterov()
                 self.eval_iters_train_and_test('nesterov', None)
 
-
+                # silver
                 self.l2ws_model.set_params_for_silver()
                 self.eval_iters_train_and_test('silver', None)
-
 
                 # perturb slightly for training
                 self.l2ws_model.perturb_params()
@@ -663,13 +659,13 @@ class Workspace:
         num_epochs_jit = int(self.l2ws_model.epochs / self.epochs_jit)
         loop_size = int(self.l2ws_model.num_batches * self.epochs_jit)
 
+        num_progressive_trains = 6
 
-        for window in range(6):
+        for window in range(num_progressive_trains):
             # update window_indices
-            window_indices = jnp.arange(self.train_unrolls * window, self.train_unrolls * (window + 1))
-            steady_state = window == 5
-            # if window == 5:
-            #     window_indices = jnp.arange(self.train_unrolls * window, self.train_unrolls * window + 1)
+            window_indices = jnp.arange(self.train_unrolls * window, 
+                                        self.train_unrolls * (window + 1))
+            steady_state = window == num_progressive_trains - 1
 
             # update the train inputs
             update_train_inputs_flag = window > 0
@@ -682,11 +678,9 @@ class Workspace:
                     if update_train_inputs_flag:
                         self.eval_iters_train_and_test(f"train_epoch_{epoch}",self.train_unrolls * window)
                         update_train_inputs_flag = False
-                        # self.l2ws_model.initialize_neural_network(self.nn_cfg, 'dont_init')
                         jax.clear_caches()
                     else:
                         self.eval_iters_train_and_test(f"train_epoch_{epoch}", None)
-                    # self.l2ws_model.reinit_losses()
 
                 # setup the permutations
                 permutation = setup_permutation(
@@ -699,7 +693,6 @@ class Workspace:
                 # insert the curr_params into the entire params
                 pp = self.l2ws_model.params[0].at[window_indices, :].set(curr_params[0])
                 params = [pp]
-                # print('curr_params', curr_params)
 
                 # reset the global (params, state)
                 self.key_count += 1
@@ -746,8 +739,6 @@ class Workspace:
             #   lax.while_loop and lax.scan.
             batch_indices = lax.dynamic_slice(
                 permutation, (0,), (self.l2ws_model.batch_size,))
-            # batch_indices = lax.dynamic_slice(
-            #     jnp.arange(permutation.size), (0,), (self.l2ws_model.batch_size,))
 
             train_loss_first, params, state = self.l2ws_model.train_batch(
                 batch_indices, self.l2ws_model.lasco_train_inputs, [self.l2ws_model.params[0][window_indices, :]], 
@@ -755,15 +746,12 @@ class Workspace:
             
             epoch_train_losses = epoch_train_losses.at[0].set(train_loss_first)
             start_index = 1
-            # self.train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, 
-            #                                                        window_indices=window_indices)
         else:
             start_index = 0
             params, state = [self.l2ws_model.params[0][window_indices, :]], self.l2ws_model.state
-            # self.train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, 
-            #                                                        window_indices=window_indices)
         
-        train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, n_iters=n_iters) #, window_indices=window_indices)
+        train_over_epochs_body_simple_fn_jitted = partial(self.train_over_epochs_body_simple_fn, 
+                                                          n_iters=n_iters)
 
         init_val = epoch_train_losses, self.l2ws_model.lasco_train_inputs, params, state, permutation
         val = lax.fori_loop(start_index, loop_size,
@@ -786,30 +774,13 @@ class Workspace:
         start_index = batch * self.l2ws_model.batch_size
         batch_indices = lax.dynamic_slice(
             permutation, (start_index,), (self.l2ws_model.batch_size,))
-        # batch_indices = lax.dynamic_slice(
-        #         jnp.arange(permutation.size), (start_index,), (self.l2ws_model.batch_size,))
+
         train_loss, params, state = self.l2ws_model.train_batch(
             batch_indices, inputs, params, state, n_iters)
-        # train_loss, params, state = self.l2ws_model.train_batch(
-        #     batch_indices, inputs, [params[0][window_indices, :]], state)
+
         train_losses = train_losses.at[batch].set(train_loss)
         val = train_losses, inputs, params, state, permutation
         return val
-
-    # def train_over_epochs_body_fn(self, batch, val, permutation):
-    #     """
-    #     to be used as the body_fn in lax.fori_loop
-    #     need to call partial for the specific permutation
-    #     """
-    #     train_losses, inputs, params, state = val
-    #     start_index = batch * self.l2ws_model.batch_size
-    #     batch_indices = lax.dynamic_slice(
-    #         permutation, (start_index,), (self.l2ws_model.batch_size,))
-    #     train_loss, params, state = self.l2ws_model.train_batch(
-    #         batch_indices, inputs, params, state)
-    #     train_losses = train_losses.at[batch].set(train_loss)
-    #     val = train_losses, params, state
-    #     return val
 
 
     def eval_iters_train_and_test(self, col, new_start_index):
@@ -830,7 +801,6 @@ class Workspace:
                 self.l2ws_model.lasco_train_inputs = out_train[2][:, new_start_index, :]
             self.l2ws_model.reinit_losses()
             self.l2ws_model.init_optimizer()
-
                 
 
     def evaluate_diff_only(self, k, inputs, params):
@@ -863,14 +833,9 @@ class Workspace:
         else:
             q_mat = self.l2ws_model.q_mat_train[:num,
                                                 :] if train else self.l2ws_model.q_mat_test[:num, :]
-        # if fixed_ws:
-        #     z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
-        # else:
-        #     z0_inits = z_stars * 0
-        z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
-        if self.l2ws_model.algo == 'lasco_scs':
-            z0_inits = jnp.hstack([z0_inits, jnp.ones((z0_inits.shape[0], 1))])
 
+        z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
+        
         eval_out = self.l2ws_model.evaluate(
             self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, factors=factors, tag=tag)
         return eval_out
@@ -886,8 +851,6 @@ class Workspace:
             inputs = get_nearest_neighbors(is_osqp, 
                                            self.thetas_train,
                                            self.thetas_test,
-                                        #    self.l2ws_model.train_inputs,
-                                        #     self.l2ws_model.test_inputs, 
                                             self.l2ws_model.z_stars_train,
                                             train, num, m=m, n=n)
         elif col == 'prev_sol':
@@ -901,6 +864,8 @@ class Workspace:
                 inputs = self.l2ws_model.z_stars_train[:num, :] * 0
             else:
                 inputs = self.l2ws_model.z_stars_train[:num, :] * 0
+        if self.l2ws_model.algo == 'lasco_scs':
+            inputs = jnp.hstack([inputs, jnp.ones((inputs.shape[0], 1))])
         return inputs
 
 

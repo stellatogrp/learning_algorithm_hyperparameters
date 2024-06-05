@@ -20,7 +20,6 @@ from lasco.utils.nn_utils import (
     compute_single_param_KL
 )
 from jaxopt import Bisection
-from lasco.utils.generic_utils import manual_vmap
 
 
 import jax
@@ -60,8 +59,6 @@ class L2WSmodel(object):
         self.deterministic = pac_bayes_cfg.get('deterministic', False)
         self.prior = 0
 
-        # self.kl_inv_layer = create_kl_inv_layer()
-
         # essential pieces for the model
         self.initialize_essentials(jit, eval_unrolls, train_unrolls, train_inputs, test_inputs)
 
@@ -72,10 +69,9 @@ class L2WSmodel(object):
         self.initialize_algo(dict)
 
         # post init changes
-        self.post_init_changes()
+        # self.post_init_changes()
 
         # optimal solutions (not needed as input)
-        # self.setup_optimal_solutions(dict)
         self.setup_optimal_solutions(z_stars_train, z_stars_test, x_stars_train, x_stars_test, 
                                      y_stars_train, y_stars_test)
 
@@ -94,13 +90,6 @@ class L2WSmodel(object):
     def reinit_losses(self):
         self.create_all_loss_fns(self.loss_method, self.regression)
 
-    
-    def post_init_changes(self):
-        if not hasattr(self, 'q_mat_train'):
-            self.q_mat_train = self.theta_mat_train
-        if not hasattr(self, 'q_mat_test'):
-            self.q_mat_test = self.theta_mat_test
-
 
     def set_defaults(self):
         # unless turned off in the subclass, these are the default settings
@@ -114,7 +103,6 @@ class L2WSmodel(object):
         self.train_unrolls = train_unrolls
         self.train_inputs, self.test_inputs = train_inputs, test_inputs
         self.N_train, self.N_test = self.train_inputs.shape[0], self.test_inputs.shape[0]
-        self.batch_angle = vmap(self.compute_angle, in_axes=(0, 0), out_axes=(0))
         self.static_flag = True
 
 
@@ -194,38 +182,19 @@ class L2WSmodel(object):
 
 
     def train_batch(self, batch_indices, inputs, params, state, n_iters):
-        # batch_inputs = self.train_inputs[batch_indices, :]
         batch_inputs = inputs[batch_indices, :]
         batch_q_data = self.q_mat_train[batch_indices, :]
-        batch_z_stars = self.z_stars_train[batch_indices, :] #if self.supervised else None
+        batch_z_stars = self.z_stars_train[batch_indices, :]
 
-        if self.factors_required and not self.factor_static_bool:
-            # for only the case where the factors are needed
-            # batch_factors = self.factors[batch_indices, :, :]
-            batch_factors = (self.factors_train[0][batch_indices,
-                             :, :], self.factors_train[1][batch_indices, :])
-            key = state.iter_num
-            results = self.optimizer.update(params=params,
-                                            state=state,
-                                            inputs=batch_inputs,
-                                            b=batch_q_data,
-                                            iters=self.train_unrolls,
-                                            z_stars=batch_z_stars,
-                                            factors=batch_factors,
-                                            key=key)
-        else:
-            # for either of the following cases
-            #   1. factors needed, but are the same for all problems
-            #   2. no factors are needed
-            key = n_iters #1 if params[0].shape[0] == 0 else self.train_unrolls #state.iter_num
-            results = self.optimizer.update(params=params,
-                                            state=state,
-                                            inputs=batch_inputs,
-                                            b=batch_q_data,
-                                            iters=self.train_unrolls,
-                                            z_stars=batch_z_stars,
-                                            key=key)
-            self.key = key
+        key = n_iters #1 if params[0].shape[0] == 0 else self.train_unrolls #state.iter_num
+        results = self.optimizer.update(params=params,
+                                        state=state,
+                                        inputs=batch_inputs,
+                                        b=batch_q_data,
+                                        iters=self.train_unrolls,
+                                        z_stars=batch_z_stars,
+                                        key=key)
+        self.key = key
         params, state = results
         return state.value, params, state
 
@@ -240,24 +209,14 @@ class L2WSmodel(object):
     def short_test_eval(self):
         z_stars_test = self.z_stars_test
 
-        if self.factors_required and not self.factor_static_bool:
-            test_loss, test_out, time_per_prob = self.dynamic_eval(self.train_unrolls,
-                                                                   self.test_inputs,
-                                                                   self.q_mat_test,
-                                                                   z_stars_test,
-                                                                   factors=self.factors_test,
-                                                                   key=self.key)
-        else:
-            z0_inits = z_stars_test * 0
-            if self.algo == 'lasco_scs':
-                z0_inits = jnp.hstack([z0_inits, jnp.ones((z0_inits.shape[0], 1))])
-            test_loss, test_out, time_per_prob = self.static_eval(self.train_unrolls,
-                                                                #   self.test_inputs,
-                                                                z0_inits,
-                                                                  self.q_mat_test,
-                                                                  z_stars_test,
-                                                                  0)
-                                                                  #self.key+1)
+        z0_inits = z_stars_test * 0
+        if self.algo == 'lasco_scs':
+            z0_inits = jnp.hstack([z0_inits, jnp.ones((z0_inits.shape[0], 1))])
+        test_loss, test_out, time_per_prob = self.static_eval(self.train_unrolls,
+                                                            z0_inits,
+                                                                self.q_mat_test,
+                                                                z_stars_test,
+                                                                0)
 
         self.te_losses.append(test_loss)
 
@@ -279,28 +238,17 @@ class L2WSmodel(object):
         return loss, out, time_per_prob
 
     def static_eval(self, k, inputs, b, z_stars, key, tag='test', fixed_ws=False, light=False):
-        print('key', key)
-        if fixed_ws:
-            curr_loss_fn = self.loss_fn_fixed_ws
-        else:
-            curr_loss_fn = self.loss_fn_eval
+        curr_loss_fn = self.loss_fn_fixed_ws if fixed_ws else self.loss_fn_eval
         num_probs, _ = inputs.shape
-
         test_time0 = time.time()
-
         loss, out = curr_loss_fn(self.params, inputs, b, k, z_stars, key)
         time_per_prob = (time.time() - test_time0)/num_probs
-
-        import gc
-        gc.collect()
-
         return loss, out, time_per_prob
 
 
     def initialize_neural_network(self, nn_cfg, plateau_decay, alista_cfg=None):
         # neural network
         self.epochs, self.lr = nn_cfg.get('epochs', 10), nn_cfg.get('lr', 1e-3)
-        self.decay_lr, self.min_lr = nn_cfg.get('decay_lr', False), nn_cfg.get('min_lr', 1e-7)
 
         # batching
         batch_size = nn_cfg.get('batch_size', self.N_train)
@@ -316,8 +264,7 @@ class L2WSmodel(object):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
         self.layer_sizes = layer_sizes
 
-        if plateau_decay != 'dont_init':
-            self.init_params()
+        self.init_params()
 
         self.optimizer_method = nn_cfg.get('method', 'adam')
         self.init_optimizer()
@@ -338,40 +285,28 @@ class L2WSmodel(object):
         q_init = self.q_mat_train[batch_indices, :]
         z_stars_init = self.z_stars_train[batch_indices, :] #if self.supervised else None
 
-        if self.factors_required and not self.factor_static_bool:
-            batch_factors = (self.factors_train[0][batch_indices, :, :], 
-                             self.factors_train[1][batch_indices, :])
-            self.state = self.optimizer.init_state(init_params=self.params,
+        self.state = self.optimizer.init_state(init_params=[self.params[0][:self.train_unrolls, :]],
                                                    inputs=input_init,
                                                    b=q_init,
                                                    iters=self.train_unrolls,
                                                    z_stars=z_stars_init,
-                                                   factors=batch_factors,
-                                                   key=self.key
-                                                   )
-        else:
-            self.state = self.optimizer.init_state(init_params=[self.params[0][:self.train_unrolls, :]],
-                                                   inputs=input_init,
-                                                   b=q_init,
-                                                   iters=self.train_unrolls,
-                                                   z_stars=z_stars_init,
-                                                   key=self.train_unrolls) #self.key)
+                                                   key=self.train_unrolls)
 
             
     def init_params(self):
         # initialize weights of neural network
         self.mean_params = init_network_params(self.layer_sizes, random.PRNGKey(0))
 
-        # initialize the stddev
-        init_stddev_var = 1e-6
-        self.sigma_params = init_variance_network_params(self.layer_sizes, self.init_var, 
-                                                         random.PRNGKey(1), 
-                                                        init_stddev_var)
+        # # initialize the stddev
+        # init_stddev_var = 1e-6
+        # self.sigma_params = init_variance_network_params(self.layer_sizes, self.init_var, 
+        #                                                  random.PRNGKey(1), 
+        #                                                 init_stddev_var)
         
-        # initialize the prior
-        self.prior_param = jnp.log(self.init_var) * jnp.ones(2 * len(self.layer_sizes))
+        # # initialize the prior
+        # self.prior_param = jnp.log(self.init_var) * jnp.ones(2 * len(self.layer_sizes))
 
-        self.params = [self.mean_params, self.sigma_params, self.prior_param]
+        self.params = [self.mean_params] #, self.sigma_params, self.prior_param]
 
 
     def create_all_loss_fns(self, loss_method, supervised):
@@ -379,16 +314,6 @@ class L2WSmodel(object):
         self.loss_method = loss_method
         self.supervised = supervised
 
-        # if not hasattr(self, 'train_fn') and not hasattr(self, 'k_steps_train_fn'):
-        #     train_fn = create_train_fn(self.fixed_point_fn)
-        #     eval_fn = create_eval_fn(self.fixed_point_fn)
-        #     self.train_fn = partial(train_fn, jit=self.jit)
-        #     self.eval_fn = partial(eval_fn, jit=self.jit)
-
-        # if not hasattr(self, 'train_fn'):
-        #     self.train_fn = self.k_steps_train_fn
-        #     self.eval_fn = self.k_steps_eval_fn
-        
         self.train_fn = self.k_steps_train_fn
         self.eval_fn = self.k_steps_eval_fn
 
@@ -412,58 +337,6 @@ class L2WSmodel(object):
         self.tr_losses_batch = []
         self.te_losses = []
 
-    def decay_upon_plateau(self):
-        """
-        this method decays the learning rate upon hitting a plateau
-            on the training loss
-        self.avg_window_plateau: take the last avg_window number of epochs and compared it
-            against the previous avg_window number of epochs to compare
-        self.plateau_decay_factor: multiplicative factor we decay the learning rate by
-        self.plateau_tolerance: the tolerance condition decrease to check if we should decrease
-
-        we decay the learn rate by decay_factor if
-           self.tr_losses[-2*avg_window:-avg_window] - self.tr_losses[-avg_window:] <= tolerance
-        """
-        decay_factor = self.plateau_decay['decay_factor']
-
-        window_batches = self.plateau_decay['avg_window_size'] * self.num_batches
-        plateau_tolerance = self.plateau_decay['tolerance']
-        patience = self.plateau_decay['patience']
-
-        if self.plateau_decay['min_lr'] <= self.lr / decay_factor:
-            tr_losses_batch_np = np.array(self.tr_losses_batch)
-            prev_window_losses = tr_losses_batch_np[-2*window_batches:-window_batches].mean()
-            curr_window_losses = tr_losses_batch_np[-window_batches:].mean()
-            print('prev_window_losses', prev_window_losses)
-            print('curr_window_losses', curr_window_losses)
-            plateau = prev_window_losses - curr_window_losses <= plateau_tolerance
-            if plateau:
-                # keep track of the learning rate
-                self.lr = self.lr / decay_factor
-
-                # update the optimizer (restart) and reset the state
-                if self.optimizer_method == 'adam':
-                    self.optimizer = OptaxSolver(opt=optax.adam(
-                        self.lr), fun=self.loss_fn_train, has_aux=False)
-                elif self.optimizer_method == 'sgd':
-                    self.optimizer = OptaxSolver(opt=optax.sgd(
-                        self.lr), fun=self.loss_fn_train, has_aux=False)
-                self.state = self.optimizer.init_state(self.params)
-                logging.info(f"the decay rate is now {self.lr}")
-
-                # log the current decay epoch
-                self.epoch_decay_points.append(self.epoch)
-
-                # don't decay for another 2 * window number of epochs
-                wait_time = 2 * patience * self.plateau_decay['avg_window_size']
-                self.dont_decay_until = self.epoch + wait_time
-
-    def train_full_batch(self, params, state):
-        """
-        wrapper for train_batch where the batch size is N_train
-        """
-        batch_indices = jnp.arange(self.N_train)
-        return self.train_batch(batch_indices, params, state)
 
     def predict_warm_start(self, params, input, key, bypass_nn):
         """
@@ -502,10 +375,6 @@ class L2WSmodel(object):
             z0_full = z0
         return z0_full
 
-    def compute_angle(self, d1, d2):
-        cos = d1 @ d2 / (jnp.linalg.norm(d1) * jnp.linalg.norm(d2))
-        angle = jnp.arccos(cos)
-        return angle
 
     def final_loss(self, loss_method, z_last, iter_losses, supervised, z0, z_star):
         """
@@ -559,87 +428,51 @@ class L2WSmodel(object):
         # just for reference, the arguments for predict are
         #   predict(params, input, q, iters, z_star, factor)
 
-        if self.factors_required and not self.factor_static_bool:
-            # for the case where the factors change for each problem
-            # batch_predict = vmap(predict,
-            #                     in_axes=(None, 0, 0, 0, None, 0),
-            #                     out_axes=out_axes)
-            batch_predict = vmap(predict,
-                                 in_axes=(None, 0, 0, None, 0, None, (0, 0)),
-                                 out_axes=out_axes)
-            # batch_predict = vmap(predict,
-            #                      in_axes=(None, 0, 0, None, 0, (0, 0), None),
-            #                      out_axes=out_axes)
-            @partial(jit, static_argnums=(3,))
-            def loss_fn(params, inputs, b, iters, z_stars, key, factors):
-                if diff_required:
-                    losses = batch_predict(params, inputs, b, iters, z_stars, key, factors)
-                    return losses.mean()
-                else:
-                    predict_out = batch_predict(
-                        params, inputs, b, iters, z_stars, key, factors)
-                    losses = predict_out[0]
-                    # loss_out = losses, iter_losses, angles, z_all
-                    return losses.mean(), predict_out
+        # for either of the following cases
+        #   1. no factors are needed (pass in None as a static argument)
+        #   2. factor is constant for all problems (pass in the same factor as static argument)
+        predict_partial = partial(predict, factor=self.factor_static)
 
-            # @partial(jit, static_argnums=(3,))
-            # def loss_fn(params, inputs, b, iters, z_stars, factors):
-            #     if diff_required:
-            #         losses = batch_predict(params, inputs, b, iters, z_stars, factors)
-            #         return losses.mean()
-            #     else:
-            #         predict_out = batch_predict(
-            #             params, inputs, b, iters, z_stars, factors)
-            #         losses = predict_out[0]
-            #         # loss_out = losses, iter_losses, angles, z_all
-            #         return losses.mean(), predict_out
-        else:
-            # for either of the following cases
-            #   1. no factors are needed (pass in None as a static argument)
-            #   2. factor is constant for all problems (pass in the same factor as static argument)
-            predict_partial = partial(predict, factor=self.factor_static)
+        batch_predict = vmap(predict_partial,
+                                in_axes=(None, 0, 0, None, 0, None),
+                                out_axes=out_axes)
+        
 
-            batch_predict = vmap(predict_partial,
-                                    in_axes=(None, 0, 0, None, 0, None),
-                                    out_axes=out_axes)
+        @partial(jit, static_argnums=(3, 5,))
+        def loss_fn(params, inputs, b, iters, z_stars, key):
+            if diff_required:
+                losses = batch_predict(params, inputs, b, iters, z_stars, key)
+                return losses.mean()
             
+                # return losses.mean()
+                q = losses.mean() / self.penalty_coeff
 
-            @partial(jit, static_argnums=(3, 5,))
-            def loss_fn(params, inputs, b, iters, z_stars, key):
-                if diff_required:
-                    losses = batch_predict(params, inputs, b, iters, z_stars, key)
-                    return losses.mean()
-                
-                    # return losses.mean()
-                    q = losses.mean() / self.penalty_coeff
+                penalty_loss = self.calculate_total_penalty(self.N_train, params, self.b, 
+                                                            self.c, 
+                                                            self.delta)
 
-                    penalty_loss = self.calculate_total_penalty(self.N_train, params, self.b, 
-                                                                self.c, 
-                                                                self.delta)
-
-                    bisec = Bisection(optimality_fun=kl_inv_fn, lower=0.0, upper=1.0, 
-                                      check_bracket=False,
-                                      jit=True)
-                    if self.algo == 'lista':
-                        factor = 0.01
-                    else:
-                        factor = 0.1
-                    q_expit = 1 / (1 + jnp.exp(-factor * (q - 0)))
-
-                    out = bisec.run(q=q_expit, c=penalty_loss)
-                    r = out.params
-                    p = (1 - q_expit) * r + q_expit
-
-                    if self.deterministic:
-                        return q_expit
-                    return p + 1000 * (penalty_loss - self.target_pen) ** 2
-                    # return q #+ jnp.sqrt(penalty_loss / 2) + 100 * (penalty_loss - self.target_pen) ** 2
+                bisec = Bisection(optimality_fun=kl_inv_fn, lower=0.0, upper=1.0, 
+                                    check_bracket=False,
+                                    jit=True)
+                if self.algo == 'lista':
+                    factor = 0.01
                 else:
-                    predict_out = batch_predict(
-                        params, inputs, b, iters, z_stars, key)
-                    losses = predict_out[0]
-                    # loss_out = losses, iter_losses, angles, z_all
-                    return losses.mean(), predict_out
+                    factor = 0.1
+                q_expit = 1 / (1 + jnp.exp(-factor * (q - 0)))
+
+                out = bisec.run(q=q_expit, c=penalty_loss)
+                r = out.params
+                p = (1 - q_expit) * r + q_expit
+
+                if self.deterministic:
+                    return q_expit
+                return p + 1000 * (penalty_loss - self.target_pen) ** 2
+                # return q #+ jnp.sqrt(penalty_loss / 2) + 100 * (penalty_loss - self.target_pen) ** 2
+            else:
+                predict_out = batch_predict(
+                    params, inputs, b, iters, z_stars, key)
+                losses = predict_out[0]
+                return losses.mean(), predict_out
 
         return loss_fn
 
