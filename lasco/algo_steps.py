@@ -1229,7 +1229,7 @@ def fp_train_scs(i, val, q_r, factor, supervised, z_star, proj, hsde, homogeneou
     z, loss_vec = val
     if hsde:
         r = q_r
-        z_next, u, u_tilde, v = fixed_point_hsde(z, homogeneous, r, factor, proj, scale_vec, alpha)
+        z_next, u, u_tilde, v = fixed_point_hsde(z, homogeneous, r, factor[0], factor[1], proj, scale_vec, alpha, TAU_FACTOR)
     else:
         q = q_r
         z_next, u, u_tilde, v = fixed_point(z, q, factor, proj, scale_vec, alpha)
@@ -1484,7 +1484,7 @@ def fp_eval_scs(i, val, q_r, z_star, factor, proj, P, A, c, b, hsde, homogeneous
     if hsde:
         r = q_r
         z_next, u, u_tilde, v = fixed_point_hsde(
-            z, homogeneous, r, factor, proj, scale_vec, alpha, verbose=verbose)
+            z, homogeneous, r, factor[0], factor[1], proj, scale_vec, alpha, TAU_FACTOR, verbose=verbose)
     else:
         q = q_r
         z_next, u, u_tilde, v = fixed_point(z, q, factor, proj, scale_vec, alpha, verbose=verbose)
@@ -1499,8 +1499,8 @@ def fp_eval_scs(i, val, q_r, z_star, factor, proj, P, A, c, b, hsde, homogeneous
     # primal and dual residuals
     if not lightweight:
         x, y, s = extract_sol(u, v, n, hsde)
-        pr = jnp.linalg.norm(A @ x + s - b)
-        dr = jnp.linalg.norm(A.T @ y + P @ x + c)
+        pr = jnp.linalg.norm(A @ x + s - q_r[n:]) #b)
+        dr = jnp.linalg.norm(A.T @ y + P @ x + q_r[:n]) #c)
         primal_residuals = primal_residuals.at[i].set(pr)
         dual_residuals = dual_residuals.at[i].set(dr)
     all_z = all_z.at[i, :].set(z_next)
@@ -1520,7 +1520,10 @@ def rkf_loss(z_next, z_star):
 def k_steps_train_scs(k, z0, q, factor, supervised, z_star, proj, jit, hsde, m, n, zero_cone_size,
                       rho_x=1, scale=1, alpha=1.0):
     iter_losses = jnp.zeros(k)
-    scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)
+    # scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)
+    rho_y = rho_x
+    rho_y_zero = rho_x
+    scale_vec = get_scale_vec(rho_x, rho_y, rho_y_zero, m, n, zero_cone_size, hsde=hsde)
 
     fp_train_partial = partial(fp_train_scs, q_r=q, factor=factor,
                                supervised=supervised, z_star=z_star, proj=proj, hsde=hsde,
@@ -1533,7 +1536,7 @@ def k_steps_train_scs(k, z0, q, factor, supervised, z_star, proj, jit, hsde, m, 
         #   which is set to 1
         homogeneous = False
         z_next, u, u_tilde, v = fixed_point_hsde(
-            z0, homogeneous, q, factor, proj, scale_vec, alpha)
+            z0, homogeneous, q, factor[0], factor[1], proj, scale_vec, alpha, TAU_FACTOR)
         iter_losses = iter_losses.at[0].set(jnp.linalg.norm(z_next - z0))
         z0 = z_next
     val = z0, iter_losses
@@ -1693,7 +1696,7 @@ def k_steps_eval_scs(k, z0, q, factor, proj, P, A, supervised, z_star, jit, hsde
     iter_losses = jnp.zeros(k)
     primal_residuals, dual_residuals = jnp.zeros(k), jnp.zeros(k)
     m, n = A.shape
-    scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)
+    scale_vec = get_scale_vec(rho_x, rho_x, rho_x, m, n, zero_cone_size, hsde=hsde)
 
     if jit:
         verbose = False
@@ -1708,7 +1711,7 @@ def k_steps_eval_scs(k, z0, q, factor, proj, P, A, supervised, z_star, jit, hsde
         homogeneous = False
 
         z_next, u, u_tilde, v = fixed_point_hsde(
-            z0, homogeneous, q, factor, proj, scale_vec, alpha, verbose=verbose)
+            z0, homogeneous, q, factor[0], factor[1], proj, scale_vec, alpha, TAU_FACTOR, verbose=verbose)
         all_z = all_z.at[0, :].set(z_next)
         all_u = all_u.at[0, :].set(u)
         all_v = all_v.at[0, :].set(v)

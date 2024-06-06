@@ -73,6 +73,7 @@ class SCSmodel(L2WSmodel):
                                        hsde=True,
                                        custom_loss=custom_loss,
                                        lightweight=lightweight)
+        self.lasco = False
 
     # def setup_optimal_solutions(self, dict):
     def setup_optimal_solutions(self, 

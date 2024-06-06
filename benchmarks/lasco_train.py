@@ -140,6 +140,19 @@ def main_run_robust_kalman(cfg):
     robust_kalman.run(cfg)
 
 
+@hydra.main(config_path='configs/robust_kalman', config_name='robust_kalman_l2ws_run.yaml')
+def main_run_robust_kalman_l2ws(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'robust_kalman'
+    setup_datetime = cfg.data.datetime
+    if setup_datetime == '':
+        # get the most recent datetime and update datetimes
+        setup_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = setup_datetime
+    copy_data_file(example, setup_datetime)
+    robust_kalman.l2ws_run(cfg)
+
+
 @hydra.main(config_path='configs/robust_pca', config_name='robust_pca_run.yaml')
 def main_run_robust_pca(cfg):
     orig_cwd = hydra.utils.get_original_cwd()
@@ -244,6 +257,19 @@ def main_run_maxcut(cfg):
     maxcut.run(cfg)
 
 
+@hydra.main(config_path='configs/maxcut', config_name='maxcut_l2ws_run.yaml')
+def main_run_maxcut_l2ws(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'maxcut'
+    agg_datetime = cfg.data.datetime
+    if agg_datetime == '':
+        # get the most recent datetime and update datetimes
+        agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = agg_datetime
+    copy_data_file(example, agg_datetime)
+    maxcut.l2ws_run(cfg)
+
+
 @hydra.main(config_path='configs/ridge_regression', config_name='ridge_regression_run.yaml')
 def main_run_ridge_regression(cfg):
     orig_cwd = hydra.utils.get_original_cwd()
@@ -282,22 +308,14 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'markowitz/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_markowitz()
-    elif sys.argv[1] == 'osc_mass':
-        sys.argv[1] = base + 'osc_mass/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
-        sys.argv = [sys.argv[0], sys.argv[1]]
-        main_run_osc_mass()
-    elif sys.argv[1] == 'vehicle':
-        sys.argv[1] = base + 'vehicle/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
-        sys.argv = [sys.argv[0], sys.argv[1]]
-        main_run_vehicle()
     elif sys.argv[1] == 'robust_kalman':
         sys.argv[1] = base + 'robust_kalman/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_robust_kalman()
-    elif sys.argv[1] == 'robust_pca':
-        sys.argv[1] = base + 'robust_pca/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+    elif sys.argv[1] == 'robust_kalman_l2ws':
+        sys.argv[1] = base + 'robust_kalman/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
-        main_run_robust_pca()
+        main_run_robust_kalman_l2ws()
     elif sys.argv[1] == 'robust_ls':
         sys.argv[1] = base + 'robust_ls/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
@@ -330,10 +348,6 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'mnist/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_mnist()
-    elif sys.argv[1] == 'jamming':
-        sys.argv[1] = base + 'jamming/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
-        sys.argv = [sys.argv[0], sys.argv[1]]
-        main_run_jamming()
     elif sys.argv[1] == 'sparse_coding':
         sys.argv[1] = base + 'sparse_coding/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
@@ -346,6 +360,10 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'maxcut/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_maxcut()
+    elif sys.argv[1] == 'maxcut_l2ws':
+        sys.argv[1] = base + 'maxcut/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_run_maxcut_l2ws()
     elif sys.argv[1] == 'ridge_regression':
         sys.argv[1] = base + 'ridge_regression/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]

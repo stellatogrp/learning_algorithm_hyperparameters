@@ -910,6 +910,68 @@ def run(run_cfg):
     workspace.run()
 
 
+def l2ws_run(run_cfg):
+    datetime = run_cfg.data.datetime
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = "robust_kalman"
+    # folder = f"{orig_cwd}/outputs/{example}/aggregate_outputs/{datetime}"
+    # data_yaml_filename = f"{folder}/data_setup_copied.yaml"
+    data_yaml_filename = 'data_setup_copied.yaml'
+
+    # read the yaml file
+    with open(data_yaml_filename, "r") as stream:
+        try:
+            setup_cfg = yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+            setup_cfg = {}
+
+    # non-identity DR scaling
+    rho_x = run_cfg.get('rho_x', 1)
+    scale = run_cfg.get('scale', 1)
+
+    static_dict = static_canon(
+        setup_cfg['T'],
+        setup_cfg['gamma'],
+        setup_cfg['dt'],
+        setup_cfg['mu'],
+        setup_cfg['rho'],
+        setup_cfg['B_const'],
+        rho_x=rho_x,
+        scale=scale
+    )
+
+    get_q = None
+
+    """
+    static_flag = True
+    means that the matrices don't change across problems
+    we only need to factor once
+    """
+    static_flag = True
+
+    custom_visualize_fn_partial = partial(custom_visualize_fn, T=setup_cfg['T'])
+    algo = 'scs'
+
+    A = static_dict['A_sparse']
+    m, n = A.shape
+    partial_shifted_sol_fn = partial(shifted_sol, T=setup_cfg['T'],  m=m, n=n)
+    batch_shifted_sol_fn = vmap(partial_shifted_sol_fn, in_axes=(0), out_axes=(0))
+
+    custom_loss = partial(rkf_loss, T=setup_cfg['T'])
+
+    workspace = Workspace(algo, run_cfg, static_flag, static_dict, example,
+                          custom_visualize_fn=custom_visualize_fn_partial,
+                          custom_loss=custom_loss,
+                          shifted_sol_fn=batch_shifted_sol_fn,
+                          traj_length=setup_cfg['rollout_length'])
+
+    """
+    run the workspace
+    """
+    workspace.run()
+
+
 def setup_probs(setup_cfg):
     print("entered robust kalman setup", flush=True)
     cfg = setup_cfg
