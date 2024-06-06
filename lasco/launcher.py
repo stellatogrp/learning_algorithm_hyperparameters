@@ -850,7 +850,7 @@ class Workspace:
                                                 :] if train else self.l2ws_model.q_mat_test[:num, :]
 
         z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
-        
+
         eval_out = self.l2ws_model.evaluate(
             self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, factors=factors, tag=tag)
         return eval_out

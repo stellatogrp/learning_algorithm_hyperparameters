@@ -52,7 +52,7 @@ class SCSmodel(L2WSmodel):
         lightweight = input_dict.get('lightweight', False)
 
         self.output_size = self.n + self.m
-        self.out_axes_length = 8
+        self.out_axes_length = 9
 
         # custom_loss
         custom_loss = input_dict.get('custom_loss')
