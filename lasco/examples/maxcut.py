@@ -63,6 +63,44 @@ def run(run_cfg):
     workspace.run()
 
 
+def l2ws_run(run_cfg):
+    example = "maxcut"
+    data_yaml_filename = 'data_setup_copied.yaml'
+
+    # read the yaml file
+    with open(data_yaml_filename, "r") as stream:
+        try:
+            setup_cfg = yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+            setup_cfg = {}
+
+    ######################### TODO
+    # set the seed
+    np.random.seed(setup_cfg['seed'])
+    n_orig = setup_cfg['n_orig']
+
+    # static_dict = static_canon(n_orig, d_mul, rho_x=rho_x, scale=scale)
+    P, A, cones = get_P_A_cones(n_orig)
+    rho_x = 1
+    scale = 1
+    m, n = A.shape
+    M = create_M(P, A)
+    algo_factor, scale_vec = get_scaled_vec_and_factor(M, rho_x, scale, scale, m, n,
+                                                       cones['z'])
+    static_dict = {'M': create_M(P, A), 'cones_dict': cones, 'algo_factor': algo_factor}
+    
+
+    # we directly save q now
+    get_q = None
+    static_flag = True
+    algo = 'scs'
+    workspace = Workspace(algo, run_cfg, static_flag, static_dict, example)
+
+    # run the workspace
+    workspace.run()
+
+
 def get_P_A_cones(n_orig):
     n_orig_choose_2 = int(n_orig * (n_orig + 1) / 2)
 
