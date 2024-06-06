@@ -2,4 +2,5 @@ methods:
   cold_start: 2024-06-02/16-46-25
   lasco: 2024-06-02/16-46-25
   nearest_neighbor: 2024-06-03/16-12-46
+  l2ws: 2024-06-05/21-34-39
 eval_iters: 301

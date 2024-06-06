@@ -669,7 +669,7 @@ class Workspace:
             steady_state = window == num_progressive_trains - 1
 
             # update the train inputs
-            update_train_inputs_flag = window > 0
+            update_train_inputs_flag = window > 0 and self.l2ws_model.lasco
 
             for epoch_batch in range(num_epochs_jit):
                 epoch = int(epoch_batch * self.epochs_jit) + window * num_epochs_jit * self.epochs_jit

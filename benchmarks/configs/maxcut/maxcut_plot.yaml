@@ -1,4 +1,6 @@
 methods: 
   cold_start: 2024-06-03/15-36-09
   lasco: 2024-06-03/15-36-09
-eval_iters: 301
+  nearest_neighbor: 2024-06-03/16-48-25
+  l2ws: 2024-06-05/21-33-52
+# eval_iters: 301
