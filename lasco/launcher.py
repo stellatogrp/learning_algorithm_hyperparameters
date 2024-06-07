@@ -498,6 +498,8 @@ class Workspace:
         if train and col == 'prev_sol':
             return
         fixed_ws = col == 'nesterov' #col == 'nearest_neighbor' or col == 'prev_sol' or col == 'nesterov'
+        if col == 'nearest_neighbor' and not self.l2ws_model.lasco:
+            fixed_ws = True
 
         # do the actual evaluation (most important step in thie method)
         eval_batch_size = self.eval_batch_size_train if train else self.eval_batch_size_test
@@ -617,9 +619,9 @@ class Workspace:
             # no learning evaluation
             self.eval_iters_train_and_test('no_train', None)
 
-            if self.l2ws_model.lasco:
-                # nearest neighbor
-                self.eval_iters_train_and_test('nearest_neighbor', None)
+            # if self.l2ws_model.lasco:
+            # nearest neighbor
+            self.eval_iters_train_and_test('nearest_neighbor', None)
 
             if self.l2ws_model.algo == 'lasco_gd':
                 # nesterov

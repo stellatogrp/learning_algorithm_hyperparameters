@@ -16,13 +16,14 @@ echo "My SLURM_ARRAY_JOB_ID is $SLURM_ARRAY_JOB_ID."
 echo "My SLURM_ARRAY_TASK_ID is $SLURM_ARRAY_TASK_ID"
 echo "Executing on the machine:" $(hostname)
 
-# os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='true'
-# export XLA_PYTHON_CLIENT_MEM_FRACTION='0.30'
+# os.environ['XLA_PYTHON_CLIENT_PREALLOCATE']='false'
+# export XLA_PYTHON_CLIENT_PREALLOCATE='false'
+# export XLA_PYTHON_CLIENT_MEM_FRACTION='0.90'
 # XLA_PYTHON_CLIENT_ALLOCATOR=platform
 # export xla_force_host_platform_device_count=1
 
-# python benchmarks/lasco_train.py maxcut_l2ws cluster
-python benchmarks/lasco_train.py robust_kalman_l2ws cluster
+python benchmarks/lasco_train.py ridge_regression cluster
+# python benchmarks/lasco_train.py robust_kalman_l2ws cluster
 # python l2ws_train_script.py robust_kalman cluster
 # python aggregate_slurm_runs_script.py robust_ls cluster
 
