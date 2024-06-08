@@ -853,8 +853,9 @@ class Workspace:
 
         z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
 
+        key = 64 if col == 'silver' else 1 + self.l2ws_model.step_varying_num
         eval_out = self.l2ws_model.evaluate(
-            self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, factors=factors, tag=tag)
+            self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, key, factors=factors, tag=tag)
         return eval_out
 
 

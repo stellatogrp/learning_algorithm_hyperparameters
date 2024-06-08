@@ -81,11 +81,15 @@ class L2WSmodel(object):
         self.loss_method = loss_method
         self.regression = regression
 
+        self.step_varying_num = 50
+
         # neural network setup
         self.initialize_neural_network(nn_cfg, plateau_decay)
 
         # init to track training
         self.init_train_tracking()
+
+        
 
 
     def reinit_losses(self):
@@ -199,12 +203,12 @@ class L2WSmodel(object):
         params, state = results
         return state.value, params, state
 
-    def evaluate(self, k, inputs, b, z_stars, fixed_ws, factors=None, tag='test', light=False):
+    def evaluate(self, k, inputs, b, z_stars, fixed_ws, key, factors=None, tag='test', light=False):
         if self.factors_required and not self.factor_static_bool:
             return self.dynamic_eval(k, inputs, b, z_stars, 
                                      factors=factors, key=self.key, tag=tag, fixed_ws=fixed_ws)
         else:
-            return self.static_eval(k, inputs, b, z_stars, 0, tag=tag, 
+            return self.static_eval(k, inputs, b, z_stars, key, tag=tag, 
                                     fixed_ws=fixed_ws, light=light)
 
     def short_test_eval(self):
@@ -220,7 +224,7 @@ class L2WSmodel(object):
                                                             z0_inits,
                                                                 self.q_mat_test,
                                                                 z_stars_test,
-                                                                0)
+                                                                self.train_unrolls)
 
         self.te_losses.append(test_loss)
 

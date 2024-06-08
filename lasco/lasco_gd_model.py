@@ -51,17 +51,25 @@ class LASCOGDmodel(L2WSmodel):
         self.lasco_train_inputs = self.q_mat_train
 
     def perturb_params(self):
-        noise = np.clip(np.random.normal(size=(self.eval_unrolls, 1)), a_min=1e-5, a_max=1e0)
-        self.mean_params = 2 / (self.smooth_param + self.str_cvx_param) * jnp.ones((self.eval_unrolls, 1))
-        params = self.mean_params + .001 * jnp.array(noise)
+        # noise = np.clip(np.random.normal(size=(self.eval_unrolls, 1)), a_min=1e-5, a_max=1e0)
+        # self.mean_params = 2 / (self.smooth_param + self.str_cvx_param) * jnp.ones((self.eval_unrolls, 1))
+        # params = self.mean_params + .0001 * jnp.array(noise)
 
-        params = params.at[51:, 0].set(0)
-        self.params = [params]
-        # import pdb
-        # pdb.set_trace()
+        # params = params.at[51:, 0].set(1e-10)
+        # self.params = [jnp.log(params)]
+
+        # init step-varying params
+        noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=1e-5, a_max=1e0)) * 0.00001
+        step_varying_params = jnp.log(noise + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
+
+        # init steady_state_params
+        steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
+
+        self.params = [jnp.vstack([step_varying_params, steady_state_params])]
+
 
     def set_params_for_nesterov(self):
-        self.params = [1 / self.smooth_param * jnp.ones((self.eval_unrolls, 1))]
+        self.params = [jnp.log(1 / self.smooth_param * jnp.ones((self.eval_unrolls, 1)))]
 
 
     def set_params_for_silver(self):
@@ -69,33 +77,23 @@ class LASCOGDmodel(L2WSmodel):
         silver_step_sizes = compute_silver_steps(kappa, 64) / self.smooth_param
         params = jnp.ones((64, 1))
         params = params.at[:, 0].set(jnp.array(silver_step_sizes))
-        self.params = [params]
-        # import pdb
-        # pdb.set_trace()
+        self.params = [jnp.log(params)]
 
 
 
     def init_params(self):
-        # w_key = random.PRNGKey(0)
-        # self.mean_params = random.normal(w_key, (self.train_unrolls, 2))
-        # self.mean_params = self.mean_params[:, 0]
-        # self.mean_params =
-        # p = jnp.diag(self.P)
-        noise = np.clip(np.random.normal(size=(self.eval_unrolls, 1)) / 10, a_min=0.0001, a_max=1e10)
-        # self.mean_params = 2 / (p.max() + p.min()) * jnp.ones((self.eval_unrolls, 1))  #+ 1 * jnp.array(noise)
-        # self.mean_params = 1 / p.max() * jnp.ones((self.eval_unrolls, 1))
-        # self.mean_params = 1 / self.smooth_param * jnp.ones((self.eval_unrolls, 1)) + .001 * jnp.array(noise)
-        self.mean_params = 2 / (self.smooth_param + self.str_cvx_param) * jnp.ones((self.eval_unrolls, 1)) #+ .001 * jnp.array(noise)
-        print('self.mean_params', self.mean_params)
-        # self.mean_params = self.mean_params.at[2].set(0.1)
+        # initializes the parameters to 2 / (mu + L)
+        # self.mean_params = 2 / (self.smooth_param + self.str_cvx_param) * jnp.ones((self.eval_unrolls, 1)) #+ .001 * jnp.
+        # self.params = [jnp.log(self.mean_params)]
 
-        # self.sigma_params = -jnp.ones(self.train_unrolls) * 10
+        # init step-varying params
+        step_varying_params = jnp.log(2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
 
-        # initialize the prior
-        # self.prior_param = jnp.log(self.init_var) * jnp.ones(2)
+        # init steady_state_params
+        steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
 
-        # , self.prior_param]
-        self.params = [self.mean_params]
+        self.params = [jnp.vstack([step_varying_params, steady_state_params])]
+        # sigmoid_inv(beta)
 
 
     def create_end2end_loss_fn(self, bypass_nn, diff_required):
@@ -103,18 +101,20 @@ class LASCOGDmodel(L2WSmodel):
         loss_method = self.loss_method
 
         def predict(params, input, q, iters, z_star, key, factor):
-            # if diff_required:
-            #     z0 = input
-            # else:
-            #     z0 = jnp.zeros(z_star.size)
             z0 = input
             if diff_required:
                 n_iters = key #self.train_unrolls if key else 1
+                if n_iters == 1:
+                    # for steady_state training
+                    stochastic_params = 2 / self.smooth_param * sigmoid(params[0][:n_iters, 0])
+                else:
+                    # for step-varying training
+                    stochastic_params = jnp.exp(params[0][:n_iters, 0])
             else:
-                n_iters = min(iters, 51)
-
-            # if bypass_nn:
-            #     eval_fn = self.nesterov_eval_fn
+                n_iters = key #min(iters, 51)
+                stochastic_params = jnp.zeros((n_iters, 1))
+                stochastic_params = stochastic_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0]))
+                stochastic_params = stochastic_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
 
             if self.train_fn is not None:
                 train_fn = self.train_fn
@@ -125,9 +125,10 @@ class LASCOGDmodel(L2WSmodel):
             else:
                 eval_fn = self.k_steps_eval_fn
 
-            stochastic_params = params[0][:n_iters, 0]
+            # stochastic_params = params[0][:n_iters, 0]
 
             if bypass_nn:
+                # use nesterov's acceleration
                 eval_out = self.nesterov_eval_fn(k=iters,
                                    z0=z0,
                                    q=q,
@@ -273,3 +274,9 @@ def compute_silver_idx(kappa, K):
 
 def compute_shifted_2adics(K):
     return np.array([(k & -k).bit_length() for k in range(1, K+1)])
+
+def sigmoid(x):
+    return 1 / (1 + jnp.exp(-x))
+
+def sigmoid_inv(beta):
+    return jnp.log(beta / (1 - beta))
