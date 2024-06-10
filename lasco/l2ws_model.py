@@ -67,6 +67,7 @@ class L2WSmodel(object):
 
         # initialize algorithm specifics
         self.lasco = True
+        self.lm = False
         self.loss_method = loss_method
         self.regression = regression
         self.initialize_algo(dict)
@@ -294,6 +295,8 @@ class L2WSmodel(object):
         batch_indices = jnp.arange(self.N_train)
         if self.lasco:
             input_init = self.lasco_train_inputs[batch_indices, :] #self.train_inputs[batch_indices, :]
+        # elif self.lm:
+        #     input_init = 0 * self.z_stars_train[batch_indices, :]
         else:
             input_init = self.train_inputs[batch_indices, :]
         q_init = self.q_mat_train[batch_indices, :]

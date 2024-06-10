@@ -7,7 +7,7 @@ from lasco.examples.solve_script import gd_setup_script
 import os
 
 
-def run(run_cfg):
+def run(run_cfg, lasco=True):
     example = "ridge_regression"
     data_yaml_filename = 'data_setup_copied.yaml'
 
@@ -34,7 +34,10 @@ def run(run_cfg):
 
     # we directly save q now
     static_flag = True
-    algo = 'lasco_gd'
+    if lasco:
+        algo = 'lasco_gd'
+    else:
+        algo = 'lm_gd'
     workspace = Workspace(algo, run_cfg, static_flag, static_dict, example)
 
     # run the workspace

@@ -16,6 +16,7 @@ from functools import partial
 
 from lasco.algo_steps import create_projection_fn, get_psd_sizes
 from lasco.gd_model import GDmodel
+from lasco.lm_gd_model import LMGDmodel
 from lasco.lasco_gd_model import LASCOGDmodel
 from lasco.lasco_osqp_model import LASCOOSQPmodel
 from lasco.lasco_scs_model import LASCOSCSmodel
@@ -160,6 +161,8 @@ class Workspace:
             # self.q_mat_train = thetas[:N_train, :]
             # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_gd_model(cfg, static_dict)
+        elif algo == 'lm_gd':
+            self.create_lm_gd_model(cfg, static_dict)
         elif algo == 'lasco_osqp':
             self.create_lasco_osqp_model(cfg, static_dict)
         elif algo == 'lasco_scs':
@@ -202,6 +205,28 @@ class Workspace:
                           P=P
                           )
         self.l2ws_model = LASCOGDmodel(train_unrolls=self.train_unrolls,
+                                       eval_unrolls=self.eval_unrolls,
+                                       train_inputs=self.train_inputs,
+                                       test_inputs=self.test_inputs,
+                                       regression=cfg.supervised,
+                                       nn_cfg=cfg.nn_cfg,
+                                       z_stars_train=self.z_stars_train,
+                                       z_stars_test=self.z_stars_test,
+                                       loss_method=cfg.loss_method,
+                                       algo_dict=input_dict)
+        
+    def create_lm_gd_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        P = static_dict['P']
+        gd_step = static_dict['gd_step']
+
+        input_dict = dict(algorithm='lm_gd',
+                          c_mat_train=self.q_mat_train,
+                          c_mat_test=self.q_mat_test,
+                          gd_step=gd_step,
+                          P=P
+                          )
+        self.l2ws_model = LMGDmodel(train_unrolls=self.train_unrolls,
                                        eval_unrolls=self.eval_unrolls,
                                        train_inputs=self.train_inputs,
                                        test_inputs=self.test_inputs,
@@ -895,6 +920,7 @@ class Workspace:
                     inputs = self.l2ws_model.test_inputs[:num, :]
         if self.l2ws_model.algo == 'lasco_scs':
             inputs = jnp.hstack([inputs, jnp.ones((inputs.shape[0], 1))])
+
         return inputs
 
 
