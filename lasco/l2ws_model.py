@@ -67,6 +67,8 @@ class L2WSmodel(object):
 
         # initialize algorithm specifics
         self.lasco = True
+        self.loss_method = loss_method
+        self.regression = regression
         self.initialize_algo(dict)
 
         # post init changes
@@ -78,8 +80,7 @@ class L2WSmodel(object):
 
         # create_all_loss_fns
         self.create_all_loss_fns(loss_method, regression)
-        self.loss_method = loss_method
-        self.regression = regression
+        
 
         self.step_varying_num = 50
 
@@ -247,6 +248,8 @@ class L2WSmodel(object):
 
     def static_eval(self, k, inputs, b, z_stars, key, tag='test', fixed_ws=False, light=False):
         curr_loss_fn = self.loss_fn_fixed_ws if fixed_ws else self.loss_fn_eval
+        if tag == 'silver':
+            curr_loss_fn = self.loss_fn_eval_silver
         num_probs, _ = inputs.shape
         test_time0 = time.time()
         loss, out = curr_loss_fn(self.params, inputs, b, k, z_stars, key)

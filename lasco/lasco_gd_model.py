@@ -50,14 +50,27 @@ class LASCOGDmodel(L2WSmodel):
 
         self.lasco_train_inputs = self.q_mat_train
 
+
+
+        e2e_loss_fn = self.create_end2end_loss_fn
+
+
+
+        # end-to-end loss fn for silver evaluation
+        self.loss_fn_eval_silver = e2e_loss_fn(bypass_nn=False, diff_required=False, 
+                                               special_algo='silver')
+
+        # end-to-end added fixed warm start eval - bypasses neural network
+        # self.loss_fn_fixed_ws = e2e_loss_fn(bypass_nn=True, diff_required=False)
+
+    def transform_params(self, params, n_iters):
+        # n_iters = params[0].size
+        transformed_params = jnp.zeros((n_iters, 1))
+        transformed_params = transformed_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0]))
+        transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+        return transformed_params
+
     def perturb_params(self):
-        # noise = np.clip(np.random.normal(size=(self.eval_unrolls, 1)), a_min=1e-5, a_max=1e0)
-        # self.mean_params = 2 / (self.smooth_param + self.str_cvx_param) * jnp.ones((self.eval_unrolls, 1))
-        # params = self.mean_params + .0001 * jnp.array(noise)
-
-        # params = params.at[51:, 0].set(1e-10)
-        # self.params = [jnp.log(params)]
-
         # init step-varying params
         noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=1e-5, a_max=1e0)) * 0.00001
         step_varying_params = jnp.log(noise + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
@@ -69,23 +82,24 @@ class LASCOGDmodel(L2WSmodel):
 
 
     def set_params_for_nesterov(self):
-        self.params = [jnp.log(1 / self.smooth_param * jnp.ones((self.eval_unrolls, 1)))]
+        self.params = [jnp.log(1 / self.smooth_param * jnp.ones((self.step_varying_num + 1, 1)))]
 
 
     def set_params_for_silver(self):
+        silver_steps = 128
         kappa = self.smooth_param / self.str_cvx_param
-        silver_step_sizes = compute_silver_steps(kappa, 64) / self.smooth_param
-        params = jnp.ones((64, 1))
-        params = params.at[:, 0].set(jnp.array(silver_step_sizes))
-        self.params = [jnp.log(params)]
+        silver_step_sizes = compute_silver_steps(kappa, silver_steps) / self.smooth_param
+        params = jnp.ones((silver_steps + 1, 1))
+        params = params.at[:silver_steps, 0].set(jnp.array(silver_step_sizes))
+        params = params.at[silver_steps, 0].set(2 / (self.smooth_param + self.str_cvx_param))
 
+        self.params = [params]
+        # step_varying_params = jnp.log(params[:self.step_varying_num, :1])
+        # steady_state_params = sigmoid_inv(params[self.step_varying_num:, :1] * self.smooth_param / 2)
+        # self.params = [jnp.vstack([step_varying_params, steady_state_params])]
 
 
     def init_params(self):
-        # initializes the parameters to 2 / (mu + L)
-        # self.mean_params = 2 / (self.smooth_param + self.str_cvx_param) * jnp.ones((self.eval_unrolls, 1)) #+ .001 * jnp.
-        # self.params = [jnp.log(self.mean_params)]
-
         # init step-varying params
         step_varying_params = jnp.log(2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
 
@@ -96,7 +110,7 @@ class LASCOGDmodel(L2WSmodel):
         # sigmoid_inv(beta)
 
 
-    def create_end2end_loss_fn(self, bypass_nn, diff_required):
+    def create_end2end_loss_fn(self, bypass_nn, diff_required, special_algo='gd'):
         supervised = True  # self.supervised and diff_required
         loss_method = self.loss_method
 
@@ -111,10 +125,14 @@ class LASCOGDmodel(L2WSmodel):
                     # for step-varying training
                     stochastic_params = jnp.exp(params[0][:n_iters, 0])
             else:
-                n_iters = key #min(iters, 51)
-                stochastic_params = jnp.zeros((n_iters, 1))
-                stochastic_params = stochastic_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0]))
-                stochastic_params = stochastic_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+                if special_algo == 'silver':
+                    stochastic_params = params[0]
+                else:
+                    n_iters = key #min(iters, 51)
+                    # stochastic_params = jnp.zeros((n_iters, 1))
+                    # stochastic_params = stochastic_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0]))
+                    # stochastic_params = stochastic_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+                    stochastic_params = self.transform_params(params, n_iters)
 
             if self.train_fn is not None:
                 train_fn = self.train_fn

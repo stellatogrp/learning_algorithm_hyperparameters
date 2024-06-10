@@ -26,7 +26,7 @@ data:
   datetime: ''
 
 train_unrolls: 10
-eval_unrolls: 300
+eval_unrolls: 1000
 eval_every_x_epochs: 50
 save_every_x_epochs: 1
 test_every_x_epochs: 1
@@ -38,8 +38,7 @@ num_samples: 10
 supervised: True
 plot_iterates: [0, 10, 20]
 loss_method: 'fixed_k' # 'fixed_k' #'fixed_k' #'constant_sum'
-normalize_inputs: True
-
+normalize_inputs: False #True
 
 
 accuracies: [.1, .01, .001, .0001]

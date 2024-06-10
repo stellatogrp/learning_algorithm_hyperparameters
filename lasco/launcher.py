@@ -586,7 +586,12 @@ class Workspace:
         plot_warm_starts(self.l2ws_model, self.plot_iterates, z_plot, train, col)
 
         if self.l2ws_model.algo[:5] == 'lasco':
-            plot_lasco_weights(self.l2ws_model.params, col)
+            n_iters = 64 if col == 'silver' else 51
+            if col == 'silver':
+                transformed_params = self.l2ws_model.params[0]
+            else:
+                transformed_params = self.l2ws_model.transform_params(self.l2ws_model.params, n_iters)
+            plot_lasco_weights(transformed_params, col)
 
         # custom visualize
         z_stars = self.z_stars_train if train else self.z_stars_test
@@ -855,7 +860,7 @@ class Workspace:
 
         key = 64 if col == 'silver' else 1 + self.l2ws_model.step_varying_num
         eval_out = self.l2ws_model.evaluate(
-            self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, key, factors=factors, tag=tag)
+            self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, key, factors=factors, tag=col)
         return eval_out
 
 

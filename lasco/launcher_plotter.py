@@ -145,24 +145,32 @@ def plot_losses_over_examples(losses_over_examples, train, col, yscalelog=True):
         plt.clf()
 
 
-def plot_lasco_weights(params, col):
+def plot_lasco_weights(transformed_params, col):
     path = 'lasco_weights'
     if not os.path.exists(path):
         os.mkdir(path)
     if not os.path.exists(f"{path}/{col}"):
         os.mkdir(f"{path}/{col}")
 
-    mean_params = params[0]
-    if mean_params.ndim == 1:
-        mean_params = jnp.expand_dims(mean_params, axis=1)
+    cmap = plt.cm.Set1
+    colors = cmap.colors
 
-    num_params = mean_params.shape[1]
+    # mean_params = params[0]
+    if transformed_params.ndim == 1:
+        transformed_params = jnp.expand_dims(transformed_params, axis=1)
+
+    num_params = transformed_params.shape[1]
     for i in range(num_params):
-        plt.plot(mean_params[:, i])
-        plt.xlabel('evaluation steps')
+        bars = plt.bar(np.arange(transformed_params[:, i].size), transformed_params[:, i], color=colors[1])
+        bars[-1].set_color(colors[0])
+        plt.xlabel('iterations')
         plt.ylabel('step size')
         plt.savefig(f"lasco_weights/{col}/param_{i}.pdf")
         plt.clf()
+
+    # save to csv
+    df = pd.DataFrame(transformed_params)
+    df.to_csv(f"lasco_weights/{col}/params.csv")
 
 
 def plot_warm_starts(l2ws_model, plot_iterates, z_all, train, col):

@@ -17,6 +17,8 @@ plt.rcParams.update({
     "font.size": 26,
     # "font.size": 16,
 })
+import os
+import re
 cmap = plt.cm.Set1
 colors = cmap.colors
 
@@ -40,6 +42,7 @@ def maxcut_plot_eval_iters(cfg):
 def ridge_regression_plot_eval_iters(cfg):
     example = 'ridge_regression'
     create_lasco_results_unconstrained(example, cfg)
+    plot_step_sizes(example, cfg)
 
 
 @hydra.main(config_path='configs/unconstrained_qp', config_name='unconstrained_qp_plot.yaml')
@@ -58,6 +61,131 @@ def mnist_plot_eval_iters(cfg):
 def quadcopter_plot_eval_iters(cfg):
     example = 'quadcopter'
     create_lasco_results_constrained(example, cfg)
+
+
+def plot_step_sizes(example, cfg):
+    # get the step sizes (for silver and learned)
+    step_sizes_dict = get_lasco_gd_step_size(example, cfg)
+    silver_step_sizes = step_sizes_dict['silver'].to_numpy()[:, 1]
+    lasco_step_sizes = step_sizes_dict['lasco'].to_numpy()[:, 1]
+
+    # get the strongly convex and L-smooth values
+    #       can get it from nesterov and no_train
+    nesterov_step_size = step_sizes_dict['nesterov'].to_numpy()[0, 1]
+    vanilla_step_size = step_sizes_dict['cold_start'].to_numpy()[0, 1]
+    smoothness = 1 / nesterov_step_size
+
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(18, 6), sharey='row') #, sharey=True)
+    axes[0].set_xlabel('iterations')
+    axes[1].set_xlabel('iterations')
+    axes[0].set_title('silver')
+    axes[1].set_title('lasco')
+    axes[0].set_ylabel('step sizes')
+    # axes[1, 0].set_ylabel('gain to cold start')
+
+    # plot the bar plot for silver
+    cmap = plt.cm.Set1
+    colors = cmap.colors
+    step_size_iters = cfg.step_size_iters
+    axes[0].bar(np.arange(step_size_iters), silver_step_sizes[:step_size_iters], color=colors[2])
+    axes[0].hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
+
+    # plot the bar plot for the learned method
+
+    # add in the horizontal lines for lasco
+    full_lasco = lasco_step_sizes[-1] * np.ones(step_size_iters)
+    num_lasco = lasco_step_sizes.size
+    full_lasco[:num_lasco] = lasco_step_sizes[:num_lasco]
+    bars = axes[1].bar(np.arange(step_size_iters), full_lasco, color=colors[1])
+    axes[1].hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
+    # bars[num_lasco:].set_color(colors[0])
+    # Change the color of the bars from num_lasco onward
+    for i in range(num_lasco - 1, len(bars)):
+        bars[i].set_color(colors[0])
+
+    plt.tight_layout()
+    plt.savefig('step_sizes.pdf', bbox_inches='tight')
+    import pdb
+    pdb.set_trace()
+
+
+def get_lasco_gd_step_size(example, cfg):
+    step_sizes_dict = {}
+    for method in cfg.methods:
+        dt = cfg.methods[method]
+        step_sizes_dict[method] = get_step_sizes(example, dt, method)
+    return step_sizes_dict
+
+
+def get_step_sizes(example, dt, method):
+    step_sizes = recover_step_sizes_data(example, dt, method)
+    return step_sizes
+
+
+def recover_step_sizes_data(example, dt, method):
+    orig_cwd = hydra.utils.get_original_cwd()
+    dt_path = f"{orig_cwd}/outputs/{example}/train_outputs/{dt}"
+    df = read_step_size_data(dt_path, method)
+    # df = read_csv(f"{path}/{filename}")
+    # data = get_eval_array(df, col)
+    return df
+
+
+def read_step_size_data(dt_path, method):
+    if method == 'nesterov':
+        df = read_csv(f"{dt_path}/lasco_weights/nesterov/params.csv")
+    elif method == 'silver':
+        df = read_csv(f"{dt_path}/lasco_weights/silver/params.csv")
+    elif method == 'cold_start':
+        df = read_csv(f"{dt_path}/lasco_weights/no_train/params.csv")
+    elif method == 'nearest_neighbor':
+        df = read_csv(f"{dt_path}/lasco_weights/nearest_neighbor/params.csv")
+    elif method == 'lasco':
+        # get all of the folder starting with 'train_epoch_...'
+        # all_train_epoch_folders = 
+        last_folder = find_last_folder_starting_with(f"{dt_path}/lasco_weights", 'train_epoch')
+        df = read_csv(f"{dt_path}/lasco_weights/{last_folder}/params.csv") #read_csv(f"{dt_path}/lasco_weights/silver/params.csv")
+    else:
+        df = None
+    return df
+
+
+# def find_last_folder_starting_with(directory, prefix):
+#     # Regular expression to extract the number following the prefix
+#     pattern = re.compile(r'^' + re.escape(prefix) + r'(\d+)$')
+    
+#     max_value = -1
+#     last_folder = None
+
+#     # List all directories in the specified directory that match the prefix pattern
+#     for name in os.listdir(directory):
+#         if os.path.isdir(os.path.join(directory, name)):
+#             match = pattern.match(name)
+#             if match:
+#                 value = int(match.group(1))
+#                 if value > max_value:
+#                     max_value = value
+#                     last_folder = name
+#     import pdb
+#     pdb.set_trace()
+#     return last_folder
+
+
+def find_last_folder_starting_with(directory, prefix):
+    # List all directories in the specified directory that start with the given prefix
+    folders = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name)) and name.startswith(prefix)]
+    # Return the last folder alphabetically
+    # if folders:
+    #     return max(folders)
+    # else:
+    #     return None
+    max_val = 0
+    for i in range(len(folders)):
+        curr_val = int(folders[i][12:])
+        if curr_val > max_val:
+            max_val = curr_val
+            last_folder = folders[i]
+    return last_folder
 
 
 def create_lasco_results_unconstrained(example, cfg):
@@ -145,8 +273,8 @@ def plot_results_dict_constrained(results_dict, gains_dict, num_iters):
     axes[0, 0].set_title('primal residuals')
     axes[0, 1].set_title('dual residuals')
 
-    axes[0, 0].set_ylabel('values')
-    axes[1, 0].set_ylabel('gain to cold start')
+    axes[0, 0].set_ylabel('residual value')
+    axes[1, 0].set_ylabel('gain to vanilla')
 
     methods = list(results_dict.keys())
     markevery = int(num_iters / 20)
@@ -181,8 +309,8 @@ def plot_results_dict_unconstrained(results_dict, gains_dict, num_iters):
     axes[1].set_xlabel('iterations')
     axes[0].set_title('objective suboptimality')
 
-    axes[0].set_ylabel('values')
-    axes[1].set_ylabel('gain to cold start')
+    axes[0].set_ylabel('objective suboptimality')
+    axes[1].set_ylabel('gain to vanilla')
 
     methods = list(results_dict.keys())
     markevery = int(num_iters / 20)
@@ -203,6 +331,7 @@ def plot_results_dict_unconstrained(results_dict, gains_dict, num_iters):
 
     fig.tight_layout()
     plt.savefig('obj_diff.pdf', bbox_inches='tight')
+    plt.clf()
 
 
 def populate_acc_reductions_dict(accs_dict):
@@ -327,12 +456,12 @@ def populate_curr_method_dict(method, example, cfg, constrained):
     return curr_method_dict
 
 
-def recover_data(example, dt, filename, col):
+def recover_data(example, dt, filename, col, min_val=1e-12):
     orig_cwd = hydra.utils.get_original_cwd()
 
     path = f"{orig_cwd}/outputs/{example}/train_outputs/{dt}"
     df = read_csv(f"{path}/{filename}")
-    data = get_eval_array(df, col)
+    data = np.clip(get_eval_array(df, col), a_min=min_val, a_max=1e10)
 
     return data
 
