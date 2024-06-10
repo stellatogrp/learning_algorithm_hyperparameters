@@ -280,22 +280,23 @@ def plot_results_dict_constrained(results_dict, gains_dict, num_iters):
     markevery = int(num_iters / 20)
     for i in range(len(methods)):
         method = methods[i]
-        style = titles_2_styles[method]
-        marker = titles_2_markers[method]
-        color = titles_2_colors[method]
-        mark_start = titles_2_marker_starts[method]
+        if method != 'l2ws':
+            style = titles_2_styles[method]
+            marker = titles_2_markers[method]
+            color = titles_2_colors[method]
+            mark_start = titles_2_marker_starts[method]
 
-        # plot the values
-        axes[0, 0].plot(results_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                markevery=(mark_start, markevery))
-        axes[0, 1].plot(results_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                markevery=(mark_start, markevery))
-        
-        # plot the gains
-        axes[1, 0].plot(gains_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                markevery=(mark_start, markevery))
-        axes[1, 1].plot(gains_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                markevery=(mark_start, markevery))
+            # plot the values
+            axes[0, 0].plot(results_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
+                                    markevery=(mark_start, markevery))
+            axes[0, 1].plot(results_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
+                                    markevery=(mark_start, markevery))
+            
+            # plot the gains
+            axes[1, 0].plot(gains_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
+                                    markevery=(mark_start, markevery))
+            axes[1, 1].plot(gains_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
+                                    markevery=(mark_start, markevery))
 
     fig.tight_layout()
     plt.savefig('pr_dr.pdf', bbox_inches='tight')
@@ -476,6 +477,8 @@ def get_eval_array(df, title):
     elif title == 'nesterov':
         data = df['nesterov']
     elif title == 'l2ws':
+        data = df.iloc[:, -1]
+    elif title == 'l2ws10000':
         data = df.iloc[:, -1]
     else:
         # case of the learned warm-start, take the latest column
