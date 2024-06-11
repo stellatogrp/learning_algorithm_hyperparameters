@@ -121,6 +121,14 @@ class L2WSmodel(object):
         else:
             self.z_stars_train, self.z_stars_test = None, None
 
+    def transform_params(self, params, n_iters):
+        transformed_params = jnp.exp(params[0][:n_iters - 1, 0])
+        # n_iters = params[0].size
+        # transformed_params = jnp.zeros((n_iters, 1))
+        # transformed_params = transformed_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0]))
+        # transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+        return transformed_params
+
     def create_end2end_loss_fn(self, bypass_nn, diff_required):
         supervised = self.supervised and diff_required
         loss_method = self.loss_method
