@@ -655,7 +655,7 @@ class Workspace:
 
         if self.l2ws_model.algo[:5] == 'lasco':
             n_iters = 64 if col == 'silver' else 51
-            if col == 'silver':
+            if col == 'silver' or col == 'conj_grad':
                 transformed_params = self.l2ws_model.params[0]
             else:
                 transformed_params = self.l2ws_model.transform_params(self.l2ws_model.params, n_iters)
@@ -698,6 +698,10 @@ class Workspace:
                 self.eval_iters_train_and_test('nearest_neighbor', None)
 
             if self.l2ws_model.algo == 'lasco_gd':
+                # conj_grad
+                # self.l2ws_model.set_params_for_nesterov()
+                self.eval_iters_train_and_test('conj_grad', None)
+
                 # nesterov
                 self.l2ws_model.set_params_for_nesterov()
                 self.eval_iters_train_and_test('nesterov', None)

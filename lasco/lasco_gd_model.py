@@ -5,7 +5,7 @@ from jax import random
 
 import numpy as np
 
-from lasco.algo_steps import k_steps_eval_lasco_gd, k_steps_train_lasco_gd, k_steps_eval_nesterov_gd
+from lasco.algo_steps import k_steps_eval_lasco_gd, k_steps_train_lasco_gd, k_steps_eval_nesterov_gd, k_steps_eval_conj_grad
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
 
@@ -46,6 +46,8 @@ class LASCOGDmodel(L2WSmodel):
                                        jit=self.jit)
         self.nesterov_eval_fn = partial(k_steps_eval_nesterov_gd, P=P, cond_num=cond_num,
                                        jit=self.jit)
+        self.conj_grad_eval_fn = partial(k_steps_eval_conj_grad, P=P,
+                                       jit=self.jit)
         self.out_axes_length = 5
 
         self.lasco_train_inputs = self.q_mat_train
@@ -59,6 +61,10 @@ class LASCOGDmodel(L2WSmodel):
         # end-to-end loss fn for silver evaluation
         self.loss_fn_eval_silver = e2e_loss_fn(bypass_nn=False, diff_required=False, 
                                                special_algo='silver')
+        
+        # end-to-end loss fn for silver evaluation
+        self.loss_fn_eval_conj_grad = e2e_loss_fn(bypass_nn=False, diff_required=False, 
+                                               special_algo='conj_grad')
 
         # end-to-end added fixed warm start eval - bypasses neural network
         # self.loss_fn_fixed_ws = e2e_loss_fn(bypass_nn=True, diff_required=False)
@@ -125,7 +131,7 @@ class LASCOGDmodel(L2WSmodel):
                     # for step-varying training
                     stochastic_params = jnp.exp(params[0][:n_iters, 0])
             else:
-                if special_algo == 'silver':
+                if special_algo == 'silver' or special_algo == 'conj_grad':
                     stochastic_params = params[0]
                 else:
                     n_iters = key #min(iters, 51)
@@ -133,6 +139,8 @@ class LASCOGDmodel(L2WSmodel):
                     # stochastic_params = stochastic_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0]))
                     # stochastic_params = stochastic_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
                     stochastic_params = self.transform_params(params, n_iters)
+
+            
 
             if self.train_fn is not None:
                 train_fn = self.train_fn
@@ -144,8 +152,16 @@ class LASCOGDmodel(L2WSmodel):
                 eval_fn = self.k_steps_eval_fn
 
             # stochastic_params = params[0][:n_iters, 0]
-
-            if bypass_nn:
+            if special_algo == 'conj_grad':
+                eval_out = self.conj_grad_eval_fn(k=iters,
+                                   z0=z0,
+                                   q=q,
+                                   params=stochastic_params,
+                                   supervised=supervised,
+                                   z_star=z_star)
+                z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
+                angles = None
+            elif bypass_nn:
                 # use nesterov's acceleration
                 eval_out = self.nesterov_eval_fn(k=iters,
                                    z0=z0,

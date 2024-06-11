@@ -60,7 +60,7 @@ save_weights_flag: False #True
 # nn_load_type: stochastic
 vis_num: 10
 supervised: True
-train_unrolls: 30
+train_unrolls: 10
 skip_startup: False
 
 sigma_nn: [0.0, 0.01, .1, 1, 10]

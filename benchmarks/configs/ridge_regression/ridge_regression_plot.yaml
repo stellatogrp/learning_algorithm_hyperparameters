@@ -6,5 +6,6 @@ methods:
   nesterov: 2024-06-08/16-46-33
   l2ws: 2024-06-10/11-53-08
   lm: 2024-06-10/15-46-06
+  conj_grad: 2024-06-11/14-56-59
 num_iters: 63
 step_size_iters: 63

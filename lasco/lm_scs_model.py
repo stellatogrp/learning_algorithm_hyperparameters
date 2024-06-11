@@ -17,6 +17,9 @@ from lasco.algo_steps import (
     lin_sys_solve,
 )
 from lasco.l2ws_model import L2WSmodel
+from lasco.utils.nn_utils import (
+    predict_y
+)
 
 
 class LMSCSmodel(L2WSmodel):
@@ -45,6 +48,7 @@ class LMSCSmodel(L2WSmodel):
 
         # not a hyperparameter, but used for scale knob
         self.zero_cone_size = self.cones['z'] #input_dict['zero_cone_size']
+        self.ineq_cone_size = self.cones['l']
         lightweight = input_dict.get('lightweight', False)
 
         self.output_size = self.n + self.m + 1
@@ -103,6 +107,34 @@ class LMSCSmodel(L2WSmodel):
             self.z_stars_train, self.z_stars_test = None, None
         self.lasco_train_inputs = jnp.hstack([0 * self.z_stars_train, jnp.ones((self.z_stars_train.shape[0], 1))])
 
+
+    def predict_scale_vec(self, params, input, key, bypass_nn):
+        """
+        gets the warm-start
+        bypass_nn means we ignore the neural network and set z0=input
+        """
+        nn_output = predict_y(params[0], input)
+
+        scale_vec = jnp.zeros(self.m + self.n + 1)
+        num_scalar_cone = self.n + self.zero_cone_size + self.ineq_cone_size
+        scale_vec = scale_vec.at[:num_scalar_cone].set(nn_output[:num_scalar_cone])
+
+        # do the soc
+        num_soc = len(self.cones['q'])
+        soc_total = sum(self.cones['q'])
+        soc_scale_vec = jnp.zeros(soc_total)
+        curr = 0
+        pointer = num_scalar_cone
+        for i in range(num_soc):
+            curr_soc_size = self.cones['q'][i]
+            soc_scale_vec = soc_scale_vec.at[curr: curr + curr_soc_size].set(nn_output[pointer])
+            pointer += 1
+        scale_vec = scale_vec.at[num_scalar_cone:-1].set(soc_scale_vec)
+        
+        # tau_factor
+        scale_vec = scale_vec.at[-1].set(nn_output[-1])
+        return scale_vec
+
     def create_end2end_loss_fn(self, bypass_nn, diff_required):
         supervised = self.supervised and diff_required
         loss_method = self.loss_method
@@ -124,9 +156,9 @@ class LMSCSmodel(L2WSmodel):
             # predict the metric
             # import pdb
             # pdb.set_trace()
-            scale_vec_and_tau = jnp.exp(self.predict_warm_start(params, input, key, bypass_nn))
+            scale_vec_and_tau = jnp.exp(self.predict_scale_vec(params, input, key, bypass_nn))
             scale_vec, tau_factor = scale_vec_and_tau[:-1], scale_vec_and_tau[-1]
-            scale_vec = scale_vec.at[600:].set(scale_vec[600])
+            scale_vec = scale_vec.at[self.n + self.zero_cone_size:].set(scale_vec[self.n + self.zero_cone_size])
             factor = get_scaled_factor(self.M, scale_vec)
             print('scale_vec', scale_vec)
             print('tau_factor', tau_factor)

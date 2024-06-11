@@ -251,6 +251,8 @@ class L2WSmodel(object):
         curr_loss_fn = self.loss_fn_fixed_ws if fixed_ws else self.loss_fn_eval
         if tag == 'silver':
             curr_loss_fn = self.loss_fn_eval_silver
+        elif tag == 'conj_grad':
+            curr_loss_fn = self.loss_fn_eval_conj_grad
         num_probs, _ = inputs.shape
         test_time0 = time.time()
         loss, out = curr_loss_fn(self.params, inputs, b, k, z_stars, key)

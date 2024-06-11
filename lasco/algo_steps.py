@@ -11,6 +11,55 @@ from lasco.utils.generic_utils import python_fori_loop, unvec_symm, vec_symm
 TAU_FACTOR = 1 #10
 
 
+def k_steps_eval_conj_grad(k, z0, q, params, P, supervised, z_star, jit):
+    iter_losses = jnp.zeros(k)
+    z_all_plus_1 = jnp.zeros((k + 1, z0.size))
+    z_all_plus_1 = z_all_plus_1.at[0, :].set(z0)
+    fp_eval_partial = partial(fp_eval_conj_grad,
+                              supervised=supervised,
+                              z_star=z_star,
+                              P=P,
+                              c=q
+                              )
+    z_all = jnp.zeros((k, z0.size))
+    obj_diffs = jnp.zeros(k)
+    r0 = -q - P @ z0
+    p0 = r0
+    val = z0, r0, p0, iter_losses, z_all, obj_diffs
+    start_iter = 0
+    if jit:
+        out = lax.fori_loop(start_iter, k, fp_eval_partial, val)
+    else:
+        out = python_fori_loop(start_iter, k, fp_eval_partial, val)
+    z_final, r_final, p_final, iter_losses, z_all, obj_diffs = out
+    z_all_plus_1 = z_all_plus_1.at[1:, :].set(z_all)
+    return z_final, iter_losses, z_all_plus_1, obj_diffs
+
+
+def fp_eval_conj_grad(i, val, supervised, z_star, P, c):
+    z, r, p, loss_vec, z_all, obj_diffs = val
+    z_next, r_next, p_next = fixed_point_conj_grad(z, r, p, P)
+    if supervised:
+        diff = jnp.linalg.norm(z - z_star)
+    else:
+        diff = jnp.linalg.norm(z_next - z)
+    loss_vec = loss_vec.at[i].set(diff)
+    obj = .5 * z_next @ P @ z_next + c @ z_next
+    opt_obj = .5 * z_star @ P @ z_star + c @ z_star
+    obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
+    z_all = z_all.at[i, :].set(z_next)
+    return z_next, r_next, p_next, loss_vec, z_all, obj_diffs
+
+
+def fixed_point_conj_grad(z, r, p, P):
+    alpha = (r @ r) / (p @ P @ p)
+    z_next = z + alpha * p
+    r_next = r - alpha * P @ p
+    beta = (r_next @ r_next) / (r @ r)
+    p_next = r_next + beta * p
+    return z_next, r_next, p_next
+
+
 def k_steps_train_lasco_scs(k, z0, q, params, P, A, supervised, z_star, proj, jit, hsde):
     iter_losses = jnp.zeros(k)
     # scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)

@@ -409,6 +409,8 @@ def method2col(method):
         col = 'silver'
     elif method == 'nesterov':
         col = 'nesterov'
+    elif method == 'conj_grad':
+        col = 'conj_grad'
     else:
         col = 'last'
     return col
@@ -476,6 +478,8 @@ def get_eval_array(df, title):
         data = df['silver']
     elif title == 'nesterov':
         data = df['nesterov']
+    elif title == 'conj_grad':
+        data = df['conj_grad']
     elif title == 'l2ws':
         data = df.iloc[:, -1]
     elif title == 'l2ws10000':
