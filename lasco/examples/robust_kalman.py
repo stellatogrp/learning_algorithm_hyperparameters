@@ -826,7 +826,7 @@ def rkf_loss(z_next, z_star, T):
     return max_norm
 
 
-def run(run_cfg):
+def run(run_cfg, lasco=True):
     """
     retrieve data for this config
     theta is all of the following
@@ -889,7 +889,7 @@ def run(run_cfg):
     static_flag = True
 
     custom_visualize_fn_partial = partial(custom_visualize_fn, T=setup_cfg['T'])
-    algo = 'lasco_scs'
+    algo = 'lasco_scs' if lasco else 'lm_scs'
 
     A = static_dict['A_sparse']
     m, n = A.shape

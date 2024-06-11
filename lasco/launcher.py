@@ -20,6 +20,7 @@ from lasco.lm_gd_model import LMGDmodel
 from lasco.lasco_gd_model import LASCOGDmodel
 from lasco.lasco_osqp_model import LASCOOSQPmodel
 from lasco.lasco_scs_model import LASCOSCSmodel
+from lasco.lm_scs_model import LMSCSmodel
 from lasco.launcher_helper import (
     get_nearest_neighbors,
     normalize_inputs_fn,
@@ -167,6 +168,8 @@ class Workspace:
             self.create_lasco_osqp_model(cfg, static_dict)
         elif algo == 'lasco_scs':
             self.create_lasco_scs_model(cfg, static_dict)
+        elif algo == 'lm_scs':
+            self.create_lm_scs_model(cfg, static_dict)
         
         
 
@@ -307,6 +310,46 @@ class Workspace:
                                         nn_cfg=cfg.nn_cfg,
                                         loss_method=cfg.loss_method,
                                         algo_dict=algo_dict)
+        
+    def create_lm_scs_model(self, cfg, static_dict):
+        static_M = static_dict['M']
+
+        # save cones
+        self.cones = static_dict['cones_dict']
+
+        self.M = static_M
+        proj = create_projection_fn(self.cones, self.n)
+
+        psd_sizes = get_psd_sizes(self.cones)
+
+        self.psd_size = psd_sizes[0]
+
+        algo_dict = {'proj': proj,
+                     'q_mat_train': self.q_mat_train,
+                     'q_mat_test': self.q_mat_test,
+                     'm': self.m,
+                     'n': self.n,
+                     'static_M': static_M,
+                     'static_flag': self.static_flag,
+                     'cones': self.cones,
+                     'lightweight': cfg.get('lightweight', False),
+                     'custom_loss': self.custom_loss
+                     }
+        self.l2ws_model = LMSCSmodel(train_unrolls=self.train_unrolls,
+                                        eval_unrolls=self.eval_unrolls,
+                                        train_inputs=self.train_inputs,
+                                        test_inputs=self.test_inputs,
+                                        z_stars_train=self.z_stars_train,
+                                        z_stars_test=self.z_stars_test,
+                                        x_stars_train=self.x_stars_train,
+                                        x_stars_test=self.x_stars_test,
+                                        y_stars_train=self.y_stars_train,
+                                        y_stars_test=self.y_stars_test,
+                                        regression=cfg.get(
+                                            'supervised', False),
+                                        nn_cfg=cfg.nn_cfg,
+                                        loss_method=cfg.loss_method,
+                                        algo_dict=algo_dict)
 
     def create_osqp_model(self, cfg, static_dict):
         factor = static_dict['factor']
@@ -391,7 +434,7 @@ class Workspace:
                                    algo_dict=algo_dict)
 
     def setup_opt_sols(self, algo, jnp_load_obj, N_train, N, num_plot=5):
-        if algo != 'scs' and algo != 'lasco_scs':
+        if algo != 'scs' and algo != 'lasco_scs' and algo != 'lm_scs':
             z_stars = jnp_load_obj['z_stars']
             z_stars_train = z_stars[self.train_indices, :]
             z_stars_test = z_stars[self.test_indices, :]
@@ -596,7 +639,7 @@ class Workspace:
         z_all = out_train[2]
         
 
-        if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel):
+        if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel) or isinstance(self.l2ws_model, LMSCSmodel):
             out_train[6]
             z_plot = z_all[:, :, :-1] / z_all[:, :, -1:]
 
@@ -651,7 +694,8 @@ class Workspace:
 
             # if self.l2ws_model.lasco:
             # nearest neighbor
-            self.eval_iters_train_and_test('nearest_neighbor', None)
+            if self.l2ws_model.lasco:
+                self.eval_iters_train_and_test('nearest_neighbor', None)
 
             if self.l2ws_model.algo == 'lasco_gd':
                 # nesterov
