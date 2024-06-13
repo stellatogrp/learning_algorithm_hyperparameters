@@ -31,7 +31,7 @@ plt.rcParams.update(
 log = logging.getLogger(__name__)
 
 
-def run(run_cfg):
+def run(run_cfg, lasco=True):
     example = "maxcut"
     data_yaml_filename = 'data_setup_copied.yaml'
 
@@ -56,7 +56,7 @@ def run(run_cfg):
     # we directly save q now
     get_q = None
     static_flag = True
-    algo = 'lasco_scs'
+    algo = 'lasco_scs' if lasco else 'lm_scs'
     workspace = Workspace(algo, run_cfg, static_flag, static_dict, example)
 
     # run the workspace

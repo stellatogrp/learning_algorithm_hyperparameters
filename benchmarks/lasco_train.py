@@ -270,6 +270,19 @@ def main_run_maxcut_l2ws(cfg):
     maxcut.l2ws_run(cfg)
 
 
+@hydra.main(config_path='configs/maxcut', config_name='maxcut_lm_run.yaml')
+def main_run_maxcut_lm(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'maxcut'
+    agg_datetime = cfg.data.datetime
+    if agg_datetime == '':
+        # get the most recent datetime and update datetimes
+        agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = agg_datetime
+    copy_data_file(example, agg_datetime)
+    maxcut.run(cfg, lasco=False)
+
+
 @hydra.main(config_path='configs/ridge_regression', config_name='ridge_regression_run.yaml')
 def main_run_ridge_regression(cfg):
     orig_cwd = hydra.utils.get_original_cwd()
@@ -390,6 +403,10 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'maxcut/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_maxcut_l2ws()
+    elif sys.argv[1] == 'maxcut_lm':
+        sys.argv[1] = base + 'maxcut/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_run_maxcut_lm()
     elif sys.argv[1] == 'ridge_regression':
         sys.argv[1] = base + 'ridge_regression/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]

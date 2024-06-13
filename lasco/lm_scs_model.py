@@ -119,17 +119,38 @@ class LMSCSmodel(L2WSmodel):
         num_scalar_cone = self.n + self.zero_cone_size + self.ineq_cone_size
         scale_vec = scale_vec.at[:num_scalar_cone].set(nn_output[:num_scalar_cone])
 
+        # check if soc and sdp
+        cones = self.cones
+        soc = 'q' in cones.keys() and len(cones['q']) > 0
+        sdp = 's' in cones.keys() and len(cones['s']) > 0
+
         # do the soc
-        num_soc = len(self.cones['q'])
-        soc_total = sum(self.cones['q'])
-        soc_scale_vec = jnp.zeros(soc_total)
-        curr = 0
-        pointer = num_scalar_cone
-        for i in range(num_soc):
-            curr_soc_size = self.cones['q'][i]
-            soc_scale_vec = soc_scale_vec.at[curr: curr + curr_soc_size].set(nn_output[pointer])
-            pointer += 1
-        scale_vec = scale_vec.at[num_scalar_cone:-1].set(soc_scale_vec)
+        if soc:
+            num_soc = len(cones['q'])
+            soc_total = sum(cones['q'])
+            soc_scale_vec = jnp.zeros(soc_total)
+            curr = 0
+            pointer = num_scalar_cone
+            for i in range(num_soc):
+                curr_soc_size = cones['q'][i]
+                soc_scale_vec = soc_scale_vec.at[curr: curr + curr_soc_size].set(nn_output[pointer])
+                pointer += 1
+                curr = curr + curr_soc_size
+            scale_vec = scale_vec.at[num_scalar_cone:-1].set(soc_scale_vec)
+        if sdp:
+            num_sdp = len(cones['s'])
+            sdp_total = sum([int(s * (s + 1) / 2) for s in cones['s']])
+            sdp_scale_vec = jnp.zeros(sdp_total)
+            curr = 0
+            pointer = num_scalar_cone
+            for i in range(num_sdp):
+                curr_sdp_row_size = cones['s'][i]
+                curr_sdp_size = int(curr_sdp_row_size * (curr_sdp_row_size + 1) / 2)
+                sdp_scale_vec = sdp_scale_vec.at[curr: curr + curr_sdp_size].set(nn_output[pointer])
+                pointer += 1
+                curr = curr + curr_sdp_size
+
+            scale_vec = scale_vec.at[num_scalar_cone:-1].set(sdp_scale_vec)
         
         # tau_factor
         scale_vec = scale_vec.at[-1].set(nn_output[-1])
