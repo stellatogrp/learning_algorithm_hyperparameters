@@ -740,7 +740,7 @@ class Workspace:
         num_epochs_jit = int(self.l2ws_model.epochs / self.epochs_jit)
         loop_size = int(self.l2ws_model.num_batches * self.epochs_jit)
 
-        num_progressive_trains = 6
+        num_progressive_trains = int(self.l2ws_model.epochs / self.train_unrolls + 1)
 
         for window in range(num_progressive_trains):
             # update window_indices
