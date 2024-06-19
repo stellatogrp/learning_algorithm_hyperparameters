@@ -22,16 +22,10 @@ def run(run_cfg):
     # set the seed
     np.random.seed(setup_cfg['seed'])
     m_orig, n_orig = setup_cfg['m_orig'], setup_cfg['n_orig']
-    A_scale = setup_cfg['A_scale']
-    A = A_scale * jnp.array(np.random.normal(size=(m_orig, n_orig)))
-    # n2 = int(n_orig / 2)
-    # A = A.at[:, :n2].set(A[:, :n2] / 10)
-    # A = A.at[:, :(int(n_orig / 2))] * 100
-    # split = int(n_orig / 2)
-    # A_vec = jnp.concatenate([100 * jnp.ones(split), 1 * jnp.ones(split)])
-    # A = jnp.diag(A_vec)
-    # density = 0.1
-    # A = A_scale * jnp.array(random(m_orig, n_orig, density=density, format='csr').todense())
+
+    D = np.random.normal(size=(m_orig, n_orig)) / np.sqrt(m_orig)
+    A = jnp.array(D / np.linalg.norm(D, axis=0))
+    
     evals, evecs = jnp.linalg.eigh(A.T @ A)
     ista_step =  1 / evals.max()
     lambd = setup_cfg['lambd']
@@ -40,7 +34,7 @@ def run(run_cfg):
 
     # we directly save q now
     static_flag = True
-    algo = 'ista'
+    algo = 'lasco_ista'
     workspace = Workspace(algo, run_cfg, static_flag, static_dict, example)
 
     # run the workspace
@@ -53,34 +47,48 @@ def setup_probs(setup_cfg):
     N = N_train + N_test
     np.random.seed(setup_cfg['seed'])
     m_orig, n_orig = setup_cfg['m_orig'], setup_cfg['n_orig']
-    n2 = int(n_orig / 2)
-    A_scale = setup_cfg['A_scale']
-    # b_scale = setup_cfg['b_scale']
-    A = A_scale * jnp.array(np.random.normal(size=(m_orig, n_orig)))
-    # A = A.at[:, :n2].set(A[:, :n2] / 10)
-    # split = int(n_orig / 2)
-    # A_vec = jnp.concatenate([100 * jnp.ones(split), 1 * jnp.ones(split)])
-    # A = jnp.diag(A_vec)
-    # density = 0.1
-    # A = A_scale * jnp.array(random(m_orig, n_orig, density=density, format='csr').todense())
-    evals, evecs = jnp.linalg.eigh(A.T @ A)
-    ista_step = 1 / evals.max()
     lambd = setup_cfg['lambd']
+    # n2 = int(n_orig / 2)
+    # A_scale = setup_cfg['A_scale']
+    # # b_scale = setup_cfg['b_scale']
+    # A = A_scale * jnp.array(np.random.normal(size=(m_orig, n_orig)))
+    
+    # evals, evecs = jnp.linalg.eigh(A.T @ A)
+    # ista_step = 1 / evals.max()
+    # lambd = setup_cfg['lambd']
 
     np.random.seed(cfg.seed)
+    D = np.random.normal(size=(m_orig, n_orig)) / np.sqrt(m_orig)
+    D = D / np.linalg.norm(D, axis=0)
+
+    z_orig = np.random.normal(size=(N, n_orig))
+    mask = np.random.choice(2, size=(N, n_orig), replace=True, p=[0.9, 0.1])
+    z_stars = np.multiply(z_orig, mask)
+
+    if setup_cfg['SNR'] == 'inf':
+        noise = 0
+    else:
+        SNR = setup_cfg['SNR']
+        stddev = np.sqrt(np.var(z_stars, axis=1))
+        noise_stddev = stddev * np.power (10.0, -SNR / 20.0)
+        noise = noise_stddev.reshape(-1, 1) * np.random.normal(size=(N, m_orig))
+    b_mat = (D @ z_stars.T).T + noise
+
+    # b_min, b_max = setup_cfg['b_min'], setup_cfg['b_max']
+    # # b_mat = b_scale * generate_b_mat(A, N, b_min, b_max)
+    # m, n = A.shape
+    # b_mat = (b_max - b_min) * np.random.rand(N, m) + b_min
 
     # save output to output_filename
     output_filename = f"{os.getcwd()}/data_setup"
 
-    b_min, b_max = setup_cfg['b_min'], setup_cfg['b_max']
-    # b_mat = b_scale * generate_b_mat(A, N, b_min, b_max)
-    m, n = A.shape
-    b_mat = (b_max - b_min) * np.random.rand(N, m) + b_min
+    ista_setup_script(b_mat, D, lambd, output_filename)
+    # jnp.savez(
+    #     output_filename,
+    #     thetas=jnp.array(b_mat),
+    #     z_stars=jnp.array(z_stars),
+    # )
 
-    # 
-    # b_mat[:, :n2] = b_mat[:, :n2] / 10
-
-    ista_setup_script(b_mat, A, lambd, output_filename)
 
 
 def generate_b_mat(A, N, p=.1):

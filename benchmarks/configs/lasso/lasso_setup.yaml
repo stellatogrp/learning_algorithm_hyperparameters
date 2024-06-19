@@ -1,0 +1,11 @@
+m_orig: 2500 #64
+n_orig: 5000 #128
+solve_acc_abs: 1e-10
+solve_acc_rel: 0
+N_train: 10
+N_test: 10
+seed: 42
+solve: True
+SNR: inf
+A_scale: 1
+lambd: .1

@@ -18,6 +18,7 @@ from lasco.algo_steps import create_projection_fn, get_psd_sizes
 from lasco.gd_model import GDmodel
 from lasco.lm_gd_model import LMGDmodel
 from lasco.lasco_gd_model import LASCOGDmodel
+from lasco.lasco_ista_model import LASCOISTAmodel
 from lasco.lasco_osqp_model import LASCOOSQPmodel
 from lasco.lasco_scs_model import LASCOSCSmodel
 from lasco.lm_scs_model import LMSCSmodel
@@ -170,6 +171,10 @@ class Workspace:
             self.create_lasco_scs_model(cfg, static_dict)
         elif algo == 'lm_scs':
             self.create_lm_scs_model(cfg, static_dict)
+        elif algo == 'lasco_ista':
+            self.create_lasco_ista_model(cfg, static_dict)
+        elif algo == 'lm_ista':
+            self.create_lm_ista_model(cfg, static_dict)
         
         
 
@@ -208,6 +213,29 @@ class Workspace:
                           P=P
                           )
         self.l2ws_model = LASCOGDmodel(train_unrolls=self.train_unrolls,
+                                       eval_unrolls=self.eval_unrolls,
+                                       train_inputs=self.train_inputs,
+                                       test_inputs=self.test_inputs,
+                                       regression=cfg.supervised,
+                                       nn_cfg=cfg.nn_cfg,
+                                       z_stars_train=self.z_stars_train,
+                                       z_stars_test=self.z_stars_test,
+                                       loss_method=cfg.loss_method,
+                                       algo_dict=input_dict)
+        
+    def create_lasco_ista_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        A = static_dict['A']
+
+        lambd = static_dict['lambd']
+
+        input_dict = dict(algorithm='lasco_ista',
+                          c_mat_train=self.q_mat_train,
+                          c_mat_test=self.q_mat_test,
+                          lambd=lambd,
+                          A=A
+                          )
+        self.l2ws_model = LASCOISTAmodel(train_unrolls=self.train_unrolls,
                                        eval_unrolls=self.eval_unrolls,
                                        train_inputs=self.train_inputs,
                                        test_inputs=self.test_inputs,
@@ -501,7 +529,7 @@ class Workspace:
             # q_mat_test = q_mat[N_train:N, :]
             # self.q_mat_train, self.q_mat_test = q_mat_train, q_mat_test
 
-            rand_indices = np.arange(N) #np.random.choice(q_mat.shape[0], N, replace=False)
+            rand_indices = np.random.choice(q_mat.shape[0], N, replace=False)
 
             self.train_indices = rand_indices[:N_train] #np.random.choice(q_mat.shape[0], N_train, replace=False)
             self.q_mat_train = q_mat[self.train_indices, :]
