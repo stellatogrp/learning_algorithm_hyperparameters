@@ -1,7 +1,7 @@
 nn_cfg:
   lr: 1e-3
   method: adam
-  batch_size: 1000
+  batch_size: 5
   epochs: 100
 
 data:
