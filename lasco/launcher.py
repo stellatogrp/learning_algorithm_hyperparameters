@@ -16,7 +16,9 @@ from functools import partial
 
 from lasco.algo_steps import create_projection_fn, get_psd_sizes
 from lasco.gd_model import GDmodel
+from lasco.ista_model import ISTAmodel
 from lasco.lm_gd_model import LMGDmodel
+from lasco.lm_ista_model import LMISTAmodel
 from lasco.lasco_gd_model import LASCOGDmodel
 from lasco.lasco_ista_model import LASCOISTAmodel
 from lasco.lasco_osqp_model import LASCOOSQPmodel
@@ -159,6 +161,10 @@ class Workspace:
             # self.q_mat_train = thetas[:N_train, :]
             # self.q_mat_test = thetas[N_train:N, :]
             self.create_gd_model(cfg, static_dict)
+        elif algo == 'ista':
+            # self.q_mat_train = thetas[:N_train, :]
+            # self.q_mat_test = thetas[N_train:N, :]
+            self.create_ista_model(cfg, static_dict)
         elif algo == 'lasco_gd':
             # self.q_mat_train = thetas[:N_train, :]
             # self.q_mat_test = thetas[N_train:N, :]
@@ -176,7 +182,36 @@ class Workspace:
         elif algo == 'lm_ista':
             self.create_lm_ista_model(cfg, static_dict)
         
-        
+    def create_ista_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        A, lambd = static_dict['A'], static_dict['lambd']
+        ista_step = static_dict['ista_step']
+
+        input_dict = dict(algorithm='ista',
+                        #   supervised=cfg.supervised,
+                        #   train_unrolls=self.train_unrolls,
+                        #   jit=True,
+                        #   train_inputs=self.train_inputs,
+                        #   test_inputs=self.test_inputs,
+                          b_mat_train=self.q_mat_train,
+                          b_mat_test=self.q_mat_test,
+                          lambd=lambd,
+                          ista_step=ista_step,
+                          A=A,
+                        #   nn_cfg=cfg.nn_cfg,
+                        #   z_stars_train=self.z_stars_train,
+                        #   z_stars_test=self.z_stars_test,
+                          )
+        # self.l2ws_model = ISTAmodel(input_dict)
+        self.l2ws_model = ISTAmodel(train_unrolls=self.train_unrolls,
+                                    eval_unrolls=self.eval_unrolls,
+                                    train_inputs=self.train_inputs,
+                                    test_inputs=self.test_inputs,
+                                    regression=cfg.supervised,
+                                    nn_cfg=cfg.nn_cfg,
+                                    z_stars_train=self.z_stars_train,
+                                    z_stars_test=self.z_stars_test,
+                                    algo_dict=input_dict)
 
 
     def create_gd_model(self, cfg, static_dict):
@@ -236,6 +271,29 @@ class Workspace:
                           A=A
                           )
         self.l2ws_model = LASCOISTAmodel(train_unrolls=self.train_unrolls,
+                                       eval_unrolls=self.eval_unrolls,
+                                       train_inputs=self.train_inputs,
+                                       test_inputs=self.test_inputs,
+                                       regression=cfg.supervised,
+                                       nn_cfg=cfg.nn_cfg,
+                                       z_stars_train=self.z_stars_train,
+                                       z_stars_test=self.z_stars_test,
+                                       loss_method=cfg.loss_method,
+                                       algo_dict=input_dict)
+        
+    def create_lm_ista_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        A = static_dict['A']
+
+        lambd = static_dict['lambd']
+
+        input_dict = dict(algorithm='lm_ista',
+                          c_mat_train=self.q_mat_train,
+                          c_mat_test=self.q_mat_test,
+                          lambd=lambd,
+                          A=A
+                          )
+        self.l2ws_model = LMISTAmodel(train_unrolls=self.train_unrolls,
                                        eval_unrolls=self.eval_unrolls,
                                        train_inputs=self.train_inputs,
                                        test_inputs=self.test_inputs,
@@ -724,6 +782,11 @@ class Workspace:
             # nearest neighbor
             if self.l2ws_model.lasco:
                 self.eval_iters_train_and_test('nearest_neighbor', None)
+
+            if self.l2ws_model.algo == 'lasco_ista':
+                # nesterov
+                self.l2ws_model.set_params_for_nesterov()
+                self.eval_iters_train_and_test('nesterov', None)
 
             if self.l2ws_model.algo == 'lasco_gd':
                 # conj_grad

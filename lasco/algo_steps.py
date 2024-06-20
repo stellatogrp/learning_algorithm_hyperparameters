@@ -508,7 +508,8 @@ def fixed_point_nesterov_str_cvx(z, y, i, P, c, gd_step, cond_num):
     y_next = fixed_point_gd(z, P, c, gd_step)
     # t_next = .5 * (1 + jnp.sqrt(1 + 4 * t ** 2))
     sqrt_cond = jnp.sqrt(cond_num)
-    coeff = (sqrt_cond - 1) / (sqrt_cond + 1)
+    # coeff = (sqrt_cond - 1) / (sqrt_cond + 1)
+    coeff = (jnp.sqrt(3 * cond_num + 1) - 2) / (jnp.sqrt(3 * cond_num + 1) + 2)
     z_next = y_next + coeff * (y_next - y)
     i_next = i + 1
     return z_next, y_next, i_next
@@ -1662,17 +1663,6 @@ def fp_train_gd(i, val, supervised, z_star, P, c, gd_step):
     return z_next, loss_vec
 
 
-def fp_train_fista(i, val, supervised, z_star, A, b, lambd, ista_step):
-    z, y, t, loss_vec = val
-    z_next, y_next, t_next = fixed_point_fista(z, y, t, A, b, lambd, ista_step)
-    if supervised:
-        diff = jnp.linalg.norm(z - z_star)
-    else:
-        diff = jnp.linalg.norm(z_next - z)
-    # diff = eval_ista_obj(z_next, A, b, lambd)
-    loss_vec = loss_vec.at[i].set(diff)
-    return z_next, y_next, t_next, loss_vec
-
 
 def fp_eval_ista(i, val, supervised, z_star, A, b, lambd, ista_step):
     z, loss_vec, z_all, obj_diffs = val
@@ -1702,19 +1692,6 @@ def fp_eval_gd(i, val, supervised, z_star, P, c, gd_step):
     obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
     z_all = z_all.at[i, :].set(z_next)
     return z_next, loss_vec, z_all, obj_diffs
-
-
-def fp_eval_fista(i, val, supervised, z_star, A, b, lambd, ista_step):
-    z, y, t, loss_vec, z_all = val
-    z_next, y_next, t_next = fixed_point_fista(z, y, t, A, b, lambd, ista_step)
-    if supervised:
-        diff = 10 * jnp.log10(jnp.linalg.norm(z - z_star) ** 2 / jnp.linalg.norm(z_star) ** 2)
-        # diff = jnp.linalg.norm(z - z_star)
-    else:
-        diff = jnp.linalg.norm(z_next - z)
-    loss_vec = loss_vec.at[i].set(diff)
-    z_all = z_all.at[i, :].set(z_next)
-    return z_next, y_next, t_next, loss_vec, z_all
 
 
 def fp_eval_scs(i, val, q_r, z_star, factor, proj, P, A, c, b, hsde, homogeneous, scale_vec, alpha,
@@ -1796,26 +1773,6 @@ def k_steps_train_scs(k, z0, q, factor, supervised, z_star, proj, jit, hsde, m, 
     return z_final, iter_losses
 
 
-def k_steps_train_fista(k, z0, q, lambd, A, ista_step, supervised, z_star, jit):
-    iter_losses = jnp.zeros(k)
-
-    fp_train_partial = partial(fp_train_fista,
-                               supervised=supervised,
-                               z_star=z_star,
-                               A=A,
-                               b=q,
-                               lambd=lambd,
-                               ista_step=ista_step
-                               )
-    val = z0, z0, 1, iter_losses
-    start_iter = 0
-    if jit:
-        out = lax.fori_loop(start_iter, k, fp_train_partial, val)
-    else:
-        out = python_fori_loop(start_iter, k, fp_train_partial, val)
-    z_final, y_final, t_final, iter_losses = out
-    return z_final, iter_losses
-
 
 def k_steps_train_ista(k, z0, q, lambd, A, ista_step, supervised, z_star, jit):
     iter_losses = jnp.zeros(k)
@@ -1857,29 +1814,6 @@ def k_steps_train_gd(k, z0, q, P, gd_step, supervised, z_star, jit):
     z_final, iter_losses = out
     return z_final, iter_losses
 
-
-def k_steps_eval_fista(k, z0, q, lambd, A, ista_step, supervised, z_star, jit):
-    iter_losses = jnp.zeros(k)
-    z_all_plus_1 = jnp.zeros((k + 1, z0.size))
-    z_all_plus_1 = z_all_plus_1.at[0, :].set(z0)
-    fp_eval_partial = partial(fp_eval_fista,
-                              supervised=supervised,
-                              z_star=z_star,
-                              A=A,
-                              b=q,
-                              lambd=lambd,
-                              ista_step=ista_step
-                              )
-    z_all = jnp.zeros((k, z0.size))
-    val = z0, z0, 1, iter_losses, z_all
-    start_iter = 0
-    if jit:
-        out = lax.fori_loop(start_iter, k, fp_eval_partial, val)
-    else:
-        out = python_fori_loop(start_iter, k, fp_eval_partial, val)
-    z_final, y_final, t_final, iter_losses, z_all = out
-    z_all_plus_1 = z_all_plus_1.at[1:, :].set(z_all)
-    return z_final, iter_losses, z_all_plus_1, iter_losses
 
 
 def k_steps_eval_ista(k, z0, q, lambd, A, ista_step, supervised, z_star, jit):
@@ -2193,15 +2127,6 @@ def fixed_point_gd(z, P, c, gd_step):
     grad = P @ z + c
     return z - gd_step * grad
 
-
-def fixed_point_fista(z, y, t, A, b, lambd, ista_step):
-    """
-    applies the fista fixed point operator
-    """
-    z_next = fixed_point_ista(y, A, b, lambd, ista_step)
-    t_next = .5 * (1 + jnp.sqrt(1 + 4 * t ** 2))
-    y_next = z_next + (t - 1) / t_next * (z_next - z)
-    return z_next, y_next, t_next
 
 
 def soft_threshold(z, alpha):

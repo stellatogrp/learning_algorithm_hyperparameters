@@ -45,6 +45,13 @@ def ridge_regression_plot_eval_iters(cfg):
     plot_step_sizes(example, cfg)
 
 
+@hydra.main(config_path='configs/lasso', config_name='lasso_plot.yaml')
+def lasso_plot_eval_iters(cfg):
+    example = 'lasso'
+    create_lasco_results_unconstrained(example, cfg)
+    plot_step_sizes_lasso(example, cfg)
+
+
 @hydra.main(config_path='configs/unconstrained_qp', config_name='unconstrained_qp_plot.yaml')
 def unconstrained_qp_plot_eval_iters(cfg):
     example = 'unconstrained_qp'
@@ -62,6 +69,46 @@ def quadcopter_plot_eval_iters(cfg):
     example = 'quadcopter'
     create_lasco_results_constrained(example, cfg)
 
+
+def plot_step_sizes_lasso(example, cfg):
+    # get the step sizes (for silver and learned)
+    step_sizes_dict = get_lasco_gd_step_size(example, cfg)
+    lasco_step_sizes = step_sizes_dict['lasco'].to_numpy()[:, 1]
+
+    # get the strongly convex and L-smooth values
+    #       can get it from nesterov and no_train
+    nesterov_step_size = step_sizes_dict['nesterov'].to_numpy()[0, 1]
+    vanilla_step_size = step_sizes_dict['cold_start'].to_numpy()[0, 1]
+    smoothness = 1 / nesterov_step_size
+
+    # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(18, 6), sharey='row') #, sharey=True)
+    plt.xlabel('iterations')
+    plt.title('lasco')
+    plt.ylabel('step sizes')
+    # axes[1, 0].set_ylabel('gain to cold start')
+
+    # plot the bar plot for silver
+    cmap = plt.cm.Set1
+    colors = cmap.colors
+    step_size_iters = cfg.step_size_iters
+    # axes[0].bar(np.arange(step_size_iters), silver_step_sizes[:step_size_iters], color=colors[2])
+    # axes[0].hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
+
+    # plot the bar plot for the learned method
+
+    # add in the horizontal lines for lasco
+    full_lasco = lasco_step_sizes[-1] * np.ones(step_size_iters)
+    num_lasco = lasco_step_sizes.size
+    full_lasco[:num_lasco] = lasco_step_sizes[:num_lasco]
+    bars = plt.bar(np.arange(step_size_iters), full_lasco, color=colors[1])
+    plt.hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
+    # bars[num_lasco:].set_color(colors[0])
+    # Change the color of the bars from num_lasco onward
+    for i in range(num_lasco - 1, len(bars)):
+        bars[i].set_color(colors[0])
+
+    plt.tight_layout()
+    plt.savefig('step_sizes.pdf', bbox_inches='tight')
 
 def plot_step_sizes(example, cfg):
     # get the step sizes (for silver and learned)
@@ -105,8 +152,7 @@ def plot_step_sizes(example, cfg):
 
     plt.tight_layout()
     plt.savefig('step_sizes.pdf', bbox_inches='tight')
-    import pdb
-    pdb.set_trace()
+
 
 
 def get_lasco_gd_step_size(example, cfg):
@@ -521,3 +567,7 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'quadcopter/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         quadcopter_plot_eval_iters()
+    elif sys.argv[1] == 'lasso':
+        sys.argv[1] = base + 'lasso/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        lasso_plot_eval_iters()

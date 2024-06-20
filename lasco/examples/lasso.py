@@ -7,7 +7,7 @@ from lasco.examples.solve_script import ista_setup_script
 import os
 from scipy.sparse import random
 
-def run(run_cfg):
+def run(run_cfg, model='lasco'):
     example = "lasso"
     data_yaml_filename = 'data_setup_copied.yaml'
 
@@ -34,7 +34,12 @@ def run(run_cfg):
 
     # we directly save q now
     static_flag = True
-    algo = 'lasco_ista'
+    if model == 'lasco':
+        algo = 'lasco_ista'
+    elif model == 'l2ws':
+        algo = 'ista'
+    elif model == 'lm':
+        algo = 'lm_ista'
     workspace = Workspace(algo, run_cfg, static_flag, static_dict, example)
 
     # run the workspace

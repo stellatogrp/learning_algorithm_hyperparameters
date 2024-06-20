@@ -5,7 +5,7 @@ from jax import random
 
 import numpy as np
 
-from lasco.algo_steps_ista import k_steps_eval_lasco_ista, k_steps_train_lasco_ista
+from lasco.algo_steps_ista import k_steps_eval_lasco_ista, k_steps_train_lasco_ista, k_steps_eval_fista
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
 
@@ -45,8 +45,8 @@ class LASCOISTAmodel(L2WSmodel):
                                         jit=self.jit)
         self.k_steps_eval_fn = partial(k_steps_eval_lasco_ista, lambd=lambd, A=A,
                                        jit=self.jit)
-        # self.nesterov_eval_fn = partial(k_steps_eval_nesterov_gd, P=P, cond_num=cond_num,
-        #                                jit=self.jit)
+        self.nesterov_eval_fn = partial(k_steps_eval_fista, lambd=lambd, A=A,
+                                       jit=self.jit)
         # self.conj_grad_eval_fn = partial(k_steps_eval_conj_grad, P=P,
         #                                jit=self.jit)
         self.out_axes_length = 5
@@ -108,10 +108,10 @@ class LASCOISTAmodel(L2WSmodel):
 
     def init_params(self):
         # init step-varying params
-        step_varying_params = jnp.log(2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
+        step_varying_params = jnp.log(1 / self.smooth_param) * jnp.ones((self.step_varying_num, 1))
 
         # init steady_state_params
-        steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
+        steady_state_params = sigmoid_inv(1 / (self.smooth_param)) * jnp.ones((1, 1))
 
         self.params = [jnp.vstack([step_varying_params, steady_state_params])]
         # sigmoid_inv(beta)
@@ -152,12 +152,11 @@ class LASCOISTAmodel(L2WSmodel):
             else:
                 eval_fn = self.k_steps_eval_fn
 
-            # import pdb
-            # pdb.set_trace()
+
 
             # stochastic_params = params[0][:n_iters, 0]
-            if special_algo == 'conj_grad':
-                eval_out = self.conj_grad_eval_fn(k=iters,
+            if special_algo == 'nesterov':
+                eval_out = self.nesterov_eval_fn(k=iters,
                                    z0=z0,
                                    q=q,
                                    params=stochastic_params,

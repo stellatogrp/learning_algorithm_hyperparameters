@@ -62,6 +62,32 @@ def main_run_lasso(cfg):
     lasso.run(cfg)
 
 
+@hydra.main(config_path='configs/lasso', config_name='lasso_l2ws_run.yaml')
+def main_run_lasso_l2ws(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'lasso'
+    setup_datetime = cfg.data.datetime
+    if setup_datetime == '':
+        # get the most recent datetime and update datetimes
+        setup_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = setup_datetime
+    copy_data_file(example, setup_datetime)
+    lasso.run(cfg, model='l2ws')
+
+
+@hydra.main(config_path='configs/lasso', config_name='lasso_lm_run.yaml')
+def main_run_lasso_lm(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'lasso'
+    setup_datetime = cfg.data.datetime
+    if setup_datetime == '':
+        # get the most recent datetime and update datetimes
+        setup_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = setup_datetime
+    copy_data_file(example, setup_datetime)
+    lasso.run(cfg, model='lm')
+
+
 @hydra.main(config_path='configs/quadcopter', config_name='quadcopter_run.yaml')
 def main_run_quadcopter(cfg):
     orig_cwd = hydra.utils.get_original_cwd()
@@ -371,6 +397,14 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'lasso/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_lasso()
+    elif sys.argv[1] == 'lasso_l2ws':
+        sys.argv[1] = base + 'lasso/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_run_lasso_l2ws()
+    elif sys.argv[1] == 'lasso_lm':
+        sys.argv[1] = base + 'lasso/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_run_lasso_lm()
     elif sys.argv[1] == 'mpc':
         sys.argv[1] = base + 'mpc/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]

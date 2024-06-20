@@ -88,7 +88,9 @@ class LASCOGDmodel(L2WSmodel):
 
 
     def set_params_for_nesterov(self):
-        self.params = [jnp.log(1 / self.smooth_param * jnp.ones((self.step_varying_num + 1, 1)))]
+        # self.params = [jnp.log(1 / self.smooth_param * jnp.ones((self.step_varying_num + 1, 1)))]
+        nesterov_step = 4 / (3 * self.smooth_param + self.str_cvx_param)
+        self.params = [jnp.log(nesterov_step * jnp.ones((self.step_varying_num + 1, 1)))]
 
 
     def set_params_for_silver(self):
