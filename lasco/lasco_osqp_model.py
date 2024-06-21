@@ -6,7 +6,7 @@ import numpy as np
 import osqp
 from scipy.sparse import csc_matrix
 
-from lasco.algo_steps import k_steps_eval_lasco_osqp, k_steps_train_lasco_osqp, unvec_symm
+from lasco.algo_steps_osqp import k_steps_eval_lasco_osqp, k_steps_train_lasco_osqp, unvec_symm
 from lasco.l2ws_model import L2WSmodel
 
 

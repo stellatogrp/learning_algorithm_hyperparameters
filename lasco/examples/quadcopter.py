@@ -14,7 +14,7 @@ from functools import partial
 from jax import vmap
 from scipy import sparse
 from lasco.utils.mpc_utils import closed_loop_rollout, static_canon_mpc_osqp
-from lasco.algo_steps import k_steps_eval_osqp, unvec_symm, vec_symm
+from lasco.algo_steps_osqp import k_steps_eval_osqp, unvec_symm, vec_symm
 import imageio
 import time
 from scipy.interpolate import splprep, splev
