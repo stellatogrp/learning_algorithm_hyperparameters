@@ -1,3 +1,4 @@
+model: lm
 nn_cfg:
   lr: 1e-3
   method: adam
@@ -25,7 +26,7 @@ pretrain:
 data:
   datetime: ''
 
-train_unrolls: 10
+train_unrolls: 30
 eval_unrolls: 1000
 eval_every_x_epochs: 50
 save_every_x_epochs: 1

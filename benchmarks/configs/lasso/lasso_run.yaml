@@ -1,3 +1,4 @@
+model: lasco
 nn_cfg:
   lr: 1e-1
   method: adam

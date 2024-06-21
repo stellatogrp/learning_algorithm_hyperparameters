@@ -77,19 +77,20 @@ class LASCOISTAmodel(L2WSmodel):
         transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
         return transformed_params
 
-    def perturb_params(self):
-        # init step-varying params
-        noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=1e-5, a_max=1e0)) * 0.00001
-        step_varying_params = jnp.log(noise + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
+    # def perturb_params(self):
+    #     # init step-varying params
+    #     noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=1e-5, a_max=1e0)) * 0.00001
+    #     step_varying_params = jnp.log(noise + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
 
-        # init steady_state_params
-        steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
+    #     # init steady_state_params
+    #     steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
 
-        self.params = [jnp.vstack([step_varying_params, steady_state_params])]
+    #     self.params = [jnp.vstack([step_varying_params, steady_state_params])]
 
 
     def set_params_for_nesterov(self):
-        self.params = [jnp.log(1 / self.smooth_param * jnp.ones((self.step_varying_num + 1, 1)))]
+        self.init_params()
+        # self.params = [jnp.log(1 / self.smooth_param * jnp.ones((self.step_varying_num + 1, 1)))]
 
 
     def set_params_for_silver(self):
@@ -111,7 +112,7 @@ class LASCOISTAmodel(L2WSmodel):
         step_varying_params = jnp.log(1 / self.smooth_param) * jnp.ones((self.step_varying_num, 1))
 
         # init steady_state_params
-        steady_state_params = sigmoid_inv(1 / (self.smooth_param)) * jnp.ones((1, 1))
+        steady_state_params = .5 * jnp.ones((1, 1)) #sigmoid_inv(1 / (self.smooth_param)) * jnp.ones((1, 1))
 
         self.params = [jnp.vstack([step_varying_params, steady_state_params])]
         # sigmoid_inv(beta)

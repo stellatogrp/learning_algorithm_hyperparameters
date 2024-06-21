@@ -1,3 +1,4 @@
+model: l2ws
 nn_cfg:
   lr: 1e-3
   method: adam
