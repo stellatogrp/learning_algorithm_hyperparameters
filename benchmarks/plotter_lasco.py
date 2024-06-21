@@ -326,23 +326,27 @@ def plot_results_dict_constrained(results_dict, gains_dict, num_iters):
     markevery = int(num_iters / 20)
     for i in range(len(methods)):
         method = methods[i]
-        if method != 'l2ws':
-            style = titles_2_styles[method]
-            marker = titles_2_markers[method]
-            color = titles_2_colors[method]
-            mark_start = titles_2_marker_starts[method]
+        if method == 'lm' and 'lm10000' in methods:
+            continue
+        if method == 'l2ws' and 'l2ws10000' in methods:
+            continue
 
-            # plot the values
-            axes[0, 0].plot(results_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                    markevery=(mark_start, markevery))
-            axes[0, 1].plot(results_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                    markevery=(mark_start, markevery))
-            
-            # plot the gains
-            axes[1, 0].plot(gains_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                    markevery=(mark_start, markevery))
-            axes[1, 1].plot(gains_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                    markevery=(mark_start, markevery))
+        style = titles_2_styles[method]
+        marker = titles_2_markers[method]
+        color = titles_2_colors[method]
+        mark_start = titles_2_marker_starts[method]
+
+        # plot the values
+        axes[0, 0].plot(results_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
+                                markevery=(mark_start, markevery))
+        axes[0, 1].plot(results_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
+                                markevery=(mark_start, markevery))
+        
+        # plot the gains
+        axes[1, 0].plot(gains_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
+                                markevery=(mark_start, markevery))
+        axes[1, 1].plot(gains_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
+                                markevery=(mark_start, markevery))
 
     fig.tight_layout()
     plt.savefig('pr_dr.pdf', bbox_inches='tight')

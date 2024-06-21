@@ -1,6 +1,6 @@
-N_test: 10
-N_train: 100 #50000
-n_orig: 100
+N_test: 100
+N_train: 10000 #50000
+n_orig: 70
 p: 0.5
 seed: 42
 solve: true

@@ -1,7 +1,7 @@
 nn_cfg:
-  lr: 1e-3
+  lr: 1e-4
   method: adam
-  batch_size: 5
+  batch_size: 10
   epochs: 100
 
 data:
@@ -23,10 +23,11 @@ loss_method: 'fixed_k' #'fixed_k' #'constant_sum'
 
 
 accuracies: [.1, .01, .001, .0001]
+normalize_inputs: True
 
 skip_startup: False
 
-eval_unrolls: 1000
+eval_unrolls: 200
 supervised: True
 train_unrolls: 30
 

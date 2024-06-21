@@ -304,7 +304,7 @@ class L2WSmodel(object):
                 self.lr), fun=self.loss_fn_train, has_aux=False)
 
         # Initialize state with first elements of training data as inputs
-        batch_indices = jnp.arange(self.N_train)
+        batch_indices = np.arange(5) #jnp.arange(self.N_train)
         if self.lasco:
             input_init = self.lasco_train_inputs[batch_indices, :] #self.train_inputs[batch_indices, :]
         # elif self.lm:
