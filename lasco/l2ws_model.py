@@ -228,6 +228,8 @@ class L2WSmodel(object):
             z0_inits = z_stars_test * 0
             if self.algo == 'lasco_scs':
                 z0_inits = jnp.hstack([z0_inits, jnp.ones((z0_inits.shape[0], 1))])
+            elif self.algo == 'lasco_osqp':
+                z0_inits = z0_inits[:, :self.m + self.n]
         else:
             z0_inits = self.test_inputs
         test_loss, test_out, time_per_prob = self.static_eval(self.train_unrolls,

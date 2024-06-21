@@ -20,7 +20,7 @@ from functools import partial
 from scipy.spatial import distance_matrix
 
 
-def run(run_cfg):
+def run(run_cfg, model='lasco'):
     example = "mnist"
     data_yaml_filename = 'data_setup_copied.yaml'
 
@@ -35,7 +35,7 @@ def run(run_cfg):
     # set the seed
     np.random.seed(setup_cfg['seed'])
 
-    lambd = setup_cfg['lambd']
+    lambd = setup_cfg['lambd'] # not needed now but it is in q_mat
 
     # # old
     blur_size = setup_cfg['blur_size']
@@ -72,8 +72,12 @@ def run(run_cfg):
 
     # we directly save q now
     static_flag = True
-    # algo = 'osqp'
-    algo = 'lasco_osqp'
+    if model == 'lasco':
+        algo = 'lasco_osqp'
+    elif model == 'l2ws':
+        algo = 'osqp'
+    elif model == 'lm':
+        algo = 'lm_osqp'
     deblur_or_denoise = setup_cfg['deblur_or_denoise']
     
     vis_fn = partial(custom_visualize_fn, figsize=img_size**2, deblur_or_denoise=deblur_or_denoise)
@@ -111,12 +115,6 @@ def setup_probs(setup_cfg):
     # load the mnist images
     # x_train, x_test = get_mnist(emnist=emnist)
     x_train, x_test = get_dataset(dataset, mri_size=mri_size, num=N)
-
-    # distances = distance_matrix(
-    #             x_train,
-    #             x_train)
-    # import pdb
-    # pdb.set_trace()
 
     # get the blur matrix
     B = vectorized2DBlurMatrix(img_size, img_size, blur_size)

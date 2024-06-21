@@ -757,11 +757,11 @@ class Workspace:
         z_no_learn = self.z_no_learn_train if train else self.z_no_learn_test
         z_nn = z_no_learn
         z_prev_sol = z_no_learn
-        if self.has_custom_visualization:
-            if self.vis_num > 0:
-                # custom_visualize(z_plot, train, col)
-                custom_visualize(self.custom_visualize_fn, self.iterates_visualize, self.vis_num, 
-                                 thetas, u_plot, z_stars, z_no_learn, z_nn, z_prev_sol, train, col)
+        # if self.has_custom_visualization:
+        #     if self.vis_num > 0:
+        #         # custom_visualize(z_plot, train, col)
+        #         custom_visualize(self.custom_visualize_fn, self.iterates_visualize, self.vis_num, 
+        #                          thetas, u_plot, z_stars, z_no_learn, z_nn, z_prev_sol, train, col)
 
         if self.save_weights_flag:
             self.save_weights()
@@ -983,6 +983,9 @@ class Workspace:
             if self.algo == 'lasco_scs':
                 self.l2ws_model.lasco_train_inputs = out_train[2][:, new_start_index, :] #-1]
                 self.l2ws_model.k_steps_train_fn = self.l2ws_model.k_steps_train_fn2
+            elif self.algo == 'lasco_osqp':
+                m, n = self.l2ws_model.m, self.l2ws_model.n
+                self.l2ws_model.lasco_train_inputs = out_train[2][:, new_start_index, :m + n]
             else:
                 self.l2ws_model.lasco_train_inputs = out_train[2][:, new_start_index, :]
             self.l2ws_model.reinit_losses()
@@ -1030,7 +1033,7 @@ class Workspace:
 
     def get_inputs_for_eval(self, fixed_ws, num, train, col):
         if col == 'nearest_neighbor':
-            is_osqp = isinstance(self.l2ws_model, OSQPmodel)
+            is_osqp = isinstance(self.l2ws_model, OSQPmodel) or isinstance(self.l2ws_model, LASCOOSQPmodel)
             if is_osqp:
                 m, n = self.l2ws_model.m, self.l2ws_model.n
             else:
@@ -1048,10 +1051,17 @@ class Workspace:
                 self.z_stars_test[:num, :][non_last_indices, :])
         else:
             if self.l2ws_model.lasco:
-                if train:
-                    inputs = self.l2ws_model.z_stars_train[:num, :] * 0
+                if isinstance(self.l2ws_model, LASCOOSQPmodel):
+                    m, n = self.l2ws_model.m, self.l2ws_model.n
+                    if train:
+                        inputs = self.l2ws_model.z_stars_train[:num, :m + n] * 0
+                    else:
+                        inputs = self.l2ws_model.z_stars_train[:num, :m + n] * 0
                 else:
-                    inputs = self.l2ws_model.z_stars_train[:num, :] * 0
+                    if train:
+                        inputs = self.l2ws_model.z_stars_train[:num, :] * 0
+                    else:
+                        inputs = self.l2ws_model.z_stars_train[:num, :] * 0
             else:
                 if train:
                     inputs = self.l2ws_model.train_inputs[:num, :]
@@ -1059,7 +1069,8 @@ class Workspace:
                     inputs = self.l2ws_model.test_inputs[:num, :]
         if self.l2ws_model.algo == 'lasco_scs':
             inputs = jnp.hstack([inputs, jnp.ones((inputs.shape[0], 1))])
-
+        # import pdb
+        # pdb.set_trace()
         return inputs
 
 

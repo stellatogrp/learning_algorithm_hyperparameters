@@ -16,6 +16,7 @@ class OSQPmodel(L2WSmodel):
     def initialize_algo(self, input_dict):
         # self.m, self.n = self.A.shape
         self.algo = 'osqp'
+        self.lasco = False
         self.m, self.n = input_dict['m'], input_dict['n']
         self.q_mat_train, self.q_mat_test = input_dict['q_mat_train'], input_dict['q_mat_test']
 

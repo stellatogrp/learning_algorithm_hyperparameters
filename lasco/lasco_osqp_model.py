@@ -16,7 +16,7 @@ class LASCOOSQPmodel(L2WSmodel):
 
     def initialize_algo(self, input_dict):
         # self.m, self.n = self.A.shape
-        self.algo = 'osqp'
+        self.algo = 'lasco_osqp'
         self.m, self.n = input_dict['m'], input_dict['n']
         self.q_mat_train, self.q_mat_test = input_dict['q_mat_train'], input_dict['q_mat_test']
 
@@ -60,6 +60,8 @@ class LASCOOSQPmodel(L2WSmodel):
         # self.k_steps_eval_fn = partial(k_steps_eval_osqp, factor=factor, P=self.P, A=self.A, 
         #                                rho=rho, sigma=sigma, jit=self.jit)
         self.out_axes_length = 6
+        N = self.q_mat_train.shape[0]
+        self.lasco_train_inputs = jnp.zeros((N, self.n + self.m))
 
 
     def init_params(self):
@@ -79,7 +81,13 @@ class LASCOOSQPmodel(L2WSmodel):
         loss_method = self.loss_method
 
         def predict(params, input, q, iters, z_star, key, factor):
-            z0 = jnp.zeros(self.m + self.n) #self.predict_warm_start(params, input, key, bypass_nn)
+            # z0 = jnp.zeros(self.m + self.n) #self.predict_warm_start(params, input, key, bypass_nn)
+            z0 = input
+
+            if diff_required:
+                n_iters = key #self.train_unrolls if key else 1
+            else:
+                n_iters = min(iters, 51)
 
             if self.train_fn is not None:
                 train_fn = self.train_fn
@@ -91,10 +99,10 @@ class LASCOOSQPmodel(L2WSmodel):
                 eval_fn = self.k_steps_eval_fn
 
             # do all of the factorizations
-            factors1 = jnp.zeros((self.train_unrolls, self.n, self.n))
-            factors2 = jnp.zeros((self.train_unrolls, self.n), dtype=jnp.int32)
+            factors1 = jnp.zeros((n_iters, self.n, self.n))
+            factors2 = jnp.zeros((n_iters, self.n), dtype=jnp.int32)
             rhos, sigmas = params[0][:, 0], params[0][:, 1]
-            for i in range(self.train_unrolls):
+            for i in range(n_iters):
                 rho, sigma = jnp.exp(rhos[i]), jnp.exp(sigmas[i])
                 rho_vec = rho * jnp.ones(self.m)
                 M = self.P + sigma * jnp.eye(self.n) + self.A.T @ jnp.diag(rho_vec) @ self.A

@@ -1555,7 +1555,7 @@ def k_steps_eval_osqp(k, z0, q, factor, P, A, rho, sigma, supervised, z_star, ji
 
 def fp_train_osqp(i, val, supervised, z_star, factor, A, q, rho, sigma):
     z, loss_vec = val
-    z_next = fixed_point_osqp(z, factor, A, q, rho, sigma)
+    z_next = fixed_point_osqp_old(z, factor, A, q, rho, sigma)
     if supervised:
         diff = jnp.linalg.norm(z - z_star)
     else:
@@ -1567,7 +1567,7 @@ def fp_train_osqp(i, val, supervised, z_star, factor, A, q, rho, sigma):
 def fp_eval_osqp(i, val, supervised, z_star, factor, P, A, q, rho, sigma, custom_loss=None, lightweight=False):
     m, n = A.shape
     z, loss_vec, z_all, primal_residuals, dual_residuals = val
-    z_next = fixed_point_osqp(z, factor, A, q, rho, sigma)
+    z_next = fixed_point_osqp_old(z, factor, A, q, rho, sigma)
     if custom_loss is None:
         if supervised:
             diff = jnp.linalg.norm(z - z_star)
@@ -1615,30 +1615,30 @@ def fixed_point_osqp(z, factor1, factor2, A, q, rho, sigma):
     return z_next
 
 
-# def fixed_point_osqp(z, factor, A, q, rho, sigma):
-#     # z = (x, y, w) w is the z variable in osqp terminology
-#     m, n = A.shape
-#     x, y, w = z[:n], z[n:n + m], z[n + m:]
-#     c, l_bound, u_bound = q[:n], q[n:n + m], q[n + m:]
+def fixed_point_osqp_old(z, factor, A, q, rho, sigma):
+    # z = (x, y, w) w is the z variable in osqp terminology
+    m, n = A.shape
+    x, y, w = z[:n], z[n:n + m], z[n + m:]
+    c, l_bound, u_bound = q[:n], q[n:n + m], q[n + m:]
 
-#     # update (x, nu)
-#     rhs = sigma * x - c + A.T @ (rho * w - y)
-#     x_next = lin_sys_solve(factor, rhs)
-#     nu = rho * (A @ x_next - w) + y
+    # update (x, nu)
+    rhs = sigma * x - c + A.T @ (rho * w - y)
+    x_next = lin_sys_solve(factor, rhs)
+    nu = rho * (A @ x_next - w) + y
 
-#     # update w_tilde
-#     w_tilde = w + (nu - y) / rho
+    # update w_tilde
+    w_tilde = w + (nu - y) / rho
 
-#     # update w
-#     w_next = jnp.clip(w_tilde + y / rho, a_min=l_bound, a_max=u_bound)
+    # update w
+    w_next = jnp.clip(w_tilde + y / rho, a_min=l_bound, a_max=u_bound)
 
-#     # update y
-#     y_next = y + rho * (w_tilde - w_next)
+    # update y
+    y_next = y + rho * (w_tilde - w_next)
 
-#     # concatenate into the fixed point vector
-#     z_next = jnp.concatenate([x_next, y_next, w_next])
+    # concatenate into the fixed point vector
+    z_next = jnp.concatenate([x_next, y_next, w_next])
 
-#     return z_next
+    return z_next
 
 
 def fp_train_ista(i, val, supervised, z_star, A, b, lambd, ista_step):
