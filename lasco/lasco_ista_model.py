@@ -93,15 +93,15 @@ class LASCOISTAmodel(L2WSmodel):
         # self.params = [jnp.log(1 / self.smooth_param * jnp.ones((self.step_varying_num + 1, 1)))]
 
 
-    def set_params_for_silver(self):
-        silver_steps = 128
-        kappa = self.smooth_param / self.str_cvx_param
-        silver_step_sizes = compute_silver_steps(kappa, silver_steps) / self.smooth_param
-        params = jnp.ones((silver_steps + 1, 1))
-        params = params.at[:silver_steps, 0].set(jnp.array(silver_step_sizes))
-        params = params.at[silver_steps, 0].set(2 / (self.smooth_param + self.str_cvx_param))
+    # def set_params_for_silver(self):
+    #     silver_steps = 128
+    #     kappa = self.smooth_param / self.str_cvx_param
+    #     silver_step_sizes = compute_silver_steps(kappa, silver_steps) / self.smooth_param
+    #     params = jnp.ones((silver_steps + 1, 1))
+    #     params = params.at[:silver_steps, 0].set(jnp.array(silver_step_sizes))
+    #     params = params.at[silver_steps, 0].set(2 / (self.smooth_param + self.str_cvx_param))
 
-        self.params = [params]
+    #     self.params = [params]
         # step_varying_params = jnp.log(params[:self.step_varying_num, :1])
         # steady_state_params = sigmoid_inv(params[self.step_varying_num:, :1] * self.smooth_param / 2)
         # self.params = [jnp.vstack([step_varying_params, steady_state_params])]
@@ -112,10 +112,11 @@ class LASCOISTAmodel(L2WSmodel):
         step_varying_params = jnp.log(1 / self.smooth_param) * jnp.ones((self.step_varying_num, 1))
 
         # init steady_state_params
-        steady_state_params = .5 * jnp.ones((1, 1)) #sigmoid_inv(1 / (self.smooth_param)) * jnp.ones((1, 1))
+        steady_state_params = 0 * jnp.ones((1, 1)) #sigmoid_inv(1 / (self.smooth_param)) * jnp.ones((1, 1))
 
         self.params = [jnp.vstack([step_varying_params, steady_state_params])]
         # sigmoid_inv(beta)
+
 
 
     def create_end2end_loss_fn(self, bypass_nn, diff_required, special_algo='gd'):
@@ -142,7 +143,6 @@ class LASCOISTAmodel(L2WSmodel):
                     # stochastic_params = stochastic_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
                     stochastic_params = self.transform_params(params, n_iters)
 
-            
 
             if self.train_fn is not None:
                 train_fn = self.train_fn
