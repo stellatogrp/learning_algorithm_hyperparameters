@@ -1,11 +1,11 @@
 methods: 
-  cold_start: 2024-06-20/20-05-56
+  cold_start: 2024-06-20/21-31-51
   lasco: 2024-06-20/19-15-03
-  nearest_neighbor: 2024-06-20/20-05-56
-  nesterov: 2024-06-20/21-11-12
+  nearest_neighbor: 2024-06-20/21-31-51
+  nesterov: 2024-06-20/21-31-51
   l2ws: 2024-06-20/19-36-52
   lm: 2024-06-20/19-35-13
   l2ws10000: 2024-06-20/19-12-57
   lm10000: 2024-06-20/19-09-49
-num_iters: 200
-step_size_iters: 63
+num_iters: 100
+step_size_iters: 60

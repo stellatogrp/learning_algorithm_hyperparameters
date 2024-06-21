@@ -368,6 +368,11 @@ def plot_results_dict_unconstrained(results_dict, gains_dict, num_iters):
         color = titles_2_colors[method]
         mark_start = titles_2_marker_starts[method]
 
+        if method == 'lm' and 'lm10000' in methods:
+            continue
+        if method == 'l2ws' and 'l2ws10000' in methods:
+            continue
+
         # plot the values
         axes[0].plot(results_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color, 
                                 markevery=(mark_start, markevery))
