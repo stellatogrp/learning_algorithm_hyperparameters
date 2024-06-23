@@ -1,9 +1,6 @@
-n_orig: 1000 #20
-m_orig: 500
-N_train: 10
-N_test: 10
+num_points: 100 #20
+N_train: 500
+N_test: 500
 seed: 42
 solve: True
-b_min: -10
-b_max: 10
-lambd: 10
+

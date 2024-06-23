@@ -20,6 +20,7 @@ from lasco.ista_model import ISTAmodel
 from lasco.lm_gd_model import LMGDmodel
 from lasco.lm_ista_model import LMISTAmodel
 from lasco.lasco_gd_model import LASCOGDmodel
+from lasco.lasco_logisticgd_model import LASCOLOGISTICGDmodel
 from lasco.lasco_ista_model import LASCOISTAmodel
 from lasco.lasco_osqp_model import LASCOOSQPmodel
 from lasco.lasco_scs_model import LASCOSCSmodel
@@ -169,6 +170,10 @@ class Workspace:
             # self.q_mat_train = thetas[:N_train, :]
             # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_gd_model(cfg, static_dict)
+        elif algo == 'lasco_logisticgd':
+            # self.q_mat_train = thetas[:N_train, :]
+            # self.q_mat_test = thetas[N_train:N, :]
+            self.create_lasco_logisticgd_model(cfg, static_dict)
         elif algo == 'lm_gd':
             self.create_lm_gd_model(cfg, static_dict)
         elif algo == 'lasco_osqp':
@@ -248,6 +253,28 @@ class Workspace:
                           P=P
                           )
         self.l2ws_model = LASCOGDmodel(train_unrolls=self.train_unrolls,
+                                       eval_unrolls=self.eval_unrolls,
+                                       train_inputs=self.train_inputs,
+                                       test_inputs=self.test_inputs,
+                                       regression=cfg.supervised,
+                                       nn_cfg=cfg.nn_cfg,
+                                       z_stars_train=self.z_stars_train,
+                                       z_stars_test=self.z_stars_test,
+                                       loss_method=cfg.loss_method,
+                                       algo_dict=input_dict)
+        
+    def create_lasco_logisticgd_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        num_points = static_dict['num_points']
+        gd_step = static_dict['gd_step']
+
+        input_dict = dict(algorithm='lasco_logisticgd',
+                          q_mat_train=self.q_mat_train,
+                          q_mat_test=self.q_mat_test,
+                          gd_step=gd_step,
+                          num_points=num_points
+                          )
+        self.l2ws_model = LASCOLOGISTICGDmodel(train_unrolls=self.train_unrolls,
                                        eval_unrolls=self.eval_unrolls,
                                        train_inputs=self.train_inputs,
                                        test_inputs=self.test_inputs,
@@ -597,10 +624,17 @@ class Workspace:
             
         else:
             thetas = jnp.array(jnp_load_obj['thetas'])
-            self.train_indices = np.random.choice(
-                thetas.shape[0], N_train, replace=False)
-            self.test_indices = np.random.choice(
-                thetas.shape[0], N_train, replace=False)
+            rand_indices = np.random.choice(thetas.shape[0], N, replace=False)
+            self.train_indices = rand_indices[:N_train]
+            self.test_indices = rand_indices[N_train:]
+
+            # self.train_indices = np.random.choice(
+            #     thetas.shape[0], N_train, replace=False)
+            # self.test_indices = np.random.choice(
+            #     thetas.shape[0], N_train, replace=False)
+            self.q_mat_train = thetas[self.train_indices, :]
+            self.q_mat_test = thetas[self.test_indices, :]
+
 
         # load the closed_loop_rollout trajectories
         if 'ref_traj_tensor' in jnp_load_obj.keys():
@@ -730,8 +764,7 @@ class Workspace:
             z_plot = z_all[:, :, :-1] / z_all[:, :, -1:]
 
             u_all = out_train[6]
-            # import pdb
-            # pdb.set_trace()
+
             u_plot = u_all[:, :, :self.l2ws_model.n] / u_all[:, :, -1:]
             # z_plot = u_plot
         else:
@@ -1043,6 +1076,7 @@ class Workspace:
                                            self.thetas_test,
                                             self.l2ws_model.z_stars_train,
                                             train, num, m=m, n=n)
+
         elif col == 'prev_sol':
             # now set the indices (0, num_traj, 2 * num_traj) to zero
             non_last_indices = jnp.mod(jnp.arange(
@@ -1069,8 +1103,6 @@ class Workspace:
                     inputs = self.l2ws_model.test_inputs[:num, :]
         if self.l2ws_model.algo == 'lasco_scs':
             inputs = jnp.hstack([inputs, jnp.ones((inputs.shape[0], 1))])
-        # import pdb
-        # pdb.set_trace()
         return inputs
 
 

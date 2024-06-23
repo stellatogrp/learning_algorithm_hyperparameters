@@ -76,6 +76,7 @@ def get_nearest_neighbors(is_osqp, train_inputs, test_inputs, z_stars_train, tra
     else:
         plt.savefig("indices_train_plot.pdf", bbox_inches='tight')
     plt.clf()
+
     if is_osqp:
         return z_stars_train[indices, :m + n]
     return z_stars_train[indices, :]

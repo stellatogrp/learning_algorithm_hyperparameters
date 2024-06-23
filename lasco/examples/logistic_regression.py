@@ -11,7 +11,7 @@ import time
 import matplotlib.pyplot as plt
 
 
-def run(run_cfg, lasco=True):
+def run(run_cfg, model='lasco'):
     example = "logistic_regression"
     data_yaml_filename = 'data_setup_copied.yaml'
 
@@ -25,23 +25,25 @@ def run(run_cfg, lasco=True):
 
     # set the seed
     np.random.seed(setup_cfg['seed'])
-    n_orig = setup_cfg['n_orig']
-    m_orig = setup_cfg['m_orig']
+    # n_orig = setup_cfg['n_orig']
+    # m_orig = setup_cfg['m_orig']
 
-    lambd = setup_cfg['lambd']
-    A = np.random.normal(size=(m_orig, n_orig))
-    P = A.T @ A + lambd * np.identity(n_orig)
+    num_points = setup_cfg['num_points']
+    # A = np.random.normal(size=(m_orig, n_orig))
+    # P = A.T @ A + lambd * np.identity(n_orig)
 
-    gd_step = 1 / P.max()
+    gd_step = 0.01
 
-    static_dict = dict(P=P, gd_step=gd_step)
+    static_dict = dict(gd_step=gd_step, num_points=num_points)
 
     # we directly save q now
     static_flag = True
-    if lasco:
-        algo = 'lasco_gd'
+    if model == 'lasco':
+        algo = 'lasco_logisticgd'
+    elif model == 'l2ws':
+        algo = 'l2ws_logisticgd'
     else:
-        algo = 'lm_gd'
+        algo = 'lm_logisticgd'
     workspace = Workspace(algo, run_cfg, static_flag, static_dict, example)
 
     # run the workspace
@@ -85,6 +87,8 @@ def setup_probs(setup_cfg):
     N = N_train + N_test
     np.random.seed(setup_cfg['seed'])
 
+    num_points = cfg.num_points
+
     # get the mnist data
     # Load the MNIST dataset
     # (X_train_full, y_train_full), (X_test_full, y_test_full) = tf.keras.datasets.mnist.load_data()
@@ -107,7 +111,7 @@ def setup_probs(setup_cfg):
     # pdb.set_trace()
 
     # Example of training logistic regression on the generated binary problems
-    train_size = 100
+    train_size = num_points
     z_stars = np.zeros((N, 784 + 1))
     theta_mat = np.zeros((N, train_size * (784 + 1)))
     for i, (X_binary, y_binary) in enumerate(binary_problems):
@@ -253,7 +257,6 @@ def train_logistic_regression(X, y, learning_rate=0.02, beta1=0.9, beta2=0.999, 
     m_w, v_w = np.zeros(n), np.zeros(n)
     m_b, v_b = 0, 0
     t = 0
-
 
     for epoch in range(epochs):
         t += 1
