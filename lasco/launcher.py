@@ -930,6 +930,56 @@ class Workspace:
                     plot_train_test_losses(self.l2ws_model.tr_losses_batch,
                                         self.l2ws_model.te_losses,
                                         self.l2ws_model.num_batches, self.epochs_jit)
+        self.get_confidence_bands()            
+        
+
+    def get_confidence_bands(self):
+        # do the final evaluation
+        out_train = self.evaluate_iters(self.num_samples_test, 'final', train=False)
+
+        # get the fraction of problems solved
+        # take care of frac_solved
+        frac_solved_list = []
+
+        cache = {}
+        for i in range(len(self.frac_solved_accs)):
+            # compute frac solved
+            fs = (out_train[1] < self.frac_solved_accs[i])
+            frac_solved = fs.mean(axis=0)
+            frac_solved_list.append(frac_solved)
+
+            penalty = jnp.log(2 / self.l2ws_model.delta) / \
+                self.l2ws_model.N_train
+            
+            # iterate over the number of algorithm steps
+            final_pac_bayes_loss = jnp.zeros(frac_solved.size)
+            for j in range(frac_solved.size):
+                kl_inv = cache[float(frac_solved[j])]
+                final_pac_bayes_loss = final_pac_bayes_loss.at[j].set(
+                    1 - kl_inv)
+
+            # final_pac_bayes_frac_solved = jnp.clip(final_pac_bayes_loss, a_min=0)
+
+            # update the df
+            # frac_solved_df_list[i][col] = frac_solved
+            # frac_solved_df_list[i][col + '_pinsker'] = jnp.clip(
+            #     frac_solved - jnp.sqrt(penalty / 2), a_min=0)
+            # frac_solved_df_list[i][col +
+            #                        '_pac_bayes'] = final_pac_bayes_frac_solved
+            # ylabel = f"frac solved tol={self.frac_solved_accs[i]}"
+            filename = f"frac_solved/tol={self.frac_solved_accs[i]}"
+            curr_df = self.frac_solved_df_list[i]
+            curr_df['empirical'] = frac_solved
+            curr_df['upper_risk_bound'] = upper_risk_bound
+            curr_df['lower_risk_bound'] = lower_risk_bound
+
+            # plot and update csv
+            # self.plot_eval_iters_df(curr_df, train, col, ylabel, filename, yscale='standard',
+            #                         pac_bayes=True)
+            # csv_filename = filename + '_train.csv' if train else filename + '_test.csv'
+            csv_filename = filename + '_test.csv'
+            curr_df.to_csv(csv_filename)
+
 
     def train_jitted_epochs(self, permutation, epoch, window_indices, steady_state):
         """

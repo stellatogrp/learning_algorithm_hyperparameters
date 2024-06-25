@@ -28,6 +28,13 @@ class LASCOOSQPmodel(L2WSmodel):
         # custom_loss
         custom_loss = input_dict.get('custom_loss')
 
+        self.num_const_steps = 2
+        
+        self.idx_mapping = jnp.arange(self.eval_unrolls) // self.num_const_steps
+
+        # import pdb
+        # pdb.set_trace()
+
         """
         break into the 2 cases
         1. factors are the same for each problem (i.e. matrices A and P don't change)
@@ -41,7 +48,7 @@ class LASCOOSQPmodel(L2WSmodel):
             # self.M = self.P + sigma * jnp.eye(n) + A.T @ jnp.diag(rho_vec) @ A
             self.factor_static = input_dict['factor']
             self.k_steps_train_fn = partial(
-                k_steps_train_lasco_osqp, A=self.A, jit=self.jit)
+                k_steps_train_lasco_osqp, A=self.A, idx_mapping=self.idx_mapping, jit=self.jit)
             self.k_steps_eval_fn = partial(k_steps_eval_lasco_osqp, P=self.P,
                                            A=self.A, jit=self.jit, 
                                            custom_loss=custom_loss)

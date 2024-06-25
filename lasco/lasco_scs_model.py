@@ -109,24 +109,12 @@ class LASCOSCSmodel(L2WSmodel):
         loss_method = self.loss_method
 
         def predict(params, input, q, iters, z_star, key, factor):
-            # q = lin_sys_solve(factor, q)
-            # z0 = jnp.zeros(z_star.size + 1) #self.predict_warm_start(params, input, key, bypass_nn)
-            # z0 = z0.at[-1].set(1)
-            # n_iters = self.train_unrolls
             if diff_required:
                 n_iters = key #self.train_unrolls if key else 1
             else:
                 n_iters = min(iters, 51)
             
             z0 = input
-            # z0 = jnp.zeros(z_star.size + 1)
-            # z0 = z0.at[-1].set(1)
-            # z0 = z0.at[:-1].set(input)
-            # else:
-            #     z0 = jnp.zeros(z_star.size + 1)
-            #     z0 = z0.at[-1].set(1)
-            # print('z0', z0[:3])
-            # print('params within loss fn', params)
 
             if self.train_fn is not None:
                 train_fn = self.train_fn
@@ -143,7 +131,6 @@ class LASCOSCSmodel(L2WSmodel):
             scaled_vecs = jnp.zeros((n_iters, self.m + self.n))
 
             rho_xs, rho_ys, rho_ys_zero = params[0][:, 0], params[0][:, 1], params[0][:, 4]
-            # for i in range(self.train_unrolls):
 
             for i in range(n_iters):
                 rho_x, rho_y = jnp.exp(rho_xs[i]), jnp.exp(rho_ys[i])
@@ -181,8 +168,6 @@ class LASCOSCSmodel(L2WSmodel):
                                     supervised=supervised,
                                     z_star=z_star)
                 z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
-                
-
                 angles = None
 
             loss = self.final_loss(loss_method, z_final, iter_losses, supervised, z0, z_star)

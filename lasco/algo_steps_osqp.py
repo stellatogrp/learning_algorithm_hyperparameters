@@ -314,7 +314,7 @@ def k_steps_eval_lasco_osqp(k, z0, q, params, P, A, supervised, z_star, jit, cus
     return z_final, iter_losses, z_all_plus_1, primal_resids, dual_resids
 
 
-def k_steps_train_lasco_osqp(k, z0, q, params, A, supervised, z_star, jit):
+def k_steps_train_lasco_osqp(k, z0, q, params, A, idx_mapping, supervised, z_star, jit):
     iter_losses = jnp.zeros(k)
     m, n = A.shape
 
@@ -332,6 +332,7 @@ def k_steps_train_lasco_osqp(k, z0, q, params, A, supervised, z_star, jit):
                                z_star=z_star,
                                all_factors=all_factors,
                                A=A,
+                               idx_mapping=idx_mapping,
                                q=q,
                                rhos=rhos,
                                sigmas=sigmas,
@@ -347,11 +348,12 @@ def k_steps_train_lasco_osqp(k, z0, q, params, A, supervised, z_star, jit):
     return z_final, iter_losses
 
 
-def fp_train_lasco_osqp(i, val, supervised, z_star, all_factors, A, q, rhos, sigmas, alphas):
+def fp_train_lasco_osqp(i, val, supervised, z_star, all_factors, A, idx_mapping, q, rhos, sigmas, alphas):
     z, loss_vec = val
 
     factors1, factors2 = all_factors
-    z_next = fixed_point_osqp(z, factors1[i, :, :], factors2[i, :], A, q, rhos[i], sigmas[i])
+    idx = idx_mapping[i]
+    z_next = fixed_point_osqp(z, factors1[idx, :, :], factors2[idx, :], A, q, rhos[idx], sigmas[idx])
     if supervised:
         diff = jnp.linalg.norm(z - z_star)
     else:
