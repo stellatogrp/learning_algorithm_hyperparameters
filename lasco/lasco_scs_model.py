@@ -49,6 +49,9 @@ class LASCOSCSmodel(L2WSmodel):
         self.output_size = self.n + self.m
         self.out_axes_length = 9
 
+        self.num_const_steps = input_dict.get('num_const_steps')
+        self.idx_mapping = jnp.arange(self.eval_unrolls) // self.num_const_steps
+
         # custom_loss
         custom_loss = input_dict.get('custom_loss')
 
@@ -56,17 +59,17 @@ class LASCOSCSmodel(L2WSmodel):
                                         jit=self.jit,
                                         P=self.P,
                                         A=self.A,
-                                        # m=self.m,
-                                        # n=self.n,
-                                        # zero_cone_size=self.zero_cone_size,
+                                        idx_mapping=self.idx_mapping,
                                         hsde=True)
         self.k_steps_train_fn2 = partial(k_steps_train_lasco_scs, proj=self.proj,
                                         jit=self.jit,
                                         P=self.P,
                                         A=self.A,
+                                        idx_mapping=self.idx_mapping,
                                         hsde=False)
         self.k_steps_eval_fn = partial(k_steps_eval_lasco_scs, proj=self.proj,
                                        P=self.P, A=self.A,
+                                       idx_mapping=self.idx_mapping,
                                        zero_cone_size=self.zero_cone_size,
                                        jit=self.jit,
                                        hsde=True,

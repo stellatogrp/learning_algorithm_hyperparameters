@@ -60,7 +60,7 @@ def fixed_point_conj_grad(z, r, p, P):
     return z_next, r_next, p_next
 
 
-def k_steps_train_lasco_scs(k, z0, q, params, P, A, supervised, z_star, proj, jit, hsde):
+def k_steps_train_lasco_scs(k, z0, q, params, P, A, idx_mapping, supervised, z_star, proj, jit, hsde):
     iter_losses = jnp.zeros(k)
     # scale_vec = get_scale_vec(rho_x, scale, m, n, zero_cone_size, hsde=hsde)
 
@@ -70,8 +70,10 @@ def k_steps_train_lasco_scs(k, z0, q, params, P, A, supervised, z_star, proj, ji
     factors1, factors2 = all_factors
 
     fp_train_partial = partial(fp_train_lasco_scs, q_r=q, all_factors=all_factors,
-                               supervised=supervised, P=P, A=A, z_star=z_star, proj=proj, hsde=hsde,
-                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, tau_factors=tau_factors)
+                               supervised=supervised, P=P, A=A, idx_mapping=idx_mapping,
+                               z_star=z_star, proj=proj, hsde=hsde,
+                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, 
+                               tau_factors=tau_factors)
     if hsde:
         # first step: iteration 0
         # we set homogeneous = False for the first iteration
@@ -93,7 +95,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, P, A, supervised, z_star, proj, ji
     return z_final, iter_losses
 
 
-def fp_train_lasco_scs(i, val, q_r, all_factors, P, A, supervised, z_star, proj, hsde, homogeneous, 
+def fp_train_lasco_scs(i, val, q_r, all_factors, P, A, idx_mapping, supervised, z_star, proj, hsde, homogeneous, 
                        scaled_vecs, alphas, tau_factors):
     """
     q_r = r if hsde else q_r = q
@@ -102,8 +104,9 @@ def fp_train_lasco_scs(i, val, q_r, all_factors, P, A, supervised, z_star, proj,
     z, loss_vec = val
     r = q_r
     factors1, factors2 = all_factors
-    z_next, u, u_tilde, v = fixed_point_hsde(z, homogeneous, r, factors1[i, :, :], 
-                                             factors2[i, :], proj, scaled_vecs[i, :], alphas[i], tau_factors[i])
+    idx = idx_mapping[i]
+    z_next, u, u_tilde, v = fixed_point_hsde(z, homogeneous, r, factors1[idx, :, :], 
+                                             factors2[idx, :], proj, scaled_vecs[idx, :], alphas[idx], tau_factors[idx])
     
     # add acceleration
     # z_next = (1 - betas[i, 0]) * z_next + betas[i, 0] * z
@@ -121,7 +124,7 @@ def fp_train_lasco_scs(i, val, q_r, all_factors, P, A, supervised, z_star, proj,
     return z_next, loss_vec
 
 
-def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit, hsde, zero_cone_size,
+def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, idx_mapping, supervised, z_star, jit, hsde, zero_cone_size,
                       custom_loss=None, lightweight=False):
     """
     if k = 500 we store u_1, ..., u_500 and z_0, z_1, ..., z_500
@@ -164,7 +167,8 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
         z0 = z_next
 
     fp_eval_partial = partial(fp_eval_lasco_scs, q_r=q, z_star=z_star, all_factors=all_factors,
-                              proj=proj, P=P, A=A, c=None, b=None, hsde=hsde,
+                              proj=proj, P=P, A=A, idx_mapping=idx_mapping,
+                              c=None, b=None, hsde=hsde,
                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, tau_factors=tau_factors,
                               custom_loss=custom_loss,
                               verbose=verbose)
@@ -179,7 +183,7 @@ def k_steps_eval_lasco_scs(k, z0, q, params, proj, P, A, supervised, z_star, jit
     return z_final, iter_losses, all_z_plus_1, primal_residuals, dual_residuals, all_u, all_v, dist_opts
 
 
-def fp_eval_lasco_scs(i, val, q_r, z_star, all_factors, proj, P, A, c, b, hsde, homogeneous, 
+def fp_eval_lasco_scs(i, val, q_r, z_star, all_factors, proj, P, A, idx_mapping, c, b, hsde, homogeneous, 
                       scaled_vecs, alphas, tau_factors,
             lightweight=False, custom_loss=None, verbose=False):
     """
@@ -191,8 +195,9 @@ def fp_eval_lasco_scs(i, val, q_r, z_star, all_factors, proj, P, A, c, b, hsde, 
 
     r = q_r
     factors1, factors2 = all_factors
+    idx = idx_mapping[i]
     z_next, u, u_tilde, v = fixed_point_hsde(
-        z, homogeneous, r, factors1[i, :, :], factors2[i, :], proj, scaled_vecs[i, :], alphas[i], tau_factors[i],
+        z, homogeneous, r, factors1[idx, :, :], factors2[idx, :], proj, scaled_vecs[idx, :], alphas[idx], tau_factors[idx],
         verbose=verbose)
     
     dist_opt = jnp.linalg.norm(z[:-1] / z[-1] - z_star)

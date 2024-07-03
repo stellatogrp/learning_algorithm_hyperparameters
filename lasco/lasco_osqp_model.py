@@ -28,12 +28,9 @@ class LASCOOSQPmodel(L2WSmodel):
         # custom_loss
         custom_loss = input_dict.get('custom_loss')
 
-        self.num_const_steps = 2
-        
+        self.num_const_steps = input_dict.get('num_const_steps')
         self.idx_mapping = jnp.arange(self.eval_unrolls) // self.num_const_steps
 
-        # import pdb
-        # pdb.set_trace()
 
         """
         break into the 2 cases
@@ -50,7 +47,9 @@ class LASCOOSQPmodel(L2WSmodel):
             self.k_steps_train_fn = partial(
                 k_steps_train_lasco_osqp, A=self.A, idx_mapping=self.idx_mapping, jit=self.jit)
             self.k_steps_eval_fn = partial(k_steps_eval_lasco_osqp, P=self.P,
-                                           A=self.A, jit=self.jit, 
+                                           A=self.A, 
+                                           idx_mapping=self.idx_mapping,
+                                           jit=self.jit, 
                                            custom_loss=custom_loss)
         else:
             self.k_steps_train_fn = self.create_k_steps_train_fn_dynamic()

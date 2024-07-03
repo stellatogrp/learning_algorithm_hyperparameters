@@ -368,6 +368,7 @@ class Workspace:
                           q_mat_test=self.q_mat_test,
                           A=A,
                           P=P,
+                          num_const_steps=cfg.num_const_steps,
                           m=m,
                           n=n,
                           factor=factor,
@@ -403,6 +404,7 @@ class Workspace:
                      'm': self.m,
                      'n': self.n,
                      'static_M': static_M,
+                     'num_const_steps': cfg.num_const_steps,
                      'static_flag': self.static_flag,
                      'cones': self.cones,
                      'lightweight': cfg.get('lightweight', False),
@@ -778,6 +780,7 @@ class Workspace:
                 transformed_params = self.l2ws_model.params[0]
             else:
                 transformed_params = self.l2ws_model.transform_params(self.l2ws_model.params, n_iters)
+
             plot_lasco_weights(transformed_params, col)
 
         # custom visualize
