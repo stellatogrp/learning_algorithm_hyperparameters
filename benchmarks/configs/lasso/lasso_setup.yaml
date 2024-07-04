@@ -2,10 +2,10 @@ m_orig: 1000 #64
 n_orig: 2000 #128
 solve_acc_abs: 1e-10
 solve_acc_rel: 0
-N_train: 10
-N_test: 10
+N_train: 100
+N_test: 1000
 seed: 42
 solve: True
-SNR: 40
+SNR: 20 #40
 A_scale: 1
 lambd: .1

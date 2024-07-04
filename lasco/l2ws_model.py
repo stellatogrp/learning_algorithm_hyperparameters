@@ -51,7 +51,7 @@ class L2WSmodel(object):
         self.sigma = 0.01
         self.b = pac_bayes_cfg.get('b', 100)
         self.c = pac_bayes_cfg.get('c', 2.0)
-        self.delta = pac_bayes_cfg.get('delta', 0.0001)
+        self.delta = pac_bayes_cfg.get('delta', 0.00001)
         self.delta2 = pac_bayes_cfg.get('delta', 0.00001)
         # self.target_pen = pac_bayes_cfg['target_pen']
         self.init_var = pac_bayes_cfg.get('init_var', 1e-1) # initializes all of s and the prior

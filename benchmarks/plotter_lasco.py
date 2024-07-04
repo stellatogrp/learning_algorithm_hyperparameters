@@ -447,11 +447,18 @@ def populate_gains_dict(results_dict, constrained=True):
 def populate_results_dict(example, cfg, constrained=True):
     results_dict = {}
     for method in cfg.methods:
-        curr_method_dict = populate_curr_method_dict(method, example, cfg, constrained)
-        results_dict[method] = curr_method_dict
+        if method[:2] != 'LB' and method[:2] != 'UB':
+            curr_method_dict = populate_curr_method_dict(method, example, cfg, constrained)
+            results_dict[method] = curr_method_dict
         # curr_method_dict is a dict of 
         #   {'pr': pr_residuals, 'dr': dr_residuals, 'dist_opt': dist_opts, 'pr_dr_max': pr_dr_maxes}
         # important: nothing to do with reductions or gains here
+
+        # handle the upper and lower bounds for lasco
+        else:
+            curr_method_dict = populate_curr_method_bound_dict(method, example, cfg, constrained)
+            results_dict[method] = curr_method_dict
+
     return results_dict
 
 
@@ -487,6 +494,111 @@ def populate_curr_method_gain_dict(cold_start_dict, method_dict, constrained):
         curr_method_gain_dict = {'obj_diff': cold_start_dict['obj_diff'] / method_dict['obj_diff']}
 
     return curr_method_gain_dict
+
+
+def load_frac_solved(example, datetime, acc, upper, title=None):
+    orig_cwd = hydra.utils.get_original_cwd()
+    path = f"{orig_cwd}/outputs/{example}/train_outputs/{datetime}/frac_solved"
+
+    fp_file = f"tol={acc}_test.csv"
+    df = read_csv(f"{path}/{fp_file}")
+    if title is None:
+        if upper:
+            results = df['upper_risk_bound']
+        else:
+            results = df['lower_risk_bound']
+    else:
+        results = df[title]
+    return results
+
+
+def get_accs():
+    # accuracies = cfg.accuracies
+    start = -10  # Start of the log range (log10(10^-5))
+    end = 5  # End of the log range (log10(1))
+    accuracies = list(np.round(np.logspace(start, end, num=151), 10))
+    return accuracies
+
+
+def get_frac_solved_data_classical(example, dt, upper):
+    # setup
+    # cold_start_datetimes = cfg.cold_start_datetimes
+    
+    guarantee_results = []
+
+    accuracies = get_accs()
+    for acc in accuracies:
+        curr_guarantee_results = load_frac_solved(example, dt, acc, upper)
+        guarantee_results.append(curr_guarantee_results)
+
+    return np.stack(guarantee_results)
+
+
+def populate_curr_method_bound_dict(method, example, cfg, constrained):
+    # get the datetime
+    dt = cfg['methods'][method]
+
+    # distinguish between upper and lower bounds
+    upper = method[:2] == 'UB'
+
+    # get the column
+    col = method2col(method)
+
+    if constrained:
+        primal_residuals = recover_data(example, dt, 'primal_residuals_test.csv', col)
+        dual_residuals = recover_data(example, dt, 'dual_residuals_test.csv', col)
+        pr_dr_maxes = recover_data(example, dt, 'pr_dr_max_test.csv', col)
+        dist_opts = recover_data(example, dt, 'dist_opts_df_test.csv', col)
+
+        # populate with pr, dr, pr_dr_max, dist_opt
+        curr_method_dict = {'pr': primal_residuals, 
+                            'dr': dual_residuals, 
+                            'pr_dr_max': pr_dr_maxes,
+                            'dist_opts': dist_opts}
+    else:
+        # get the results for all of the tolerances
+        # guarantee_results is a list of vectors - each vector is a diff tolerance and gives risk bound over K
+        guarantee_results = get_frac_solved_data_classical(example, dt, upper)
+        import pdb
+        pdb.set_trace()
+
+        # aggregate into a quantile bound
+        quantile = float(method[2:])
+        upper = method[:2] == 'UB'
+        accuracies = get_accs()
+        obj_diffs = aggregate_to_quantile_bound(guarantee_results, quantile, accuracies, upper)
+
+        # obj_diffs = recover_data(example, dt, 'obj_vals_diff_test.csv', col)
+        curr_method_dict = {'obj_diff': obj_diffs}
+
+        # sift through to get the bounds
+        
+    return curr_method_dict
+
+
+def aggregate_to_quantile_bound(e_stars, quantile, accuracies, upper):
+    eval_iters = e_stars.shape[1]
+    # e_stars = get_e_stars(guarantee_results, accuracies, eval_iters)
+    
+    quantile_curve = np.zeros(eval_iters)
+    for k in range(eval_iters):
+        where = np.where(e_stars[:, k] < quantile / 100)[0]
+        if where.size == 0:
+            quantile_curve[k] = max(accuracies)
+        else:
+            quantile_curve[k] = accuracies[np.min(where)]
+    return quantile_curve
+
+
+# def get_e_stars(guarantee_results, accuracies, eval_iters):
+#     num_N = len(guarantee_results[0])
+#     e_stars = np.zeros((num_N, len(accuracies), eval_iters))
+#     for i in range(len(accuracies)):
+#         curr_pac_bayes_results = guarantee_results[i]
+#         # for j in range(len(curr_pac_bayes_results)):
+#         #     curr = curr_pac_bayes_results[j][:eval_iters]
+#         #     e_stars[j, i, :curr.size] = curr
+#     return e_stars
 
 
 def populate_curr_method_dict(method, example, cfg, constrained):

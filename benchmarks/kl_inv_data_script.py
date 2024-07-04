@@ -4,23 +4,27 @@
 import numpy as np
 import cvxpy as cp
 import pandas as pd
+from lasco.utils.nn_utils import (
+    invert_kl,
+)
 
 
-def solve_kl_inv(q, pen):
-    # solve the kl inverse problem
-    p_star = 0
-    return p_star
+# def solve_kl_inv(q, pen):
+#     # solve the kl inverse problem
+#     p_star = invert_kl
+#     return p_star
 
 N = 1000
 delta = 1e-5
 pen = np.log(2 / delta) / N
 
-kl_invs = np.zeros(N)
+kl_invs = np.zeros(N + 1)
 for i in range(N + 1):
     emp_risk = i / N
-    kl_inv = solve_kl_inv(emp_risk, pen)
+    kl_inv = invert_kl(emp_risk, pen)
+    # print('kl_inv', kl_inv)
     kl_invs[i] = kl_inv
 
 df = pd.DataFrame()
-df['kl_invs'] = kl_invs
-df.to_csv('kl_inv_csv')
+df['kl_inv'] = kl_invs
+df.to_csv(f"kl_inv_cache/kl_inv_delta_{delta}_Nval_{N}.csv")

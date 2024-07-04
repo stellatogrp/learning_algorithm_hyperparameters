@@ -26,6 +26,7 @@ from lasco.lasco_osqp_model import LASCOOSQPmodel
 from lasco.lasco_scs_model import LASCOSCSmodel
 from lasco.lm_scs_model import LMSCSmodel
 from lasco.launcher_helper import (
+    compute_kl_inv_vector,
     get_nearest_neighbors,
     normalize_inputs_fn,
     plot_samples,
@@ -76,12 +77,12 @@ class Workspace:
         self.skip_pac_bayes_full = pac_bayes_cfg.get('skip_full', True)
 
         pac_bayes_accs = pac_bayes_cfg.get(
-            'frac_solved_accs', [0.1, 0.01, 0.001, 0.0001])
+            'frac_solved_accs', 'fp_full')
 
         if pac_bayes_accs == 'fp_full':
-            start = -6  # Start of the log range (log10(10^-5))
-            end = 2  # End of the log range (log10(1))
-            pac_bayes_accs = list(np.round(np.logspace(start, end, num=81), 6))
+            start = -10  # Start of the log range (log10(10^-5))
+            end = 5  # End of the log range (log10(1))
+            pac_bayes_accs = list(np.round(np.logspace(start, end, num=151), 10))
         self.frac_solved_accs = pac_bayes_accs
         self.rep = pac_bayes_cfg.get('rep', True)
 
@@ -867,7 +868,7 @@ class Workspace:
         num_epochs_jit = int(self.l2ws_model.epochs / self.epochs_jit)
         loop_size = int(self.l2ws_model.num_batches * self.epochs_jit)
 
-        num_progressive_trains = int(self.l2ws_model.epochs / self.train_unrolls + 1)
+        num_progressive_trains = int(self.l2ws_model.step_varying_num / self.train_unrolls + 1)
 
         for window in range(num_progressive_trains):
             # update window_indices
@@ -940,26 +941,66 @@ class Workspace:
         # do the final evaluation
         out_train = self.evaluate_iters(self.num_samples_test, 'final', train=False)
 
+        if len(out_train) == 6 or len(out_train) == 8:
+            primal_residuals = out_train[4].mean(axis=0)
+            dual_residuals = out_train[5].mean(axis=0)
+        elif len(out_train) == 5:
+            metric = out_train[4] #.mean(axis=0)
+        elif len(out_train) == 9:
+            primal_residuals = out_train[4].mean(axis=0)
+            dual_residuals = out_train[5].mean(axis=0)
+            dist_opts = out_train[8].mean(axis=0)
+            if primal_residuals is not None:
+                metric = jnp.maximum(primal_residuals, dual_residuals)
+                # metric = pr_dr_maxes.mean(axis=0)
+        
+
         # get the fraction of problems solved
         # take care of frac_solved
-        frac_solved_list = []
+        # frac_solved_list = []
+        # cache = {}
 
-        cache = {}
         for i in range(len(self.frac_solved_accs)):
             # compute frac solved
-            fs = (out_train[1] < self.frac_solved_accs[i])
-            frac_solved = fs.mean(axis=0)
-            frac_solved_list.append(frac_solved)
+            fs = (metric < self.frac_solved_accs[i])
+            emp_success_rates = fs.mean(axis=0) # a vector over the iterations
+            emp_risks = 1 - emp_success_rates  # a vector over the iterations
 
-            penalty = jnp.log(2 / self.l2ws_model.delta) / \
-                self.l2ws_model.N_train
+            upper_risk_bounds = compute_kl_inv_vector(emp_risks, self.l2ws_model.delta, 
+                                                      self.l2ws_model.N_test)
+            lower_risk_bounds = 1 - compute_kl_inv_vector(emp_success_rates, self.l2ws_model.delta, 
+                                                          self.l2ws_model.N_test)
+
+            filename = f"frac_solved/tol={self.frac_solved_accs[i]}"
+            curr_df = self.frac_solved_df_list_test[i]
+            curr_df['empirical_risk'] = emp_risks
+            curr_df['upper_risk_bound'] = upper_risk_bounds
+            curr_df['lower_risk_bound'] = lower_risk_bounds
+
+            # plot and update csv
+            # self.plot_eval_iters_df(curr_df, train, col, ylabel, filename, yscale='standard',
+            #                         pac_bayes=True)
+            # csv_filename = filename + '_train.csv' if train else filename + '_test.csv'
+            csv_filename = filename + '_test.csv'
+            curr_df.to_csv(csv_filename)
+
+
+
+
+
+            # fs = (out_train[1] < self.frac_solved_accs[i])
+            # frac_solved = fs.mean(axis=0)
+            # frac_solved_list.append(frac_solved)
+
+            # penalty = jnp.log(2 / self.l2ws_model.delta) / \
+            #     self.l2ws_model.N_train
             
-            # iterate over the number of algorithm steps
-            final_pac_bayes_loss = jnp.zeros(frac_solved.size)
-            for j in range(frac_solved.size):
-                kl_inv = cache[float(frac_solved[j])]
-                final_pac_bayes_loss = final_pac_bayes_loss.at[j].set(
-                    1 - kl_inv)
+            # # iterate over the number of algorithm steps
+            # final_pac_bayes_loss = jnp.zeros(frac_solved.size)
+            # for j in range(frac_solved.size):
+            #     kl_inv = cache[float(frac_solved[j])]
+            #     final_pac_bayes_loss = final_pac_bayes_loss.at[j].set(
+            #         1 - kl_inv)
 
             # final_pac_bayes_frac_solved = jnp.clip(final_pac_bayes_loss, a_min=0)
 
@@ -970,18 +1011,18 @@ class Workspace:
             # frac_solved_df_list[i][col +
             #                        '_pac_bayes'] = final_pac_bayes_frac_solved
             # ylabel = f"frac solved tol={self.frac_solved_accs[i]}"
-            filename = f"frac_solved/tol={self.frac_solved_accs[i]}"
-            curr_df = self.frac_solved_df_list[i]
-            curr_df['empirical'] = frac_solved
-            curr_df['upper_risk_bound'] = upper_risk_bound
-            curr_df['lower_risk_bound'] = lower_risk_bound
+            # filename = f"frac_solved/tol={self.frac_solved_accs[i]}"
+            # curr_df = self.frac_solved_df_list[i]
+            # curr_df['empirical'] = frac_solved
+            # curr_df['upper_risk_bound'] = upper_risk_bound
+            # curr_df['lower_risk_bound'] = lower_risk_bound
 
-            # plot and update csv
-            # self.plot_eval_iters_df(curr_df, train, col, ylabel, filename, yscale='standard',
-            #                         pac_bayes=True)
-            # csv_filename = filename + '_train.csv' if train else filename + '_test.csv'
-            csv_filename = filename + '_test.csv'
-            curr_df.to_csv(csv_filename)
+            # # plot and update csv
+            # # self.plot_eval_iters_df(curr_df, train, col, ylabel, filename, yscale='standard',
+            # #                         pac_bayes=True)
+            # # csv_filename = filename + '_train.csv' if train else filename + '_test.csv'
+            # csv_filename = filename + '_test.csv'
+            # curr_df.to_csv(csv_filename)
 
 
     def train_jitted_epochs(self, permutation, epoch, window_indices, steady_state):
@@ -1112,6 +1153,7 @@ class Workspace:
         z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
 
         key = 64 if col == 'silver' else 1 + self.l2ws_model.step_varying_num
+
         eval_out = self.l2ws_model.evaluate(
             self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, key, factors=factors, tag=col)
         return eval_out
@@ -1143,12 +1185,12 @@ class Workspace:
                     if train:
                         inputs = self.l2ws_model.z_stars_train[:num, :m + n] * 0
                     else:
-                        inputs = self.l2ws_model.z_stars_train[:num, :m + n] * 0
+                        inputs = self.l2ws_model.z_stars_test[:num, :m + n] * 0
                 else:
                     if train:
                         inputs = self.l2ws_model.z_stars_train[:num, :] * 0
                     else:
-                        inputs = self.l2ws_model.z_stars_train[:num, :] * 0
+                        inputs = self.l2ws_model.z_stars_test[:num, :] * 0
             else:
                 if train:
                     inputs = self.l2ws_model.train_inputs[:num, :]
