@@ -68,7 +68,7 @@ def fp_eval_lasco_logisticgd(i, val, supervised, z_star, X, y, gd_steps):
     diff = jnp.linalg.norm(z - z_star)
     loss_vec = loss_vec.at[i].set(diff)
     w, b = z[:-1], z[-1]
-    obj = compute_loss(y, sigmoid(X @ w + b))
+    obj = compute_loss(y, sigmoid(X @ w + b)) #+ .01 * .5 * jnp.linalg.norm(w) ** 2 + .01  * .5 * b ** 2 
     w_star, b_star = z_star[:-1], z_star[-1]
     opt_obj = compute_loss(y, sigmoid(X @ w_star + b_star))
     # obj = .5 * jnp.linalg.norm(A @ z - c) ** 2 + lambd * jnp.linalg.norm(z, ord=1)
@@ -90,8 +90,8 @@ def fixed_point_logisticgd(z, X, y, gd_step):
     w, b = z[:-1], z[-1]
     y_hat = sigmoid(X @ w + b)
     dw, db = compute_gradient(X, y, y_hat)
-    w_next = w - gd_step * dw
-    b_next = b - gd_step * db
+    w_next = w - gd_step * dw #(dw + .01 * w)
+    b_next = b - gd_step * db #(db + .01 * b)
     z_next = jnp.hstack([w_next, b_next])
     return z_next
 

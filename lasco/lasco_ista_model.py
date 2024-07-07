@@ -75,6 +75,7 @@ class LASCOISTAmodel(L2WSmodel):
         transformed_params = jnp.zeros((n_iters, 1))
         transformed_params = transformed_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0]))
         transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+        # transformed_params = jnp.clip(transformed_params, a_max=1.0)
         return transformed_params
 
     # def perturb_params(self):
@@ -143,7 +144,7 @@ class LASCOISTAmodel(L2WSmodel):
                     # stochastic_params = stochastic_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
                     stochastic_params = self.transform_params(params, n_iters)
 
-
+            # stochastic_params = jnp.clip(stochastic_params, a_max=0.3)
             if self.train_fn is not None:
                 train_fn = self.train_fn
             else:

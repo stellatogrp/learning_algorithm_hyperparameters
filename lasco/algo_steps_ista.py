@@ -136,7 +136,7 @@ def fp_eval_lasco_ista(i, val, supervised, z_star, lambd, A, c, ista_steps):
 def fp_train_lasco_ista(i, val, supervised, z_star, lambd, A, c, ista_steps):
     z, loss_vec = val
     z_next = fixed_point_ista(z, A, c, lambd, ista_steps[i])
-    diff = jnp.linalg.norm(z_next - z_star)
+    diff = jnp.linalg.norm(z_next - z_star) 
     loss_vec = loss_vec.at[i].set(diff)
     return z_next, loss_vec
 

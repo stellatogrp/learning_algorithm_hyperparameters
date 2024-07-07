@@ -85,8 +85,8 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
         # n_iters = params[0].size
         transformed_params = jnp.zeros((n_iters, 1))
         transformed_params = jnp.clip(transformed_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0])), a_max=1000)
-        # transformed_params = jnp.clip(transformed_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0])), a_max=10)
-        transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+        # transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+        transformed_params = transformed_params.at[n_iters - 1, 0].set(jnp.exp(params[0][n_iters - 1, 0]))
         return transformed_params
 
     def perturb_params(self):
@@ -123,7 +123,7 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
     def init_params(self):
         # init step-varying params
         # step_varying_params = jnp.log(1 / (self.smooth_param)) * jnp.ones((self.step_varying_num, 1))
-        step_varying_params = jnp.log(0.1) * jnp.ones((self.step_varying_num, 1))
+        step_varying_params =  jnp.ones((self.step_varying_num, 1)) * jnp.log(1.0) # jnp.log(0.1) # 
 
         # init steady_state_params
         steady_state_params = 0 * jnp.ones((1, 1)) #sigmoid_inv(0) * jnp.ones((1, 1))

@@ -104,7 +104,7 @@ def setup_probs(setup_cfg):
 
     # # the parameter for each problem is the data
     # # Create N binary logistic regression problems each with 100 datapoints
-    samples_per_problem = 120
+    samples_per_problem = num_points + 20 #120
     binary_problems = create_binary_problems(x_train, y_train, N, samples_per_problem=samples_per_problem)
 
     # import pdb
@@ -226,7 +226,7 @@ def sigmoid(z):
 
 def compute_loss(y, y_hat):
     m = y.shape[0]
-    return -1/m * (np.dot(y, np.log(y_hat)) + np.dot((1 - y), np.log(1 - y_hat)))
+    return -1/m * (np.dot(y, np.log(1e-6 + y_hat)) + np.dot((1 - y), np.log(1 + 1e-6 - y_hat)))
 
 
 def compute_gradient(X, y, y_hat):
