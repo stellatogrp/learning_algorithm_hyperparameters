@@ -75,15 +75,24 @@ def fp_train_lm_ista(i, val, supervised, z_star, lambd, A, c, ista_step):
     return z_next, loss_vec
 
 
-def k_steps_eval_lasco_ista(k, z0, q, params, lambd, A, supervised, z_star, jit):
+def k_steps_eval_lasco_ista(k, z0, q, params, lambd, A, safeguard_step, supervised, z_star, jit):
     iter_losses = jnp.zeros(k)
     z_all_plus_1 = jnp.zeros((k + 1, z0.size))
     z_all_plus_1 = z_all_plus_1.at[0, :].set(z0)
-    fp_eval_partial = partial(fp_eval_lasco_ista,
+    # fp_eval_partial = partial(fp_eval_lasco_ista,
+    #                           supervised=supervised,
+    #                           z_star=z_star,
+    #                           lambd=lambd,
+    #                           A=A,
+    #                           c=q,
+    #                           ista_steps=params
+    #                           )
+    fp_eval_partial = partial(fp_eval_lasco_ista_safeguard,
                               supervised=supervised,
                               z_star=z_star,
                               lambd=lambd,
                               A=A,
+                              safeguard_step=safeguard_step,
                               c=q,
                               ista_steps=params
                               )
@@ -130,6 +139,29 @@ def fp_eval_lasco_ista(i, val, supervised, z_star, lambd, A, c, ista_steps):
     opt_obj = .5 * jnp.linalg.norm(A @ z_star - c) ** 2 + lambd * jnp.linalg.norm(z_star, ord=1)
     obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
     z_all = z_all.at[i, :].set(z_next)
+    return z_next, loss_vec, z_all, obj_diffs
+
+
+def fp_eval_lasco_ista_safeguard(i, val, supervised, z_star, lambd, A, safeguard_step, c, ista_steps):
+    z, loss_vec, z_all, obj_diffs = val
+    z_next = fixed_point_ista(z, A, c, lambd, ista_steps[i])
+    diff = jnp.linalg.norm(z - z_star)
+    
+    obj = .5 * jnp.linalg.norm(A @ z - c) ** 2 + lambd * jnp.linalg.norm(z, ord=1)
+    opt_obj = .5 * jnp.linalg.norm(A @ z_star - c) ** 2 + lambd * jnp.linalg.norm(z_star, ord=1)
+
+    next_obj = .5 * jnp.linalg.norm(A @ z_next - c) ** 2 + lambd * jnp.linalg.norm(z_next, ord=1)
+
+    # do safeguard
+    # if next_obj > obj:
+    #     z_next = fixed_point_ista(z, A, c, lambd, safeguard_step)
+    z_next = lax.cond(next_obj < obj, lambda _: z_next, lambda _: fixed_point_ista(z, A, c, lambd, safeguard_step), operand=None)
+
+    # update vectors carrying over
+    loss_vec = loss_vec.at[i].set(diff)
+    obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
+    z_all = z_all.at[i, :].set(z_next)
+
     return z_next, loss_vec, z_all, obj_diffs
 
 

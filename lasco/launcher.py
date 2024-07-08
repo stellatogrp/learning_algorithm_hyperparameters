@@ -32,6 +32,7 @@ from lasco.launcher_helper import (
     plot_samples,
     plot_samples_scs,
     setup_scs_opt_sols,
+    geometric_mean
 )
 from lasco.launcher_plotter import (
     plot_eval_iters,
@@ -713,14 +714,14 @@ class Workspace:
             primal_residuals = out_train[4].mean(axis=0)
             dual_residuals = out_train[5].mean(axis=0)
         elif len(out_train) == 5:
-            obj_vals_diff = out_train[4].mean(axis=0)
+            obj_vals_diff = geometric_mean(out_train[4]) #out_train[4].mean(axis=0)
         elif len(out_train) == 9:
             primal_residuals = out_train[4].mean(axis=0)
             dual_residuals = out_train[5].mean(axis=0)
             dist_opts = out_train[8].mean(axis=0)
             if primal_residuals is not None:
                 pr_dr_maxes = jnp.maximum(primal_residuals, dual_residuals)
-                pr_dr_max = pr_dr_maxes.mean(axis=0)
+                pr_dr_max = geometric_mean(pr_dr_maxes) #pr_dr_maxes.mean(axis=0)
 
         if train:
             self.percentiles_df_list_train = update_percentiles(self.percentiles_df_list_train,

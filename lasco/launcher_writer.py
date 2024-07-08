@@ -14,7 +14,8 @@ import pandas as pd
 
 
 def test_eval_write(test_writer, test_logf, l2ws_model):
-    test_loss, time_per_iter = l2ws_model.short_test_eval()
+    # test_loss, time_per_iter = l2ws_model.short_test_eval()
+    test_loss, time_per_iter = 0, 0
     last_epoch = np.array(
         l2ws_model.tr_losses_batch[-l2ws_model.num_batches:])
     moving_avg = last_epoch.mean()

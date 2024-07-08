@@ -35,7 +35,7 @@ epochs_jit: 2
 N_train: 10
 N_test: 1000
 num_samples_train: 10
-num_samples_test: 10
+num_samples_test: 1000
 supervised: True
 plot_iterates: [0, 10, 20]
 loss_method: 'fixed_k' # 'fixed_k' #'fixed_k' #'constant_sum'

@@ -9,12 +9,8 @@ from scipy.sparse import csc_matrix
 import jax
 
 from lasco.algo_steps_osqp import (
-    create_M,
-    get_scaled_vec_and_factor,
-    get_scaled_factor,
-    k_steps_eval_lm_scs,
-    k_steps_train_lm_scs,
-    lin_sys_solve,
+    k_steps_eval_lm_ista,
+    k_steps_train_lm_ista
 )
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import (

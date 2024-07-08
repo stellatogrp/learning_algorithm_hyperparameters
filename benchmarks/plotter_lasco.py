@@ -559,8 +559,6 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
         # get the results for all of the tolerances
         # guarantee_results is a list of vectors - each vector is a diff tolerance and gives risk bound over K
         guarantee_results = get_frac_solved_data_classical(example, dt, upper)
-        import pdb
-        pdb.set_trace()
 
         # aggregate into a quantile bound
         quantile = float(method[2:])

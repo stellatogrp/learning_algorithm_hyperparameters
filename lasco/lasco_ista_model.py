@@ -41,9 +41,11 @@ class LASCOISTAmodel(L2WSmodel):
 
         cond_num = self.smooth_param / self.str_cvx_param
 
+        safeguard_step = 1 / self.smooth_param
+
         self.k_steps_train_fn = partial(k_steps_train_lasco_ista, lambd=lambd, A=A,
                                         jit=self.jit)
-        self.k_steps_eval_fn = partial(k_steps_eval_lasco_ista, lambd=lambd, A=A,
+        self.k_steps_eval_fn = partial(k_steps_eval_lasco_ista, lambd=lambd, A=A, safeguard_step=safeguard_step,
                                        jit=self.jit)
         self.nesterov_eval_fn = partial(k_steps_eval_fista, lambd=lambd, A=A,
                                        jit=self.jit)

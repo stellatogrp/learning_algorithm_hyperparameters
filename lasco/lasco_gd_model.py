@@ -50,7 +50,9 @@ class LASCOGDmodel(L2WSmodel):
                                        jit=self.jit)
         self.out_axes_length = 5
 
-        self.lasco_train_inputs = self.q_mat_train
+        # self.lasco_train_inputs = self.q_mat_train
+        N = self.q_mat_train.shape[0]
+        self.lasco_train_inputs = jnp.zeros((N, self.n))
 
 
 

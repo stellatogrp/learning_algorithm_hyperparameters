@@ -32,6 +32,11 @@ from lasco.utils.generic_utils import count_files_in_directory, sample_plot, set
 from pandas import read_csv
 
 
+
+def geometric_mean(x):
+    return jnp.exp(jnp.mean(jnp.log(x + 1e-10), axis=0))
+
+
 def compute_kl_inv_vector(emp_risks, delta, N):
     file_path = f"kl_inv_cache/kl_inv_delta_{delta}_Nval_{N}.csv"
     orig_cwd = hydra.utils.get_original_cwd()
