@@ -66,7 +66,7 @@ def compute_kl_inv_vector(emp_risks, delta, N):
 
 
 # def setup_scs_opt_sols(jnp_load_obj, N_train, N):
-def setup_scs_opt_sols(jnp_load_obj, train_indices, test_indices):
+def setup_scs_opt_sols(jnp_load_obj, train_indices, test_indices, val_indices):
     if 'x_stars' in jnp_load_obj.keys():
         x_stars = jnp_load_obj['x_stars']
         y_stars = jnp_load_obj['y_stars']
@@ -74,14 +74,19 @@ def setup_scs_opt_sols(jnp_load_obj, train_indices, test_indices):
         z_stars = jnp.hstack([x_stars, y_stars + s_stars])
         x_stars_train = x_stars[train_indices, :]
         y_stars_train = y_stars[train_indices, :]
-
-        x_stars_train = x_stars[train_indices, :]
-        y_stars_train = y_stars[train_indices, :]
-
         z_stars_train = z_stars[train_indices, :]
+
+        # x_stars_train = x_stars[train_indices, :]
+        # y_stars_train = y_stars[train_indices, :]
+
+        
         x_stars_test = x_stars[test_indices, :]
         y_stars_test = y_stars[test_indices, :]
         z_stars_test = z_stars[test_indices, :]
+
+        x_stars_val = x_stars[val_indices, :]
+        y_stars_val = y_stars[val_indices, :]
+        z_stars_val = z_stars[val_indices, :]
         m, n = y_stars_train.shape[1], x_stars_train[0, :].size
     else:
         x_stars_train, x_stars_test = None, None
@@ -90,7 +95,8 @@ def setup_scs_opt_sols(jnp_load_obj, train_indices, test_indices):
         m, n = int(jnp_load_obj['m']), int(jnp_load_obj['n'])
     opt_train_sols = (x_stars_train, y_stars_train, z_stars_train)
     opt_test_sols = (x_stars_test, y_stars_test, z_stars_test)
-    return opt_train_sols, opt_test_sols, m, n
+    opt_val_sols = (x_stars_val, y_stars_val, z_stars_val)
+    return opt_train_sols, opt_test_sols, opt_val_sols, m, n
 
 
 def get_nearest_neighbors(is_osqp, train_inputs, test_inputs, z_stars_train, train, num, m=0, n=0):

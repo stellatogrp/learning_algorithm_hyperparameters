@@ -565,9 +565,12 @@ class Workspace:
             # val
             self.z_stars_val = z_stars[self.val_indices, :]
         else:
-            opt_train_sols, opt_test_sols, self.m, self.n = setup_scs_opt_sols(jnp_load_obj, self.train_indices, self.test_indices)
+            opt_train_sols, opt_test_sols, opt_val_sols, self.m, self.n = setup_scs_opt_sols(jnp_load_obj, self.train_indices, self.test_indices, self.val_indices)
             self.x_stars_train, self.y_stars_train, self.z_stars_train = opt_train_sols
             self.x_stars_test, self.y_stars_test, self.z_stars_test = opt_test_sols
+            self.x_stars_val, self.y_stars_val, self.z_stars_val = opt_val_sols
+
+            # self.z_stars_val = z_stars[self.val_indices, :]
 
             plot_samples_scs(num_plot, self.thetas_train, self.train_inputs,
                              self.x_stars_train, self.y_stars_train, self.z_stars_train)
@@ -831,6 +834,7 @@ class Workspace:
             # nearest neighbor
             if self.l2ws_model.lasco:
                 self.eval_iters_train_and_test('nearest_neighbor', None)
+                jax.clear_caches()
 
             if self.l2ws_model.algo == 'lasco_ista':
                 # nesterov
@@ -894,6 +898,8 @@ class Workspace:
             for epoch_batch in range(num_epochs_jit):
                 epoch = int(epoch_batch * self.epochs_jit) + window * num_epochs_jit * self.epochs_jit
                 print('epoch', epoch)
+
+                self.get_confidence_bands()
 
                 if (test_zero and epoch == 0) or (epoch % self.eval_every_x_epochs == 0 and epoch > 0):
                     if update_train_inputs_flag:

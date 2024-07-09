@@ -14,7 +14,7 @@ from plotter_lasco_constants import titles_2_colors, titles_2_marker_starts, tit
 plt.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",   # For talks, use sans-serif
-    "font.size": 26,
+    "font.size": 30,
     # "font.size": 16,
 })
 import os
@@ -71,6 +71,8 @@ def quadcopter_plot_eval_iters(cfg):
 
 
 def plot_step_sizes_lasso(example, cfg):
+    plt.figure(figsize=(9, 6))
+
     # get the step sizes (for silver and learned)
     step_sizes_dict = get_lasco_gd_step_size(example, cfg)
     lasco_step_sizes = step_sizes_dict['lasco'].to_numpy()[:, 1]
