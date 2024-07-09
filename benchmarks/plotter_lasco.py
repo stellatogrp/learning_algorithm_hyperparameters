@@ -653,7 +653,7 @@ def get_eval_array(df, title):
         data = df.iloc[:, -1]
     else:
         # case of the learned warm-start, take the latest column
-        data = df.iloc[:, -1]
+        data = df.iloc[:, -2]
     return data
 
 

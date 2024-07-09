@@ -34,7 +34,7 @@ from pandas import read_csv
 
 
 def geometric_mean(x):
-    return jnp.exp(jnp.mean(jnp.log(x + 1e-10), axis=0))
+    return jnp.exp(jnp.mean(jnp.log(jnp.clip(x, a_min=1e-10)), axis=0))
 
 
 def compute_kl_inv_vector(emp_risks, delta, N):

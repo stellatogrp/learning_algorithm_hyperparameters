@@ -121,7 +121,8 @@ class Workspace:
 
         # from the run cfg retrieve the following via the data cfg
         N_train, N_test = cfg.N_train, cfg.N_test
-        N = N_train + N_test
+        N_val = cfg.get('N_val', 0)
+        N = N_train + N_test + N_val
 
         # for control problems only
         self.closed_loop_rollout_dict = closed_loop_rollout_dict
@@ -134,11 +135,12 @@ class Workspace:
         self.train_unrolls = cfg.train_unrolls
 
         # load the data from problem to problem
-        jnp_load_obj = self.load_setup_data(example, cfg.data.datetime, N_train, N)
+        jnp_load_obj = self.load_setup_data(example, cfg.data.datetime, N_train, N_test, N_val)
         thetas = jnp.array(jnp_load_obj['thetas'])
 
         self.thetas_train = thetas[self.train_indices, :]
         self.thetas_test = thetas[self.test_indices, :]
+        self.thetas_val = thetas[self.val_indices, :]
 
         train_inputs, test_inputs, normalize_col_sums, normalize_std_dev = normalize_inputs_fn(
             self.normalize_inputs, thetas, N_train, N_test)
@@ -559,6 +561,9 @@ class Workspace:
                          self.train_inputs, z_stars_train)
             self.z_stars_test = z_stars_test
             self.z_stars_train = z_stars_train
+
+            # val
+            self.z_stars_val = z_stars[self.val_indices, :]
         else:
             opt_train_sols, opt_test_sols, self.m, self.n = setup_scs_opt_sols(jnp_load_obj, self.train_indices, self.test_indices)
             self.x_stars_train, self.y_stars_train, self.z_stars_train = opt_train_sols
@@ -605,7 +610,8 @@ class Workspace:
             self.normalize_std_dev
         return normalized_input
 
-    def load_setup_data(self, example, datetime, N_train, N):
+    def load_setup_data(self, example, datetime, N_train, N_test, N_val):
+        N = N_train + N_test + N_val
         orig_cwd = hydra.utils.get_original_cwd()
         folder = f"{orig_cwd}/outputs/{example}/data_setup_outputs/{datetime}"
         filename = f"{folder}/data_setup.npz"
@@ -623,8 +629,11 @@ class Workspace:
             self.train_indices = rand_indices[:N_train] #np.random.choice(q_mat.shape[0], N_train, replace=False)
             self.q_mat_train = q_mat[self.train_indices, :]
 
-            self.test_indices = rand_indices[N_train:] #np.random.choice(q_mat.shape[0], N - N_train, replace=False)
+            self.test_indices = rand_indices[N_train:N_train + N_test] #np.random.choice(q_mat.shape[0], N - N_train, replace=False)
             self.q_mat_test = q_mat[self.test_indices, :]
+
+            self.val_indices = rand_indices[N_train + N_test:]
+            self.q_mat_val = q_mat[self.val_indices, :]
             
         else:
             thetas = jnp.array(jnp_load_obj['thetas'])
@@ -695,8 +704,10 @@ class Workspace:
 
         # do the actual evaluation (most important step in thie method)
         eval_batch_size = self.eval_batch_size_train if train else self.eval_batch_size_test
+
+        val = col == 'final'
         eval_out = self.evaluate_only(
-            fixed_ws, num, train, col, eval_batch_size)
+            fixed_ws, num, train, col, eval_batch_size, val=val)
 
         # extract information from the evaluation
         loss_train, out_train, train_time = eval_out
@@ -1131,14 +1142,17 @@ class Workspace:
                                              self.l2ws_model.z_stars_train,
                                              0)
 
-    def evaluate_only(self, fixed_ws, num, train, col, batch_size):
+    def evaluate_only(self, fixed_ws, num, train, col, batch_size, val=False):
         tag = 'train' if train else 'test'
         factors = None
 
         if train:
             z_stars = self.l2ws_model.z_stars_train[:num, :]
         else:
-            z_stars = self.l2ws_model.z_stars_test[:num, :]
+            if val:
+                z_stars = self.z_stars_val
+            else:
+                z_stars = self.l2ws_model.z_stars_test[:num, :]
         if col == 'prev_sol':
             if train:
                 q_mat_full = self.l2ws_model.q_mat_train[:num, :]
@@ -1150,6 +1164,8 @@ class Workspace:
         else:
             q_mat = self.l2ws_model.q_mat_train[:num,
                                                 :] if train else self.l2ws_model.q_mat_test[:num, :]
+            if val:
+                q_mat = self.q_mat_val
 
         z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
 
