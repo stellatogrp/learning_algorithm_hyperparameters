@@ -32,7 +32,8 @@ from lasco.launcher_helper import (
     plot_samples,
     plot_samples_scs,
     setup_scs_opt_sols,
-    geometric_mean
+    geometric_mean,
+    stack_tuples
 )
 from lasco.launcher_plotter import (
     plot_eval_iters,
@@ -778,7 +779,7 @@ class Workspace:
         
 
         if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel) or isinstance(self.l2ws_model, LMSCSmodel):
-            out_train[6]
+            # out_train[6]
             z_plot = z_all[:, :, :-1] / z_all[:, :, -1:]
 
             u_all = out_train[6]
@@ -899,7 +900,6 @@ class Workspace:
                 epoch = int(epoch_batch * self.epochs_jit) + window * num_epochs_jit * self.epochs_jit
                 print('epoch', epoch)
 
-                self.get_confidence_bands()
 
                 if (test_zero and epoch == 0) or (epoch % self.eval_every_x_epochs == 0 and epoch > 0):
                     if update_train_inputs_flag:
@@ -965,8 +965,8 @@ class Workspace:
         elif len(out_train) == 5:
             metric = out_train[4] #.mean(axis=0)
         elif len(out_train) == 9:
-            primal_residuals = out_train[4].mean(axis=0)
-            dual_residuals = out_train[5].mean(axis=0)
+            primal_residuals = out_train[4] #.mean(axis=0)
+            dual_residuals = out_train[5] #.mean(axis=0)
             dist_opts = out_train[8].mean(axis=0)
             if primal_residuals is not None:
                 metric = jnp.maximum(primal_residuals, dual_residuals)
@@ -1175,11 +1175,53 @@ class Workspace:
 
         z0_inits = self.get_inputs_for_eval(fixed_ws, num, train, col)
 
+        # do the batching
+        num_batches = int(num / batch_size)
+        full_eval_out = []
         key = 64 if col == 'silver' else 1 + self.l2ws_model.step_varying_num
+        if num_batches <= 1:
+            
 
-        eval_out = self.l2ws_model.evaluate(
-            self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, key, factors=factors, tag=col)
-        return eval_out
+            eval_out = self.l2ws_model.evaluate(
+                self.eval_unrolls, z0_inits, q_mat, z_stars, fixed_ws, key, factors=factors, tag=col)
+            return eval_out
+        for i in range(num_batches):
+            print('evaluating batch num', i)
+            start = i * batch_size
+            end = (i + 1) * batch_size
+            curr_z0_inits = z0_inits[start: end]
+            curr_q_mat = q_mat[start: end]
+
+            if factors is not None:
+                curr_factors = (factors[0][start:end, :, :], factors[1][start:end, :])
+            else:
+                curr_factors = None
+            if z_stars is not None:
+                curr_z_stars = z_stars[start: end]
+            else:
+                curr_z_stars = None
+            eval_out = self.l2ws_model.evaluate(
+                self.eval_unrolls, curr_z0_inits, curr_q_mat, curr_z_stars, fixed_ws, key,
+                factors=curr_factors, tag=tag)
+            # full_eval_out.append(eval_out)
+            # eval_out_cpu = tuple(item.copy_to_host() for item in eval_out)
+            # full_eval_out.append(eval_out_cpu)
+            eval_out1_list = [eval_out[1][i] for i in range(len(eval_out[1]))]
+            eval_out1_list[2] = eval_out1_list[2][:10, :22, :]
+            if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel):
+                eval_out1_list[6] = eval_out1_list[6][:10, :22, :]
+            eval_out_cpu = (eval_out[0], tuple(eval_out1_list), eval_out[2])
+            full_eval_out.append(eval_out_cpu)
+            del eval_out
+            del eval_out_cpu
+            del eval_out1_list
+            gc.collect()
+        loss = np.array([curr_out[0] for curr_out in full_eval_out]).mean()
+        time_per_prob = np.array([curr_out[2] for curr_out in full_eval_out]).mean()
+        out = stack_tuples([curr_out[1] for curr_out in full_eval_out])
+
+        flattened_eval_out = (loss, out, time_per_prob)
+        return flattened_eval_out
 
 
     def get_inputs_for_eval(self, fixed_ws, num, train, col):

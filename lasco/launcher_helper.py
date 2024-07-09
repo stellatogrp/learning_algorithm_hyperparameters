@@ -141,6 +141,7 @@ def stack_tuples(tuples_list):
     tuple_length = len(tuples_list[0])
 
     for i in range(tuple_length):
+        print('i in stack_tuples', i)
         stacked_entry = []
         for j in range(num_tuples):
             stacked_entry.append(tuples_list[j][i])
