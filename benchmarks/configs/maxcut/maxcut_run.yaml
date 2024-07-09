@@ -14,11 +14,11 @@ write_csv_every_x_batches: 1
 epochs_jit: 10
 
 N_train: 10
-N_test: 1000
-N_val: 1000
+N_test: 10
+N_val: 10
 num_samples_train: 10
-num_samples_test: 1000
-eval_batch_size_test: 25
+num_samples_test: 10
+eval_batch_size_test: 2
 
 num_const_steps: 1
 
@@ -31,7 +31,7 @@ accuracies: [.1, .01, .001, .0001]
 
 skip_startup: True
 
-eval_unrolls: 500
+eval_unrolls: 50
 supervised: True
 train_unrolls: 10
 

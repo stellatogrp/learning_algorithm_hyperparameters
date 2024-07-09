@@ -1210,6 +1210,7 @@ class Workspace:
             eval_out1_list[2] = eval_out1_list[2][:10, :22, :]
             if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel):
                 eval_out1_list[6] = eval_out1_list[6][:10, :22, :]
+                eval_out1_list[6] = eval_out1_list[6][:10, :22, :]
             eval_out_cpu = (eval_out[0], tuple(eval_out1_list), eval_out[2])
             full_eval_out.append(eval_out_cpu)
             del eval_out
@@ -1221,6 +1222,7 @@ class Workspace:
         out = stack_tuples([curr_out[1] for curr_out in full_eval_out])
 
         flattened_eval_out = (loss, out, time_per_prob)
+
         return flattened_eval_out
 
 
