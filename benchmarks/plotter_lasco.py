@@ -247,7 +247,7 @@ def create_lasco_results_unconstrained(example, cfg):
     # takes a different form accuracies_dict['lasco'][0.01] = num_iters (it is a single integer)
 
     # calculate the gains (divide by cold start)
-    gains_dict = populate_gains_dict(results_dict, constrained=False)
+    gains_dict = populate_gains_dict(results_dict, cfg.num_iters, constrained=False)
 
     # calculate the reduction in iterations for accs
     acc_reductions_dict = populate_acc_reductions_dict(accs_dict)
@@ -271,7 +271,7 @@ def create_lasco_results_constrained(example, cfg):
     # takes a different form accuracies_dict['lasco'][0.01] = num_iters (it is a single integer)
 
     # calculate the gains (divide by cold start)
-    gains_dict = populate_gains_dict(results_dict, constrained=True)
+    gains_dict = populate_gains_dict(results_dict, cfg.num_iters, constrained=True)
 
     # calculate the reduction in iterations for accs
     acc_reductions_dict = populate_acc_reductions_dict(accs_dict)
@@ -435,14 +435,14 @@ def populate_curr_method_acc_dict(method_dict, constrained):
     return accs_dict
 
 
-def populate_gains_dict(results_dict, constrained=True):
+def populate_gains_dict(results_dict, num_iters, constrained=True):
     cold_start_dict = results_dict['cold_start']
     gains_dict = {}
     methods = list(results_dict.keys())
     for i in range(len(methods)):
         method = methods[i]
         method_dict = results_dict[method]
-        gains_dict[method] = populate_curr_method_gain_dict(cold_start_dict, method_dict, constrained)
+        gains_dict[method] = populate_curr_method_gain_dict(cold_start_dict, method_dict, constrained, num_iters)
     return gains_dict
 
 
@@ -480,11 +480,11 @@ def method2col(method):
     return col
 
 
-def populate_curr_method_gain_dict(cold_start_dict, method_dict, constrained):
+def populate_curr_method_gain_dict(cold_start_dict, method_dict, constrained, num_iters):
     if constrained:
         primal_residuals_gain = cold_start_dict['pr'] / method_dict['pr']
         dual_residuals_gain = cold_start_dict['dr'] / method_dict['dr']
-        pr_dr_maxes_gain = cold_start_dict['pr_dr_max'] / method_dict['pr_dr_max']
+        pr_dr_maxes_gain = cold_start_dict['pr_dr_max'][:num_iters] / method_dict['pr_dr_max'][:num_iters]
         dist_opts_gain = cold_start_dict['dist_opts'] / method_dict['dist_opts']
 
         # populate with pr, dr, pr_dr_max, dist_opt
@@ -493,7 +493,7 @@ def populate_curr_method_gain_dict(cold_start_dict, method_dict, constrained):
                                 'pr_dr_max': pr_dr_maxes_gain,
                                 'dist_opts': dist_opts_gain}
     else:
-        curr_method_gain_dict = {'obj_diff': cold_start_dict['obj_diff'] / method_dict['obj_diff']}
+        curr_method_gain_dict = {'obj_diff': cold_start_dict['obj_diff'][:num_iters] / method_dict['obj_diff'][:num_iters]}
 
     return curr_method_gain_dict
 
@@ -552,6 +552,13 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
         pr_dr_maxes = recover_data(example, dt, 'pr_dr_max_test.csv', col)
         dist_opts = recover_data(example, dt, 'dist_opts_df_test.csv', col)
 
+        guarantee_results = get_frac_solved_data_classical(example, dt, upper)
+
+        quantile = 100 - float(method[2:])
+        upper = method[:2] == 'UB'
+        accuracies = get_accs()
+        pr_dr_maxes = aggregate_to_quantile_bound(guarantee_results, quantile, accuracies, upper, cfg.num_iters)
+
         # populate with pr, dr, pr_dr_max, dist_opt
         curr_method_dict = {'pr': primal_residuals, 
                             'dr': dual_residuals, 
@@ -563,10 +570,10 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
         guarantee_results = get_frac_solved_data_classical(example, dt, upper)
 
         # aggregate into a quantile bound
-        quantile = float(method[2:])
+        quantile = 100 - float(method[2:])
         upper = method[:2] == 'UB'
         accuracies = get_accs()
-        obj_diffs = aggregate_to_quantile_bound(guarantee_results, quantile, accuracies, upper)
+        obj_diffs = aggregate_to_quantile_bound(guarantee_results, quantile, accuracies, upper, cfg.num_iters)
 
         # obj_diffs = recover_data(example, dt, 'obj_vals_diff_test.csv', col)
         curr_method_dict = {'obj_diff': obj_diffs}
@@ -576,18 +583,25 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
     return curr_method_dict
 
 
-def aggregate_to_quantile_bound(e_stars, quantile, accuracies, upper):
+def aggregate_to_quantile_bound(e_stars, quantile, accuracies, upper, cfg_iters):
     eval_iters = e_stars.shape[1]
     # e_stars = get_e_stars(guarantee_results, accuracies, eval_iters)
     
     quantile_curve = np.zeros(eval_iters)
     for k in range(eval_iters):
-        where = np.where(e_stars[:, k] < quantile / 100)[0]
-        if where.size == 0:
-            quantile_curve[k] = max(accuracies)
+        if upper:
+            where = np.where(e_stars[:, k] < quantile / 100)[0]
+            if where.size == 0:
+                quantile_curve[k] = max(accuracies)
+            else:
+                quantile_curve[k] = accuracies[np.min(where)]
         else:
-            quantile_curve[k] = accuracies[np.min(where)]
-    return quantile_curve
+            where = np.where(e_stars[:, k] > quantile / 100)[0]
+            if where.size == 0:
+                quantile_curve[k] = min(accuracies)
+            else:
+                quantile_curve[k] = accuracies[np.max(where)]
+    return quantile_curve[:cfg_iters]
 
 
 # def get_e_stars(guarantee_results, accuracies, eval_iters):
