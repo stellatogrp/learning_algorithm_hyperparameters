@@ -482,8 +482,8 @@ def method2col(method):
 
 def populate_curr_method_gain_dict(cold_start_dict, method_dict, constrained, num_iters):
     if constrained:
-        primal_residuals_gain = cold_start_dict['pr'] / method_dict['pr']
-        dual_residuals_gain = cold_start_dict['dr'] / method_dict['dr']
+        primal_residuals_gain = cold_start_dict['pr'][:num_iters] / method_dict['pr'][:num_iters]
+        dual_residuals_gain = cold_start_dict['dr'][:num_iters] / method_dict['dr'][:num_iters]
         pr_dr_maxes_gain = cold_start_dict['pr_dr_max'][:num_iters] / method_dict['pr_dr_max'][:num_iters]
         dist_opts_gain = cold_start_dict['dist_opts'] / method_dict['dist_opts']
 
@@ -498,13 +498,19 @@ def populate_curr_method_gain_dict(cold_start_dict, method_dict, constrained, nu
     return curr_method_gain_dict
 
 
-def load_frac_solved(example, datetime, acc, upper, title=None):
+def load_frac_solved(example, datetime, acc, upper, title):
     orig_cwd = hydra.utils.get_original_cwd()
-    path = f"{orig_cwd}/outputs/{example}/train_outputs/{datetime}/frac_solved"
+    path = f"{orig_cwd}/outputs/{example}/train_outputs/{datetime}/frac_solved_{title}"
 
     fp_file = f"tol={acc}_test.csv"
-    df = read_csv(f"{path}/{fp_file}")
-    if title is None:
+    try:
+        df = read_csv(f"{path}/{fp_file}")
+    except Exception as e:
+        new_acc = 39810.7170553499
+        fp_file = f"tol={new_acc}_test.csv"
+        df = read_csv(f"{path}/{fp_file}")
+
+    if title is None or True:
         if upper:
             results = df['upper_risk_bound']
         else:
@@ -522,7 +528,7 @@ def get_accs():
     return accuracies
 
 
-def get_frac_solved_data_classical(example, dt, upper):
+def get_frac_solved_data_classical(example, dt, upper, title):
     # setup
     # cold_start_datetimes = cfg.cold_start_datetimes
     
@@ -530,7 +536,7 @@ def get_frac_solved_data_classical(example, dt, upper):
 
     accuracies = get_accs()
     for acc in accuracies:
-        curr_guarantee_results = load_frac_solved(example, dt, acc, upper)
+        curr_guarantee_results = load_frac_solved(example, dt, acc, upper, title)
         guarantee_results.append(curr_guarantee_results)
 
     return np.stack(guarantee_results)
@@ -552,12 +558,15 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
         pr_dr_maxes = recover_data(example, dt, 'pr_dr_max_test.csv', col)
         dist_opts = recover_data(example, dt, 'dist_opts_df_test.csv', col)
 
-        guarantee_results = get_frac_solved_data_classical(example, dt, upper)
+        # guarantee_results = get_frac_solved_data_classical(example, dt, upper)
 
         quantile = 100 - float(method[2:])
-        upper = method[:2] == 'UB'
-        accuracies = get_accs()
-        pr_dr_maxes = aggregate_to_quantile_bound(guarantee_results, quantile, accuracies, upper, cfg.num_iters)
+        # upper = method[:2] == 'UB'
+        # accuracies = get_accs()
+        # pr_dr_maxes = aggregate_to_quantile_bound(guarantee_results, quantile, accuracies, upper, cfg.num_iters)
+        primal_residuals = recover_bound_data(example, dt, upper, quantile, cfg.num_iters, 'primal_residuals')
+        dual_residuals = recover_bound_data(example, dt, upper, quantile, cfg.num_iters, 'dual_residuals')
+        pr_dr_maxes = recover_bound_data(example, dt, upper, quantile, cfg.num_iters, 'pr_dr_maxes')
 
         # populate with pr, dr, pr_dr_max, dist_opt
         curr_method_dict = {'pr': primal_residuals, 
@@ -567,7 +576,8 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
     else:
         # get the results for all of the tolerances
         # guarantee_results is a list of vectors - each vector is a diff tolerance and gives risk bound over K
-        guarantee_results = get_frac_solved_data_classical(example, dt, upper)
+        title = 'obj_diffs'
+        guarantee_results = get_frac_solved_data_classical(example, dt, upper, title)
 
         # aggregate into a quantile bound
         quantile = 100 - float(method[2:])
@@ -581,6 +591,14 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
         # sift through to get the bounds
         
     return curr_method_dict
+
+
+def recover_bound_data(example, dt, upper, quantile, num_iters, title):
+    guarantee_results = get_frac_solved_data_classical(example, dt, upper, title)
+    accuracies = get_accs()
+    bound_data = aggregate_to_quantile_bound(guarantee_results, quantile, accuracies, upper, num_iters)
+    return bound_data
+
 
 
 def aggregate_to_quantile_bound(e_stars, quantile, accuracies, upper, cfg_iters):
@@ -665,11 +683,13 @@ def get_eval_array(df, title):
         data = df.iloc[:, -1]
     elif title == 'l2ws10000':
         data = df.iloc[:, -1]
-    elif title == 'lm':
+    elif title == 'lm' or title == 'lm10000':
         data = df.iloc[:, -1]
+    elif title == 'lasco':
+        data = df.iloc[:, -2]
     else:
         # case of the learned warm-start, take the latest column
-        data = df.iloc[:, -2]
+        data = df.iloc[:, -1]
     return data
 
 

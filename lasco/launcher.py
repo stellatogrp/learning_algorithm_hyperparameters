@@ -887,6 +887,7 @@ class Workspace:
 
         num_progressive_trains = int(self.l2ws_model.step_varying_num / self.train_unrolls + 1)
 
+
         for window in range(num_progressive_trains):
             # update window_indices
             window_indices = jnp.arange(self.train_unrolls * window, 
@@ -964,35 +965,46 @@ class Workspace:
             primal_residuals = out_train[4].mean(axis=0)
             dual_residuals = out_train[5].mean(axis=0)
         elif len(out_train) == 5:
-            metric = out_train[4] #.mean(axis=0)
+            obj_diffs = out_train[4] #.mean(axis=0)
         elif len(out_train) == 9:
             primal_residuals = out_train[4] #.mean(axis=0)
             dual_residuals = out_train[5] #.mean(axis=0)
             dist_opts = out_train[8].mean(axis=0)
             if primal_residuals is not None:
-                metric = jnp.maximum(primal_residuals, dual_residuals)
-                # metric = pr_dr_maxes.mean(axis=0)
+                pr_dr_maxes = jnp.maximum(primal_residuals, dual_residuals)
+
+        # loop over metric
+        if len(out_train) == 9:
+            metric_names = ['primal_residuals', 'dual_residuals', 'pr_dr_maxes']
+            metrics = [primal_residuals, dual_residuals, pr_dr_maxes]
+        elif len(out_train) == 5:
+            metric_names = ['obj_diffs']
+            metrics = [obj_diffs]
         
-        for i in range(len(self.frac_solved_accs)):
-            # compute frac solved
-            fs = (metric < self.frac_solved_accs[i])
-            emp_success_rates = fs.mean(axis=0) # a vector over the iterations
-            emp_risks = 1 - emp_success_rates  # a vector over the iterations
+        for j in range(len(metrics)):
+            metric = metrics[j]
+            metric_name = metric_names[j]
+            for i in range(len(self.frac_solved_accs)):
+                # compute frac solved
+                fs = (metric < self.frac_solved_accs[i])
+                emp_success_rates = fs.mean(axis=0) # a vector over the iterations
+                emp_risks = 1 - emp_success_rates  # a vector over the iterations
 
-            upper_risk_bounds = compute_kl_inv_vector(emp_risks, self.l2ws_model.delta, 
-                                                      self.l2ws_model.N_test)
-            lower_risk_bounds = 1 - compute_kl_inv_vector(emp_success_rates, self.l2ws_model.delta, 
-                                                          self.l2ws_model.N_test)
+                upper_risk_bounds = compute_kl_inv_vector(emp_risks, self.l2ws_model.delta, 
+                                                        self.l2ws_model.N_test)
+                lower_risk_bounds = 1 - compute_kl_inv_vector(emp_success_rates, self.l2ws_model.delta, 
+                                                            self.l2ws_model.N_test)
+                if not os.path.exists(f"frac_solved_{metric_name}"):
+                    os.mkdir(f"frac_solved_{metric_name}")
+                filename = f"frac_solved_{metric_name}/tol={self.frac_solved_accs[i]}"
+                curr_df = self.frac_solved_df_list_test[i]
+                curr_df['empirical_risk'] = emp_risks
+                curr_df['upper_risk_bound'] = upper_risk_bounds
+                curr_df['lower_risk_bound'] = lower_risk_bounds
 
-            filename = f"frac_solved/tol={self.frac_solved_accs[i]}"
-            curr_df = self.frac_solved_df_list_test[i]
-            curr_df['empirical_risk'] = emp_risks
-            curr_df['upper_risk_bound'] = upper_risk_bounds
-            curr_df['lower_risk_bound'] = lower_risk_bounds
-
-            # plot and update csv
-            csv_filename = filename + '_test.csv'
-            curr_df.to_csv(csv_filename)
+                # plot and update csv
+                csv_filename = filename + '_test.csv'
+                curr_df.to_csv(csv_filename)
 
 
     def train_jitted_epochs(self, permutation, epoch, window_indices, steady_state):
