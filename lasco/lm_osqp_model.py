@@ -9,8 +9,8 @@ from scipy.sparse import csc_matrix
 import jax
 
 from lasco.algo_steps_osqp import (
-    k_steps_eval_lm_ista,
-    k_steps_train_lm_ista
+    k_steps_eval_lm_osqp,
+    k_steps_train_lm_osqp
 )
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import (
@@ -18,9 +18,9 @@ from lasco.utils.nn_utils import (
 )
 
 
-class LMSCSmodel(L2WSmodel):
+class LMOSQPmodel(L2WSmodel):
     def __init__(self, **kwargs):
-        super(LMSCSmodel, self).__init__(**kwargs)
+        super(LMOSQPmodel, self).__init__(**kwargs)
 
     def initialize_algo(self, input_dict):
         """
@@ -33,14 +33,14 @@ class LMSCSmodel(L2WSmodel):
         self.factors_required = True
         self.hsde = input_dict.get('hsde', True)
         self.m, self.n = input_dict['m'], input_dict['n']
-        self.cones = input_dict['cones']
-        self.proj, self.static_flag = input_dict['proj'], input_dict.get('static_flag', True)
+        # self.cones = input_dict['cones']
+        self.static_flag = input_dict.get('static_flag', True)
         self.q_mat_train, self.q_mat_test = input_dict['q_mat_train'], input_dict['q_mat_test']
 
-        M = input_dict['static_M']
-        self.P = M[:self.n, :self.n]
-        self.A = -M[self.n:, :self.n]
-        self.M = M
+        # M = input_dict['static_M']
+        self.P = input_dict['P'] #M[:self.n, :self.n]
+        self.A = input_dict['A'] #-M[self.n:, :self.n]
+        # self.M = M
 
 
         lightweight = input_dict.get('lightweight', False)
@@ -51,7 +51,7 @@ class LMSCSmodel(L2WSmodel):
         # custom_loss
         custom_loss = input_dict.get('custom_loss')
 
-        self.k_steps_train_fn = partial(k_steps_train_lm_osqp, proj=self.proj,
+        self.k_steps_train_fn = partial(k_steps_train_lm_osqp,
                                         jit=self.jit,
                                         P=self.P,
                                         A=self.A,
@@ -61,9 +61,9 @@ class LMSCSmodel(L2WSmodel):
         #                                 P=self.P,
         #                                 A=self.A,
         #                                 hsde=False)
-        self.k_steps_eval_fn = partial(k_steps_eval_lm_osqp, proj=self.proj,
+        self.k_steps_eval_fn = partial(k_steps_eval_lm_osqp,
                                        P=self.P, A=self.A,
-                                       zero_cone_size=self.zero_cone_size,
+                                    #    zero_cone_size=self.zero_cone_size,
                                        jit=self.jit,
                                        hsde=True,
                                        custom_loss=custom_loss,

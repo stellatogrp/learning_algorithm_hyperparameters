@@ -49,7 +49,7 @@ def plot_eval_iters(iters_df, primal_residuals_df, dual_residuals_df, plot_pretr
                                     'primal residual', 'primal_residuals', eval_unrolls, train_unrolls)
             plot_eval_iters_df(dual_residuals_df, train, col,
                                     'dual residual', 'dual_residuals', eval_unrolls, train_unrolls)
-            plot_eval_iters_df(dual_residuals_df, train, col,
+            plot_eval_iters_df(pr_dr_max_df, train, col,
                                     'pr dr max', 'pr_dr_max', eval_unrolls, train_unrolls)
         if obj_vals_diff_df is not None:
             plot_eval_iters_df(

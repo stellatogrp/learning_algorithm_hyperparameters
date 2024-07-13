@@ -356,7 +356,7 @@ def fp_train_lasco_osqp(i, val, supervised, z_star, all_factors, A, idx_mapping,
     idx = idx_mapping[i]
     z_next = fixed_point_osqp(z, factors1[idx, :, :], factors2[idx, :], A, q, rhos[idx], sigmas[idx])
     if supervised:
-        diff = jnp.linalg.norm(z - z_star)
+        diff = jnp.linalg.norm(z_next - z_star)
     else:
         diff = jnp.linalg.norm(z_next - z)
     loss_vec = loss_vec.at[i].set(diff)

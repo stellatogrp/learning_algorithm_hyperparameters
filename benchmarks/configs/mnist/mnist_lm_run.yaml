@@ -89,16 +89,16 @@ pac_bayes_flag: False
 # save_weights_flag: True
 
 
-pac_bayes_cfg:
-  init_var: 1e-3
-  c: 10.0
-  b: 100
-  delta: 0.0001
-  rep: True
-  penalty_coeff: 1.0
-  deterministic: True
-  target_pen: 0.3
-  frac_solved_accs: [0.001] #fp_full #nmse_full # [0.001, 0.01, 0.1, 1.0] # fp_full
+# pac_bayes_cfg:
+#   init_var: 1e-3
+#   c: 10.0
+#   b: 100
+#   delta: 0.0001
+#   rep: True
+#   penalty_coeff: 1.0
+#   deterministic: True
+#   target_pen: 0.3
+#   frac_solved_accs: [0.001] #fp_full #nmse_full # [0.001, 0.01, 0.1, 1.0] # fp_full
 
 custom_loss: False #True
 

@@ -71,15 +71,21 @@ class LASCOOSQPmodel(L2WSmodel):
 
 
     def init_params(self):
-        # p = jnp.diag(self.P)
-        self.mean_params = jnp.ones((self.train_unrolls, 3))
+        # init step-varying params
+        step_varying_params = jnp.ones((self.step_varying_num, 4))
 
-        self.sigma_params = -jnp.ones((self.train_unrolls, 3)) * 10
+        # init steady_state_params
+        steady_state_params = jnp.ones((1, 4))
 
-        # initialize the prior
-        self.prior_param = jnp.log(self.init_var) * jnp.ones(2)
+        self.params = [jnp.vstack([step_varying_params, steady_state_params])]
+        # self.mean_params = jnp.ones((self.train_unrolls, 3))
 
-        self.params = [self.mean_params, self.sigma_params, self.prior_param]
+        # self.sigma_params = -jnp.ones((self.train_unrolls, 3)) * 10
+
+        # # initialize the prior
+        # self.prior_param = jnp.log(self.init_var) * jnp.ones(2)
+
+        # self.params = [self.mean_params, self.sigma_params, self.prior_param]
 
 
     def create_end2end_loss_fn(self, bypass_nn, diff_required):

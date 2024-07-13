@@ -25,6 +25,7 @@ from lasco.lasco_ista_model import LASCOISTAmodel
 from lasco.lasco_osqp_model import LASCOOSQPmodel
 from lasco.lasco_scs_model import LASCOSCSmodel
 from lasco.lm_scs_model import LMSCSmodel
+from lasco.lm_osqp_model import LMOSQPmodel
 from lasco.launcher_helper import (
     compute_kl_inv_vector,
     get_nearest_neighbors,
@@ -191,6 +192,8 @@ class Workspace:
             self.create_lasco_ista_model(cfg, static_dict)
         elif algo == 'lm_ista':
             self.create_lm_ista_model(cfg, static_dict)
+        elif algo == 'lm_osqp':
+            self.create_lm_osqp_model(cfg, static_dict)
         
     def create_ista_model(self, cfg, static_dict):
         # get A, lambd, ista_step
@@ -335,6 +338,60 @@ class Workspace:
                                        z_stars_test=self.z_stars_test,
                                        loss_method=cfg.loss_method,
                                        algo_dict=input_dict)
+    
+    def create_lm_osqp_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        # A = static_dict['A']
+
+        # lambd = static_dict['lambd']
+
+        # input_dict = dict(algorithm='lm_osqp',
+        #                   c_mat_train=self.q_mat_train,
+        #                   c_mat_test=self.q_mat_test,
+        #                   lambd=lambd,
+        #                   A=A
+        #                   )
+        # self.l2ws_model = LMISTAmodel(train_unrolls=self.train_unrolls,
+        #                                eval_unrolls=self.eval_unrolls,
+        #                                train_inputs=self.train_inputs,
+        #                                test_inputs=self.test_inputs,
+        #                                regression=cfg.supervised,
+        #                                nn_cfg=cfg.nn_cfg,
+        #                                z_stars_train=self.z_stars_train,
+        #                                z_stars_test=self.z_stars_test,
+        #                                loss_method=cfg.loss_method,
+        #                                algo_dict=input_dict)
+        
+
+        factor = static_dict['factor']
+        A = static_dict['A']
+        P = static_dict['P']
+        m, n = A.shape
+        self.m, self.n = m, n
+        rho = static_dict['rho']
+        input_dict = dict(algorithm='lm_osqp',
+                          factor_static_bool=True,
+                          supervised=cfg.supervised,
+                          rho=rho,
+                          q_mat_train=self.q_mat_train,
+                          q_mat_test=self.q_mat_test,
+                          A=A,
+                          P=P,
+                          m=m,
+                          n=n,
+                          factor=factor,
+                          custom_loss=self.custom_loss,
+                          plateau_decay=cfg.plateau_decay)
+        self.l2ws_model = LMOSQPmodel(train_unrolls=self.train_unrolls,
+                                         eval_unrolls=self.eval_unrolls,
+                                         train_inputs=self.train_inputs,
+                                         test_inputs=self.test_inputs,
+                                         regression=cfg.supervised,
+                                         nn_cfg=cfg.nn_cfg,
+                                         z_stars_train=self.z_stars_train,
+                                         z_stars_test=self.z_stars_test,
+                                         loss_method=cfg.loss_method,
+                                         algo_dict=input_dict)
         
     def create_lm_gd_model(self, cfg, static_dict):
         # get A, lambd, ista_step
@@ -734,9 +791,9 @@ class Workspace:
             primal_residuals = out_train[4].mean(axis=0)
             dual_residuals = out_train[5].mean(axis=0)
             dist_opts = out_train[8].mean(axis=0)
-            if primal_residuals is not None:
-                pr_dr_maxes = jnp.maximum(primal_residuals, dual_residuals)
-                pr_dr_max = geometric_mean(pr_dr_maxes) #pr_dr_maxes.mean(axis=0)
+        if primal_residuals is not None:
+            pr_dr_maxes = jnp.maximum(primal_residuals, dual_residuals)
+            pr_dr_max = geometric_mean(pr_dr_maxes) #pr_dr_maxes.mean(axis=0)
 
         if train:
             self.percentiles_df_list_train = update_percentiles(self.percentiles_df_list_train,
@@ -810,11 +867,12 @@ class Workspace:
         z_no_learn = self.z_no_learn_train if train else self.z_no_learn_test
         z_nn = z_no_learn
         z_prev_sol = z_no_learn
-        # if self.has_custom_visualization:
-        #     if self.vis_num > 0:
-        #         # custom_visualize(z_plot, train, col)
-        #         custom_visualize(self.custom_visualize_fn, self.iterates_visualize, self.vis_num, 
-        #                          thetas, u_plot, z_stars, z_no_learn, z_nn, z_prev_sol, train, col)
+        if self.has_custom_visualization:
+            if self.vis_num > 0:
+                # custom_visualize(z_plot, train, col)
+                u_plot = z_plot
+                custom_visualize(self.custom_visualize_fn, self.iterates_visualize, self.vis_num, 
+                                 thetas, u_plot, z_stars, z_no_learn, z_nn, z_prev_sol, train, col)
 
         if self.save_weights_flag:
             self.save_weights()
