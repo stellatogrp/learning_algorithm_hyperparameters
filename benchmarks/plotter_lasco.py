@@ -485,13 +485,13 @@ def populate_curr_method_gain_dict(cold_start_dict, method_dict, constrained, nu
         primal_residuals_gain = cold_start_dict['pr'][:num_iters] / method_dict['pr'][:num_iters]
         dual_residuals_gain = cold_start_dict['dr'][:num_iters] / method_dict['dr'][:num_iters]
         pr_dr_maxes_gain = cold_start_dict['pr_dr_max'][:num_iters] / method_dict['pr_dr_max'][:num_iters]
-        dist_opts_gain = cold_start_dict['dist_opts'] / method_dict['dist_opts']
+        # dist_opts_gain = cold_start_dict['dist_opts'] / method_dict['dist_opts']
 
         # populate with pr, dr, pr_dr_max, dist_opt
         curr_method_gain_dict = {'pr': primal_residuals_gain, 
                                 'dr': dual_residuals_gain, 
-                                'pr_dr_max': pr_dr_maxes_gain,
-                                'dist_opts': dist_opts_gain}
+                                'pr_dr_max': pr_dr_maxes_gain} #,
+                                # 'dist_opts': dist_opts_gain}
     else:
         curr_method_gain_dict = {'obj_diff': cold_start_dict['obj_diff'][:num_iters] / method_dict['obj_diff'][:num_iters]}
 
@@ -556,7 +556,7 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
         primal_residuals = recover_data(example, dt, 'primal_residuals_test.csv', col)
         dual_residuals = recover_data(example, dt, 'dual_residuals_test.csv', col)
         pr_dr_maxes = recover_data(example, dt, 'pr_dr_max_test.csv', col)
-        dist_opts = recover_data(example, dt, 'dist_opts_df_test.csv', col)
+        # dist_opts = recover_data(example, dt, 'dist_opts_df_test.csv', col)
 
         # guarantee_results = get_frac_solved_data_classical(example, dt, upper)
 
@@ -571,8 +571,8 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
         # populate with pr, dr, pr_dr_max, dist_opt
         curr_method_dict = {'pr': primal_residuals, 
                             'dr': dual_residuals, 
-                            'pr_dr_max': pr_dr_maxes,
-                            'dist_opts': dist_opts}
+                            'pr_dr_max': pr_dr_maxes} #,
+                            # 'dist_opts': dist_opts}
     else:
         # get the results for all of the tolerances
         # guarantee_results is a list of vectors - each vector is a diff tolerance and gives risk bound over K
@@ -644,13 +644,13 @@ def populate_curr_method_dict(method, example, cfg, constrained):
         primal_residuals = recover_data(example, dt, 'primal_residuals_test.csv', col)
         dual_residuals = recover_data(example, dt, 'dual_residuals_test.csv', col)
         pr_dr_maxes = recover_data(example, dt, 'pr_dr_max_test.csv', col)
-        dist_opts = recover_data(example, dt, 'dist_opts_df_test.csv', col)
+        # dist_opts = recover_data(example, dt, 'dist_opts_df_test.csv', col)
 
         # populate with pr, dr, pr_dr_max, dist_opt
         curr_method_dict = {'pr': primal_residuals, 
                             'dr': dual_residuals, 
-                            'pr_dr_max': pr_dr_maxes,
-                            'dist_opts': dist_opts}
+                            'pr_dr_max': pr_dr_maxes} #,
+                            # 'dist_opts': dist_opts}
     else:
         obj_diffs = recover_data(example, dt, 'obj_vals_diff_test.csv', col)
         curr_method_dict = {'obj_diff': obj_diffs}

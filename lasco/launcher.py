@@ -1020,8 +1020,9 @@ class Workspace:
         out_train = self.evaluate_iters(self.num_samples_test, 'final', train=False)
 
         if len(out_train) == 6 or len(out_train) == 8:
-            primal_residuals = out_train[4].mean(axis=0)
-            dual_residuals = out_train[5].mean(axis=0)
+            primal_residuals = out_train[4] #.mean(axis=0)
+            dual_residuals = out_train[5] #.mean(axis=0)
+            pr_dr_maxes = jnp.maximum(primal_residuals, dual_residuals)
         elif len(out_train) == 5:
             obj_diffs = out_train[4] #.mean(axis=0)
         elif len(out_train) == 9:
@@ -1032,7 +1033,7 @@ class Workspace:
                 pr_dr_maxes = jnp.maximum(primal_residuals, dual_residuals)
 
         # loop over metric
-        if len(out_train) == 9:
+        if len(out_train) in [9, 6, 8]:
             metric_names = ['primal_residuals', 'dual_residuals', 'pr_dr_maxes']
             metrics = [primal_residuals, dual_residuals, pr_dr_maxes]
         elif len(out_train) == 5:

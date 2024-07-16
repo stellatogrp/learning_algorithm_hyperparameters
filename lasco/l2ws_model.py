@@ -123,7 +123,7 @@ class L2WSmodel(object):
 
     def transform_params(self, params, n_iters):
         # transformed_params = jnp.exp(params[0][:n_iters - 1, 0])
-        transformed_params = jnp.exp(params[0][:n_iters - 1, :])
+        transformed_params = jnp.exp(params[0][:n_iters, :])
         return transformed_params
 
     def create_end2end_loss_fn(self, bypass_nn, diff_required):
