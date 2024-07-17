@@ -158,9 +158,9 @@ def stack_tuples(tuples_list):
             result.append(jnp.vstack(stacked_entry))
     return result
 
-def normalize_inputs_fn(normalize_inputs, thetas, N_train, N_test):
+def normalize_inputs_fn(normalize_inputs, thetas, train_indices, test_indices):
     # normalize the inputs if the option is on
-    N = N_train + N_test
+    # N = N_train + N_test
     if normalize_inputs:
         col_sums = thetas.mean(axis=0)
         std_devs = thetas.std(axis=0)
@@ -173,7 +173,7 @@ def normalize_inputs_fn(normalize_inputs, thetas, N_train, N_test):
     else:
         inputs = jnp.array(thetas)
         normalize_col_sums, normalize_std_dev = 0, 0
-    train_inputs = inputs[:N_train, :]
-    test_inputs = inputs[N_train:N, :]
+    train_inputs = inputs[train_indices, :]
+    test_inputs = inputs[test_indices, :]
 
     return train_inputs, test_inputs, normalize_col_sums, normalize_std_dev

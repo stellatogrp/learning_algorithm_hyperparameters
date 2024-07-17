@@ -1,7 +1,7 @@
 nn_cfg:
   lr: 1e-3
   method: adam
-  intermediate_layer_sizes: [500, 500]
+  intermediate_layer_sizes: []
   batch_size: 100
   epochs: 100
   decay_lr: .1
@@ -31,9 +31,10 @@ test_every_x_epochs: 1
 write_csv_every_x_batches: 1
 epochs_jit: 2
 
-N_train: 10000
+N_train: 10
 N_test: 100
-num_samples: 100
+num_samples_train: 10
+num_samples_test: 50
 
 
 prediction_variable: w
@@ -74,7 +75,7 @@ iterates_visualize: [10, 19] #[10, 20, 50, 90, 200, 300, 500, 1000] #[10, 20, 50
 vis_num: 5
 skip_startup: False
 
-eval_unrolls: 400
+eval_unrolls: 10000
 solve_c_num: 0
 supervised: True
 train_unrolls: 10
@@ -98,7 +99,7 @@ pac_bayes_cfg:
   penalty_coeff: 1.0
   deterministic: True
   target_pen: 0.3
-  frac_solved_accs: [0.001] #fp_full #nmse_full # [0.001, 0.01, 0.1, 1.0] # fp_full
+  frac_solved_accs: fp_full #nmse_full # [0.001, 0.01, 0.1, 1.0] # fp_full
 
 custom_loss: False #True
 
@@ -126,3 +127,4 @@ custom_loss: False #True
 # '2023-08-20/19-38-37', 
 # '2023-08-22/22-32-12', 
 # '2023-08-22/22-38-07']
+algo: l2ws

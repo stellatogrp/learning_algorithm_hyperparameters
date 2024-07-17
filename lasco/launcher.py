@@ -145,7 +145,7 @@ class Workspace:
         self.thetas_val = thetas[self.val_indices, :]
 
         train_inputs, test_inputs, normalize_col_sums, normalize_std_dev = normalize_inputs_fn(
-            self.normalize_inputs, thetas, N_train, N_test)
+            self.normalize_inputs, thetas, self.train_indices, self.test_indices)
         self.train_inputs, self.test_inputs = train_inputs, test_inputs
 
         
