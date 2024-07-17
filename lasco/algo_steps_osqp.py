@@ -10,47 +10,77 @@ from lasco.algo_steps import lin_sys_solve
 from lasco.utils.generic_utils import python_fori_loop, unvec_symm, vec_symm
 
 
-def k_steps_eval_lm_osqp(k, z0, q, params, lambd, A, supervised, z_star, jit):
+def k_steps_eval_lm_osqp(k, z0, q, params, P, A, supervised, z_star, jit):
     iter_losses = jnp.zeros(k)
-    z_all_plus_1 = jnp.zeros((k + 1, z0.size))
-    z_all_plus_1 = z_all_plus_1.at[0, :].set(z0)
+    m, n = A.shape
+
+    # initialize z_init
+    z_init = jnp.zeros((n + 2 * m))
+    z_init = z_init.at[:m + n].set(z0)
+    w = A @ z0[:n]
+    z_init = z_init.at[m + n:].set(w)
+
+    z_all_plus_1 = jnp.zeros((k + 1, z_init.size))
+    z_all_plus_1 = z_all_plus_1.at[0, :].set(z_init)
+
+    # unwrap the params
+    factor, scale_vec = params
+    n = A.shape[1]
+    rho_vec = scale_vec[n:]
+    sigma_vec = scale_vec[:n]
+
     fp_eval_partial = partial(fp_eval_lm_osqp,
                               supervised=supervised,
                               z_star=z_star,
-                              lambd=lambd,
+                              factor=factor,
+                              P=P,
                               A=A,
-                              c=q,
-                              ista_step=params
+                              q=q,
+                              rho_vec=rho_vec,
+                              sigma_vec=sigma_vec
                               )
-    z_all = jnp.zeros((k, z0.size))
-    obj_diffs = jnp.zeros(k)
-    val = z0, iter_losses, z_all, obj_diffs
+    z_all = jnp.zeros((k, z_init.size))
+    primal_residuals = jnp.zeros(k)
+    dual_residuals = jnp.zeros(k)
+    val = z_init, iter_losses, z_all, primal_residuals, dual_residuals
     start_iter = 0
     if jit:
         out = lax.fori_loop(start_iter, k, fp_eval_partial, val)
     else:
         out = python_fori_loop(start_iter, k, fp_eval_partial, val)
-    z_final, iter_losses, z_all, obj_diffs = out
+    z_final, iter_losses, z_all, primal_residuals, dual_residuals = out
     z_all_plus_1 = z_all_plus_1.at[1:, :].set(z_all)
-    return z_final, iter_losses, z_all_plus_1, obj_diffs
+    return z_final, iter_losses, z_all_plus_1, primal_residuals, dual_residuals
 
 
-def k_steps_train_lm_osqp(k, z0, q, params, lambd, A, supervised, z_star, jit):
+def k_steps_train_lm_osqp(k, z0, q, params, P, A, supervised, z_star, jit):
     iter_losses = jnp.zeros(k)
+    m, n = A.shape
 
-    factor, rho_vec, sigma_vec = params
+    # initialize z_init
+    z_init = jnp.zeros((n + 2 * m))
+    z_init = z_init.at[:m + n].set(z0)
+    w = A @ z0[:n]
+    z_init = z_init.at[m + n:].set(w)
+
+    # factor, rho_vec, sigma_vec = params
+
+    # unwrap the params
+    factor, scale_vec = params
+    n = A.shape[1]
+    rho_vec = scale_vec[n:]
+    sigma_vec = scale_vec[:n]
 
     fp_train_partial = partial(fp_train_lm_osqp,
                                supervised=supervised,
                                z_star=z_star,
-                               lambd=lambd,
                                A=A,
-                               c=q,
+                               q=q,
                                factor=factor,
                                rho_vec=rho_vec,
                                sigma_vec=sigma_vec
                                )
-    val = z0, iter_losses
+    val = z_init, iter_losses
     start_iter = 0
     if jit:
         out = lax.fori_loop(start_iter, k, fp_train_partial, val)
@@ -60,7 +90,7 @@ def k_steps_train_lm_osqp(k, z0, q, params, lambd, A, supervised, z_star, jit):
     return z_final, iter_losses
 
 
-def fp_eval_lm_osqp(i, val, supervised, z_star, factor, P, A, q, rho_vec, sigma_vec, alphas,
+def fp_eval_lm_osqp(i, val, supervised, z_star, factor, P, A, q, rho_vec, sigma_vec,
                        custom_loss=None, lightweight=False):
     m, n = A.shape
     z, loss_vec, z_all, primal_residuals, dual_residuals = val
@@ -92,6 +122,7 @@ def fp_train_lm_osqp(i, val, supervised, z_star, factor, A, q, rho_vec, sigma_ve
     z, loss_vec = val
 
     factor1, factor2 = factor
+
     z_next = fixed_point_osqp(z, factor1, factor2, A, q, rho_vec, sigma_vec)
     if supervised:
         diff = jnp.linalg.norm(z - z_star)
@@ -225,6 +256,7 @@ def fixed_point_osqp(z, factor1, factor2, A, q, rho, sigma):
     m, n = A.shape
     x, y, w = z[:n], z[n:n + m], z[n + m:]
     c, l_bound, u_bound = q[:n], q[n:n + m], q[n + m:]
+
 
     # update (x, nu)
     rhs = sigma * x - c + A.T @ (rho * w - y)

@@ -31,7 +31,7 @@ class LMOSQPmodel(L2WSmodel):
         self.factor_static_bool = input_dict.get('factor_static_bool', True)
         self.algo = 'lm_osqp'
         self.factors_required = True
-        self.hsde = input_dict.get('hsde', True)
+        # self.hsde = input_dict.get('hsde', True)
         self.m, self.n = input_dict['m'], input_dict['n']
         # self.cones = input_dict['cones']
         self.static_flag = input_dict.get('static_flag', True)
@@ -45,8 +45,8 @@ class LMOSQPmodel(L2WSmodel):
 
         lightweight = input_dict.get('lightweight', False)
 
-        self.output_size = self.n + self.m + 1
-        self.out_axes_length = 9
+        self.output_size = self.n + self.m #+ 1
+        self.out_axes_length = 6
 
         # custom_loss
         custom_loss = input_dict.get('custom_loss')
@@ -54,8 +54,7 @@ class LMOSQPmodel(L2WSmodel):
         self.k_steps_train_fn = partial(k_steps_train_lm_osqp,
                                         jit=self.jit,
                                         P=self.P,
-                                        A=self.A,
-                                        hsde=True)
+                                        A=self.A)
         # self.k_steps_train_fn2 = partial(k_steps_train_lm_scs, proj=self.proj,
         #                                 jit=self.jit,
         #                                 P=self.P,
@@ -64,10 +63,9 @@ class LMOSQPmodel(L2WSmodel):
         self.k_steps_eval_fn = partial(k_steps_eval_lm_osqp,
                                        P=self.P, A=self.A,
                                     #    zero_cone_size=self.zero_cone_size,
-                                       jit=self.jit,
-                                       hsde=True,
-                                       custom_loss=custom_loss,
-                                       lightweight=lightweight)
+                                       jit=self.jit) #,
+                                    #    custom_loss=custom_loss,
+                                    #    lightweight=lightweight)
         self.lm = True
         self.lasco = False
         
@@ -95,8 +93,8 @@ class LMOSQPmodel(L2WSmodel):
             self.u_stars_train = jnp.hstack([self.x_stars_train, self.y_stars_train])
             self.u_stars_test = jnp.hstack([self.x_stars_test, self.y_stars_test])
         if z_stars_train is not None:
-            self.z_stars_train = z_stars_train
-            self.z_stars_test = z_stars_test
+            self.z_stars_train = jnp.array(z_stars_train)
+            self.z_stars_test = jnp.array(z_stars_test)
         else:
             self.z_stars_train, self.z_stars_test = None, None
         self.lasco_train_inputs = jnp.hstack([0 * self.z_stars_train, jnp.ones((self.z_stars_train.shape[0], 1))])
@@ -121,8 +119,8 @@ class LMOSQPmodel(L2WSmodel):
 
         def predict(params, input, q, iters, z_star, key, factor):
             # q = lin_sys_solve(factor, q)
-            z0 = jnp.zeros(z_star.size + 1) #self.predict_warm_start(params, input, key, bypass_nn)
-            z0 = z0.at[-1].set(1)
+            z0 = jnp.zeros(self.m + self.n) #self.predict_warm_start(params, input, key, bypass_nn)
+            # z0 = z0.at[-1].set(1)
 
             if self.train_fn is not None:
                 train_fn = self.train_fn
@@ -134,14 +132,16 @@ class LMOSQPmodel(L2WSmodel):
                 eval_fn = self.k_steps_eval_fn
 
             # predict the metric
-            # import pdb
-            # pdb.set_trace()
-            scale_vec_and_tau = jnp.exp(self.predict_scale_vec(params, input, key, bypass_nn))
-            scale_vec, tau_factor = scale_vec_and_tau[:-1], scale_vec_and_tau[-1]
-            scale_vec = scale_vec.at[self.n + self.zero_cone_size:].set(scale_vec[self.n + self.zero_cone_size])
-            factor = get_scaled_factor(self.M, scale_vec)
-            print('scale_vec', scale_vec)
-            print('tau_factor', tau_factor)
+            scale_vec = jnp.exp(self.predict_scale_vec(params, input, key, bypass_nn))
+            sigma_vec = scale_vec[:self.n]
+            rho_vec = scale_vec[self.n:]
+            # scale_vec, tau_factor = scale_vec_and_tau[:-1], scale_vec_and_tau[-1]
+            # scale_vec = scale_vec.at[self.n + self.zero_cone_size:].set(scale_vec[self.n + self.zero_cone_size])
+            M = self.P + jnp.diag(sigma_vec) + self.A.T @ jnp.diag(rho_vec) @ self.A
+            factor = jsp.linalg.lu_factor(M)
+
+            # print('scale_vec', scale_vec)
+            # print('tau_factor', tau_factor)
             # import pdb
             # pdb.set_trace()
             # do all of the factorizations
@@ -163,19 +163,19 @@ class LMOSQPmodel(L2WSmodel):
             #     factors2 = factors2.at[i, :].set(factor[1])
             #     scaled_vecs = scaled_vecs.at[i, :].set(scale_vec)
             # all_factors = factors1, factors2
-            scs_params = (factor, scale_vec, tau_factor)
+            osqp_params = (factor, scale_vec)
             if diff_required:
                 z_final, iter_losses = train_fn(k=iters,
                                                 z0=z0,
                                                 q=q,
-                                                params=scs_params,
+                                                params=osqp_params,
                                                 supervised=supervised,
                                                 z_star=z_star)
             else:
                 eval_out = eval_fn(k=iters,
                                     z0=z0,
                                     q=q,
-                                    params=scs_params,
+                                    params=osqp_params,
                                     supervised=supervised,
                                     z_star=z_star)
                 z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
