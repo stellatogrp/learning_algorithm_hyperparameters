@@ -47,3 +47,5 @@ pac_bayes_cfg:
   deterministic: False
   target_pen: 0.3
   frac_solved_accs: [0.1, 0.01]
+
+algo: 'l2ws'

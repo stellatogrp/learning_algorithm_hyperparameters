@@ -18,7 +18,7 @@ echo "Executing on the machine:" $(hostname)
 
 # python benchmarks/kl_inv_data_script.py
 # python benchmarks/lasco_setup.py maxcut cluster
-python benchmarks/plotter_lasco.py mnist cluster
+python benchmarks/plotter_lasco.py lasso cluster
 # python benchmarks/l2ws_train.py mnist cluster
 # python l2ws_train_script.py sparse_pca cluster
 # python gif_script.py robust_pca cluster

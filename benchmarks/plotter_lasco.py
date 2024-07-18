@@ -85,7 +85,7 @@ def plot_step_sizes_lasso(example, cfg):
 
     # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(18, 6), sharey='row') #, sharey=True)
     plt.xlabel('iterations')
-    plt.title('lasco')
+    plt.title('LAH')
     plt.ylabel('step sizes')
     # axes[1, 0].set_ylabel('gain to cold start')
 
@@ -128,7 +128,7 @@ def plot_step_sizes(example, cfg):
     axes[0].set_xlabel('iterations')
     axes[1].set_xlabel('iterations')
     axes[0].set_title('silver')
-    axes[1].set_title('lasco')
+    axes[1].set_title('LAH')
     axes[0].set_ylabel('step sizes')
     # axes[1, 0].set_ylabel('gain to cold start')
 
@@ -482,8 +482,8 @@ def method2col(method):
 
 def populate_curr_method_gain_dict(cold_start_dict, method_dict, constrained, num_iters):
     if constrained:
-        primal_residuals_gain = cold_start_dict['pr'][:num_iters] / method_dict['pr'][:num_iters]
-        dual_residuals_gain = cold_start_dict['dr'][:num_iters] / method_dict['dr'][:num_iters]
+        primal_residuals_gain = np.clip(cold_start_dict['pr'][:num_iters] / method_dict['pr'][:num_iters], a_min=0.001, a_max=1e10)
+        dual_residuals_gain = np.clip(cold_start_dict['dr'][:num_iters] / method_dict['dr'][:num_iters], a_min=0.001, a_max=1e10)
         pr_dr_maxes_gain = cold_start_dict['pr_dr_max'][:num_iters] / method_dict['pr_dr_max'][:num_iters]
         # dist_opts_gain = cold_start_dict['dist_opts'] / method_dict['dist_opts']
 
@@ -569,8 +569,8 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
         pr_dr_maxes = recover_bound_data(example, dt, upper, quantile, cfg.num_iters, 'pr_dr_maxes')
 
         # populate with pr, dr, pr_dr_max, dist_opt
-        curr_method_dict = {'pr': primal_residuals, 
-                            'dr': dual_residuals, 
+        curr_method_dict = {'pr': np.clip(primal_residuals, a_min=cfg.minval, a_max=1e5), 
+                            'dr': np.clip(dual_residuals, a_min=cfg.minval, a_max=1e5), 
                             'pr_dr_max': pr_dr_maxes} #,
                             # 'dist_opts': dist_opts}
     else:
@@ -647,8 +647,8 @@ def populate_curr_method_dict(method, example, cfg, constrained):
         # dist_opts = recover_data(example, dt, 'dist_opts_df_test.csv', col)
 
         # populate with pr, dr, pr_dr_max, dist_opt
-        curr_method_dict = {'pr': primal_residuals, 
-                            'dr': dual_residuals, 
+        curr_method_dict = {'pr': np.clip(primal_residuals, a_min=cfg.minval, a_max=1e5), 
+                            'dr': np.clip(dual_residuals, a_min=cfg.minval, a_max=1e5), 
                             'pr_dr_max': pr_dr_maxes} #,
                             # 'dist_opts': dist_opts}
     else:
