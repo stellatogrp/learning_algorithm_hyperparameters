@@ -943,13 +943,13 @@ class Workspace:
         num_epochs_jit = int(self.l2ws_model.epochs / self.epochs_jit)
         loop_size = int(self.l2ws_model.num_batches * self.epochs_jit)
 
-        num_progressive_trains = int(self.l2ws_model.step_varying_num / self.train_unrolls + 1)
+        num_progressive_trains = int(self.l2ws_model.step_varying_num * self.l2ws_model.num_const_steps / self.train_unrolls + 1)
 
 
         for window in range(num_progressive_trains):
             # update window_indices
-            window_indices = jnp.arange(self.train_unrolls * window, 
-                                        self.train_unrolls * (window + 1))
+            window_indices = jnp.arange(int(self.train_unrolls * window / self.l2ws_model.num_const_steps), 
+                                        int(self.train_unrolls * (window + 1) / self.l2ws_model.num_const_steps))
             steady_state = window == num_progressive_trains - 1
 
             # update the train inputs
@@ -958,7 +958,6 @@ class Workspace:
             for epoch_batch in range(num_epochs_jit):
                 epoch = int(epoch_batch * self.epochs_jit) + window * num_epochs_jit * self.epochs_jit
                 print('epoch', epoch)
-
 
                 if (test_zero and epoch == 0) or (epoch % self.eval_every_x_epochs == 0 and epoch > 0):
                     if update_train_inputs_flag:

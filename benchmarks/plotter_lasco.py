@@ -569,8 +569,8 @@ def populate_curr_method_bound_dict(method, example, cfg, constrained):
         pr_dr_maxes = recover_bound_data(example, dt, upper, quantile, cfg.num_iters, 'pr_dr_maxes')
 
         # populate with pr, dr, pr_dr_max, dist_opt
-        curr_method_dict = {'pr': np.clip(primal_residuals, a_min=cfg.minval, a_max=1e5), 
-                            'dr': np.clip(dual_residuals, a_min=cfg.minval, a_max=1e5), 
+        curr_method_dict = {'pr': np.clip(primal_residuals, a_min=cfg.get('minval', 1e-10), a_max=1e5), 
+                            'dr': np.clip(dual_residuals,  a_min=cfg.get('minval', 1e-10), a_max=1e5), 
                             'pr_dr_max': pr_dr_maxes} #,
                             # 'dist_opts': dist_opts}
     else:
@@ -647,8 +647,8 @@ def populate_curr_method_dict(method, example, cfg, constrained):
         # dist_opts = recover_data(example, dt, 'dist_opts_df_test.csv', col)
 
         # populate with pr, dr, pr_dr_max, dist_opt
-        curr_method_dict = {'pr': np.clip(primal_residuals, a_min=cfg.minval, a_max=1e5), 
-                            'dr': np.clip(dual_residuals, a_min=cfg.minval, a_max=1e5), 
+        curr_method_dict = {'pr': np.clip(primal_residuals,  a_min=cfg.get('minval', 1e-10), a_max=1e5), 
+                            'dr': np.clip(dual_residuals,  a_min=cfg.get('minval', 1e-10), a_max=1e5), 
                             'pr_dr_max': pr_dr_maxes} #,
                             # 'dist_opts': dist_opts}
     else:

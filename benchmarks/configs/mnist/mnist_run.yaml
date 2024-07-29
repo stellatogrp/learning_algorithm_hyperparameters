@@ -36,7 +36,7 @@ N_test: 10
 N_val: 0 #1000
 num_samples_train: 2
 num_samples_test: 10
-num_const_steps: 1
+num_const_steps: 2
 
 
 prediction_variable: w
