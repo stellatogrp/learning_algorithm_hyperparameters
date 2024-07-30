@@ -25,6 +25,7 @@ from jaxopt import Bisection
 import jax
 jax.config.update("jax_enable_x64", True)
 # jax.config.update('jax_disable_jit', True)
+# jax.config.update("jax_debug_nans", True)
 
 
 class L2WSmodel(object):
@@ -206,8 +207,11 @@ class L2WSmodel(object):
                                         iters=self.train_unrolls,
                                         z_stars=batch_z_stars,
                                         key=key)
+        # import pdb
+        # pdb.set_trace()
         self.key = key
         params, state = results
+        print('params', params)
         return state.value, params, state
 
     def evaluate(self, k, inputs, b, z_stars, fixed_ws, key, factors=None, tag='test', light=False):

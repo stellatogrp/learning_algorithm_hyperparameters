@@ -837,11 +837,11 @@ class Workspace:
 
         if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel) or isinstance(self.l2ws_model, LMSCSmodel):
             # out_train[6]
-            z_plot = z_all[:, :, :-1] / z_all[:, :, -1:]
+            z_plot = z_all[:, :, :-1] / (z_all[:, :, -1:] + 1e-10)
 
             u_all = out_train[6]
 
-            u_plot = u_all[:, :, :self.l2ws_model.n] / u_all[:, :, -1:]
+            u_plot = u_all[:, :, :self.l2ws_model.n] / (u_all[:, :, -1:] + 1e-10)
             # z_plot = u_plot
         else:
             z_plot = z_all

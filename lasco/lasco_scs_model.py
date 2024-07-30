@@ -61,12 +61,12 @@ class LASCOSCSmodel(L2WSmodel):
                                         A=self.A,
                                         idx_mapping=self.idx_mapping,
                                         hsde=True)
-        self.k_steps_train_fn2 = partial(k_steps_train_lasco_scs, proj=self.proj,
-                                        jit=self.jit,
-                                        P=self.P,
-                                        A=self.A,
-                                        idx_mapping=self.idx_mapping,
-                                        hsde=False)
+        # self.k_steps_train_fn2 = partial(k_steps_train_lasco_scs, proj=self.proj,
+        #                                 jit=self.jit,
+        #                                 P=self.P,
+        #                                 A=self.A,
+        #                                 idx_mapping=self.idx_mapping,
+        #                                 hsde=False)
         self.k_steps_eval_fn = partial(k_steps_eval_lasco_scs, proj=self.proj,
                                        P=self.P, A=self.A,
                                        idx_mapping=self.idx_mapping,
@@ -77,8 +77,9 @@ class LASCOSCSmodel(L2WSmodel):
                                        lightweight=lightweight)
         
         
+        
     def init_params(self):
-        self.mean_params = 0*jnp.ones((self.eval_unrolls, 5))
+        self.mean_params = -0*jnp.ones((self.eval_unrolls, 5))
         # self.mean_params = self.mean_params.at[10:20, :].set(1*jnp.ones((10, 5)))
         self.params = [self.mean_params]
 
@@ -148,6 +149,7 @@ class LASCOSCSmodel(L2WSmodel):
                 factors1 = factors1.at[i, :, :].set(factor[0])
                 factors2 = factors2.at[i, :].set(factor[1])
                 scaled_vecs = scaled_vecs.at[i, :].set(scale_vec)
+                print('factor', scale_vec)
 
 
             all_factors = factors1, factors2
@@ -162,7 +164,7 @@ class LASCOSCSmodel(L2WSmodel):
                                                 z_star=z_star) #,
                                                 #factor=factor)
                 print(jnp.linalg.norm(z_final[:-1] - z_star))
-                print('z_final', z_final[:3])
+                print('z_final', z_final) #[:3])
             else:
                 eval_out = eval_fn(k=iters,
                                     z0=z0,
@@ -174,6 +176,7 @@ class LASCOSCSmodel(L2WSmodel):
                 angles = None
 
             loss = self.final_loss(loss_method, z_final, iter_losses, supervised, z0, z_star)
+            print('loss', loss)
 
             if diff_required:
                 return loss
