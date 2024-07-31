@@ -18,6 +18,7 @@ from lasco.algo_steps import create_projection_fn, get_psd_sizes
 from lasco.gd_model import GDmodel
 from lasco.ista_model import ISTAmodel
 from lasco.lm_gd_model import LMGDmodel
+from lasco.logisticgd_model import LOGISTICGDmodel
 from lasco.lm_ista_model import LMISTAmodel
 from lasco.lasco_gd_model import LASCOGDmodel
 from lasco.lasco_logisticgd_model import LASCOLOGISTICGDmodel
@@ -181,6 +182,8 @@ class Workspace:
             # self.q_mat_train = thetas[:N_train, :]
             # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_logisticgd_model(cfg, static_dict)
+        elif algo == 'logisticgd':
+            self.create_logisticgd_model(cfg, static_dict)
         elif algo == 'lm_gd':
             self.create_lm_gd_model(cfg, static_dict)
         elif algo == 'lasco_osqp':
@@ -285,6 +288,50 @@ class Workspace:
                           )
         self.l2ws_model = LASCOLOGISTICGDmodel(train_unrolls=self.train_unrolls,
                                                step_varying_num=cfg.get('step_varying_num', 50),
+                                       eval_unrolls=self.eval_unrolls,
+                                       train_inputs=self.train_inputs,
+                                       test_inputs=self.test_inputs,
+                                       regression=cfg.supervised,
+                                       nn_cfg=cfg.nn_cfg,
+                                       z_stars_train=self.z_stars_train,
+                                       z_stars_test=self.z_stars_test,
+                                       loss_method=cfg.loss_method,
+                                       algo_dict=input_dict)
+        
+    def create_lm_logisticgd_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        num_points = static_dict['num_points']
+        gd_step = static_dict['gd_step']
+
+        input_dict = dict(algorithm='lm_logisticgd',
+                          q_mat_train=self.q_mat_train,
+                          q_mat_test=self.q_mat_test,
+                          gd_step=gd_step,
+                          num_points=num_points
+                          )
+        self.l2ws_model = LMLOGISTICGDmodel(train_unrolls=self.train_unrolls,
+                                       eval_unrolls=self.eval_unrolls,
+                                       train_inputs=self.train_inputs,
+                                       test_inputs=self.test_inputs,
+                                       regression=cfg.supervised,
+                                       nn_cfg=cfg.nn_cfg,
+                                       z_stars_train=self.z_stars_train,
+                                       z_stars_test=self.z_stars_test,
+                                       loss_method=cfg.loss_method,
+                                       algo_dict=input_dict)
+        
+    def create_logisticgd_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        num_points = static_dict['num_points']
+        gd_step = static_dict['gd_step']
+
+        input_dict = dict(algorithm='lm_logisticgd',
+                          q_mat_train=self.q_mat_train,
+                          q_mat_test=self.q_mat_test,
+                          gd_step=gd_step,
+                          num_points=num_points
+                          )
+        self.l2ws_model = LOGISTICGDmodel(train_unrolls=self.train_unrolls,
                                        eval_unrolls=self.eval_unrolls,
                                        train_inputs=self.train_inputs,
                                        test_inputs=self.test_inputs,

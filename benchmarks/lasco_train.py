@@ -399,7 +399,7 @@ def main_run_logistic_regression_l2ws(cfg):
         agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
         cfg.data.datetime = agg_datetime
     copy_data_file(example, agg_datetime)
-    logistic_regression.l2ws_run(cfg)
+    logistic_regression.run(cfg, model='l2ws')
 
 
 @hydra.main(config_path='configs/logistic_regression', config_name='logistic_regression_lm_run.yaml')
@@ -412,7 +412,7 @@ def main_run_logistic_regression_lm(cfg):
         agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
         cfg.data.datetime = agg_datetime
     copy_data_file(example, agg_datetime)
-    logistic_regression.run(cfg, lasco=False)
+    logistic_regression.run(cfg, model='lm')
 
 
 @hydra.main(config_path='configs/opf', config_name='opf_run.yaml')
@@ -572,7 +572,7 @@ if __name__ == '__main__':
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_logistic_regression()
     elif sys.argv[1] == 'logistic_regression_l2ws':
-        sys.argv[1] = base + 'ridge_regression/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv[1] = base + 'logistic_regression/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_logistic_regression_l2ws()
     elif sys.argv[1] == 'logistic_regression_lm':

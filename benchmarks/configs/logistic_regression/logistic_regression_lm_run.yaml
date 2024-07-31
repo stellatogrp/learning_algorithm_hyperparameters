@@ -40,7 +40,7 @@ plot_iterates: [0, 10, 20]
 loss_method: 'fixed_k' # 'fixed_k' #'fixed_k' #'constant_sum'
 normalize_inputs: False
 
-
+algo: 'lm'
 
 accuracies: [.1, .01, .001, .0001]
 skip_startup: False #True
