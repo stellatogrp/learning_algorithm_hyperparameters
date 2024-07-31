@@ -972,6 +972,10 @@ class Workspace:
                 self.l2ws_model.set_params_for_nesterov()
                 self.eval_iters_train_and_test('nesterov', None)
 
+                # silver
+                self.l2ws_model.set_params_for_silver()
+                self.eval_iters_train_and_test('silver', None)
+
             # prev sol eval
             if self.prev_sol_eval and self.l2ws_model.z_stars_train is not None:
                 self.eval_iters_train_and_test('prev_sol', None)

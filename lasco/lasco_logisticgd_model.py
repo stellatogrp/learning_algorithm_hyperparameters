@@ -111,11 +111,12 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
 
     def set_params_for_silver(self):
         silver_steps = 128
-        kappa = self.smooth_param / self.str_cvx_param
-        silver_step_sizes = compute_silver_steps(kappa, silver_steps) / self.smooth_param
-        params = jnp.ones((silver_steps + 1, 1))
-        params = params.at[:silver_steps, 0].set(jnp.array(silver_step_sizes))
-        params = params.at[silver_steps, 0].set(2 / (self.smooth_param + self.str_cvx_param))
+        # kappa = self.smooth_param / self.str_cvx_param
+
+        silver_step_sizes = compute_silver_steps(silver_steps) / self.smooth_param
+        params = jnp.ones((silver_steps, 1))
+        params = params.at[:silver_steps - 1, 0].set(jnp.array(silver_step_sizes))
+        params = params.at[silver_steps - 1, 0].set(1 / (self.smooth_param))
         self.params = [params]
 
 
@@ -261,69 +262,74 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
         stddev_posterior_var = variances.std()
         return avg_posterior_var, stddev_posterior_var
 
-def generate_yz_sequences(kappa, t):
-    # intended to be t = log_2(K)
-    y_vals = {1: 1 / kappa}
-    z_vals = {1: 1 / kappa}
-    print(y_vals, z_vals)
+# def generate_yz_sequences(kappa, t):
+#     # intended to be t = log_2(K)
+#     y_vals = {1: 1 / kappa}
+#     z_vals = {1: 1 / kappa}
+#     print(y_vals, z_vals)
 
-    # first generate z sequences
-    for i in range(1, t+1):
-        K = 2 ** i
-        z_ihalf = z_vals[int(K / 2)]
-        xi = 1 - z_ihalf
-        z_i = z_ihalf * (xi + np.sqrt(1 + xi ** 2))
-        z_vals[K] = z_i
+#     # first generate z sequences
+#     for i in range(1, t+1):
+#         K = 2 ** i
+#         z_ihalf = z_vals[int(K / 2)]
+#         xi = 1 - z_ihalf
+#         z_i = z_ihalf * (xi + np.sqrt(1 + xi ** 2))
+#         z_vals[K] = z_i
 
-    for i in range(1, t+1):
-        K = 2 ** i
-        # z_ihalf = z_vals[int(K / 2)]
-        # xi = 1 - z_ihalf
-        # yi = z_ihalf / (xi + np.sqrt(1 + xi ** 2))
-        # y_vals[K] = yi
-        zK = z_vals[K]
-        zKhalf = z_vals[int(K // 2)]
-        yK = zK - 2 * (zKhalf - zKhalf ** 2)
-        y_vals[K] = yK
+#     for i in range(1, t+1):
+#         K = 2 ** i
+#         # z_ihalf = z_vals[int(K / 2)]
+#         # xi = 1 - z_ihalf
+#         # yi = z_ihalf / (xi + np.sqrt(1 + xi ** 2))
+#         # y_vals[K] = yi
+#         zK = z_vals[K]
+#         zKhalf = z_vals[int(K // 2)]
+#         yK = zK - 2 * (zKhalf - zKhalf ** 2)
+#         y_vals[K] = yK
 
-    # print(y_vals, z_vals)
+#     # print(y_vals, z_vals)
 
-    # print(z_vals[1], z_vals[2])
-    # print((1 / kappa ** 2) / z_vals[2])
-    return y_vals, z_vals
+#     # print(z_vals[1], z_vals[2])
+#     # print((1 / kappa ** 2) / z_vals[2])
+#     return y_vals, z_vals
 
-def compute_silver_steps(kappa, K):
-    # assume K is a power of 2
-    idx_vals = compute_silver_idx(kappa, K)
-    y_vals, z_vals = generate_yz_sequences(kappa, int(np.log2(K)))
+# def compute_silver_steps(kappa, K):
+#     # assume K is a power of 2
+#     idx_vals = compute_silver_idx(kappa, K)
+#     y_vals, z_vals = generate_yz_sequences(kappa, int(np.log2(K)))
 
-    def psi(t):
-        return (1 + kappa * t) / (1 + t)
+#     def psi(t):
+#         return (1 + kappa * t) / (1 + t)
 
-    # print(y_vals, z_vals)
-    silver_steps = []
-    for i in range(idx_vals.shape[0] - 1):
-        idx = idx_vals[i]
-        silver_steps.append(psi(y_vals[idx]))
-    silver_steps.append(psi(z_vals[idx_vals[-1]]))
-    print(silver_steps)
+#     # print(y_vals, z_vals)
+#     silver_steps = []
+#     for i in range(idx_vals.shape[0] - 1):
+#         idx = idx_vals[i]
+#         silver_steps.append(psi(y_vals[idx]))
+#     silver_steps.append(psi(z_vals[idx_vals[-1]]))
+#     print(silver_steps)
 
-    return np.array(silver_steps)
+#     return np.array(silver_steps)
 
-def compute_silver_idx(kappa, K):
-    two_adics = compute_shifted_2adics(K)
-    # print(two_adics)
-    idx_vals = np.power(2, two_adics)
+# def compute_silver_idx(kappa, K):
+#     two_adics = compute_shifted_2adics(K)
+#     # print(two_adics)
+#     idx_vals = np.power(2, two_adics)
 
-    # if np.ceil(np.log2(K)) == np.floor(np.log2(K)):
-    last_pow2 = int(np.floor(np.log2(K)))
-    # print(last_pow2)
-    idx_vals[(2 ** last_pow2) - 1] /= 2
-    print('a_idx:', idx_vals)
-    return idx_vals
+#     # if np.ceil(np.log2(K)) == np.floor(np.log2(K)):
+#     last_pow2 = int(np.floor(np.log2(K)))
+#     # print(last_pow2)
+#     idx_vals[(2 ** last_pow2) - 1] /= 2
+#     print('a_idx:', idx_vals)
+#     return idx_vals
 
-def compute_shifted_2adics(K):
-    return np.array([(k & -k).bit_length() for k in range(1, K+1)])
+# def compute_shifted_2adics(K):
+#     return np.array([(k & -k).bit_length() for k in range(1, K+1)])
+
+def compute_silver_steps(num_steps):
+    rho = 1 + np.sqrt(2)
+    schedule = [1 + rho**((k & -k).bit_length()-2) for k in range(1, num_steps)]
+    return np.array(schedule)
 
 def sigmoid(x):
     return 1 / (1 + jnp.exp(-x))
