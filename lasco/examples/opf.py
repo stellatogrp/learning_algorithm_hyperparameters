@@ -204,6 +204,7 @@ def generate_graph_and_prob(ppc, d_vertices, d_bounds, seed=42):
             # pij_var + 1j * qij_var == (X[i, i] - X[i, j]) * (gij + 1j * bij),
             pij_var == (X[i, i] - X[i, j]) * gij,
             qij_var == (X[i, i] - X[i, j]) * bij,
+            qij_var ** 2 + pij_var ** 2 <= 9900
         ]
 
     for node in G.nodes:
@@ -274,6 +275,9 @@ def generate_graph_and_prob(ppc, d_vertices, d_bounds, seed=42):
     prob = cp.Problem(cp.Minimize(obj), constraints)
     # demand_param.value = np.array([.5, .5])
     # prob.solve(solver=cp.SCS, verbose=True)
+
+    import pdb
+    pdb.set_trace()
 
     return G, prob, demand_param
 

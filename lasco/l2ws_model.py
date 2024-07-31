@@ -31,6 +31,7 @@ jax.config.update("jax_enable_x64", True)
 class L2WSmodel(object):
     def __init__(self, 
                  train_unrolls=5,
+                 step_varying_num=50,
                  train_inputs=None,
                  test_inputs=None,
                  regression=False,
@@ -84,7 +85,7 @@ class L2WSmodel(object):
         self.create_all_loss_fns(loss_method, regression)
         
 
-        self.step_varying_num = 50
+        self.step_varying_num = step_varying_num # 50
 
         # neural network setup
         self.initialize_neural_network(nn_cfg, plateau_decay)

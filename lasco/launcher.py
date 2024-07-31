@@ -125,6 +125,7 @@ class Workspace:
         N_train, N_test = cfg.N_train, cfg.N_test
         N_val = cfg.get('N_val', 0)
         N = N_train + N_test + N_val
+        self.N_val = N_val
 
         # for control problems only
         self.closed_loop_rollout_dict = closed_loop_rollout_dict
@@ -283,6 +284,7 @@ class Workspace:
                           num_points=num_points
                           )
         self.l2ws_model = LASCOLOGISTICGDmodel(train_unrolls=self.train_unrolls,
+                                               step_varying_num=cfg.get('step_varying_num', 50),
                                        eval_unrolls=self.eval_unrolls,
                                        train_inputs=self.train_inputs,
                                        test_inputs=self.test_inputs,
@@ -702,12 +704,15 @@ class Workspace:
             self.train_indices = rand_indices[:N_train]
             self.test_indices = rand_indices[N_train:]
 
+            self.val_indices = rand_indices[N_train + N_test:]
+
             # self.train_indices = np.random.choice(
             #     thetas.shape[0], N_train, replace=False)
             # self.test_indices = np.random.choice(
             #     thetas.shape[0], N_train, replace=False)
             self.q_mat_train = thetas[self.train_indices, :]
             self.q_mat_test = thetas[self.test_indices, :]
+            self.q_mat_val = thetas[self.val_indices, :]
 
 
         # load the closed_loop_rollout trajectories
@@ -849,7 +854,7 @@ class Workspace:
         plot_warm_starts(self.l2ws_model, self.plot_iterates, z_plot, train, col)
 
         if self.l2ws_model.algo[:5] == 'lasco':
-            n_iters = 64 if col == 'silver' else 51
+            n_iters = 64 if col == 'silver' else self.l2ws_model.step_varying_num + 1 #51
             if col == 'silver' or col == 'conj_grad':
                 transformed_params = self.l2ws_model.params[0]
             else:
@@ -1049,9 +1054,9 @@ class Workspace:
                 emp_risks = 1 - emp_success_rates  # a vector over the iterations
 
                 upper_risk_bounds = compute_kl_inv_vector(emp_risks, self.l2ws_model.delta, 
-                                                        self.l2ws_model.N_test)
+                                                        self.N_val)
                 lower_risk_bounds = 1 - compute_kl_inv_vector(emp_success_rates, self.l2ws_model.delta, 
-                                                            self.l2ws_model.N_test)
+                                                            self.N_val)
                 if not os.path.exists(f"frac_solved_{metric_name}"):
                     os.mkdir(f"frac_solved_{metric_name}")
                 filename = f"frac_solved_{metric_name}/tol={self.frac_solved_accs[i]}"

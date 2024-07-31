@@ -53,7 +53,8 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
 
         self.k_steps_train_fn = partial(k_steps_train_lasco_logisticgd, num_points=num_points,
                                         jit=self.jit)
-        self.k_steps_eval_fn = partial(k_steps_eval_lasco_logisticgd, num_points=num_points,
+        self.k_steps_eval_fn = partial(k_steps_eval_lasco_logisticgd, num_points=num_points, 
+                                       safeguard_step=1/self.smooth_param,
                                        jit=self.jit)
         # self.nesterov_eval_fn = partial(k_steps_eval_nesterov_gd, num_points=num_points, cond_num=cond_num,
         #                                jit=self.jit)
@@ -81,12 +82,14 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
         # end-to-end added fixed warm start eval - bypasses neural network
         # self.loss_fn_fixed_ws = e2e_loss_fn(bypass_nn=True, diff_required=False)
 
+        self.num_const_steps = input_dict.get('num_const_steps', 1)
+
     def transform_params(self, params, n_iters):
         # n_iters = params[0].size
         transformed_params = jnp.zeros((n_iters, 1))
         transformed_params = jnp.clip(transformed_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0])), a_max=1000)
-        # transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
-        transformed_params = transformed_params.at[n_iters - 1, 0].set(jnp.exp(params[0][n_iters - 1, 0]))
+        transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+        # transformed_params = transformed_params.at[n_iters - 1, 0].set(jnp.exp(params[0][n_iters - 1, 0]))
         return transformed_params
 
     def perturb_params(self):
@@ -122,8 +125,8 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
 
     def init_params(self):
         # init step-varying params
-        # step_varying_params = jnp.log(1 / (self.smooth_param)) * jnp.ones((self.step_varying_num, 1))
-        step_varying_params =  jnp.ones((self.step_varying_num, 1)) * jnp.log(1.0) # jnp.log(0.1) # 
+        step_varying_params = jnp.log(1 / (self.smooth_param)) * jnp.ones((self.step_varying_num, 1))
+        # step_varying_params =  jnp.ones((self.step_varying_num, 1)) * jnp.log(1.0) # jnp.log(0.1) # 
 
         # init steady_state_params
         steady_state_params = 0 * jnp.ones((1, 1)) #sigmoid_inv(0) * jnp.ones((1, 1))

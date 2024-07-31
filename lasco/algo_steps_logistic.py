@@ -9,7 +9,7 @@ from jax.tree_util import tree_map
 from lasco.utils.generic_utils import python_fori_loop, unvec_symm, vec_symm
 
 
-def k_steps_eval_lasco_logisticgd(k, z0, q, params, num_points, supervised, z_star, jit):
+def k_steps_eval_lasco_logisticgd(k, z0, q, params, num_points, safeguard_step, supervised, z_star, jit):
     iter_losses = jnp.zeros(k)
     z_all_plus_1 = jnp.zeros((k + 1, z0.size))
     z_all_plus_1 = z_all_plus_1.at[0, :].set(z0)
@@ -18,11 +18,19 @@ def k_steps_eval_lasco_logisticgd(k, z0, q, params, num_points, supervised, z_st
     X = jnp.reshape(X_flat, (num_points, 784))
     y = q[num_points * 784:]
 
-    fp_eval_partial = partial(fp_eval_lasco_logisticgd,
+    # fp_eval_partial = partial(fp_eval_lasco_logisticgd,
+    #                           supervised=supervised,
+    #                           z_star=z_star,
+    #                           X=X,
+    #                           y=y,
+    #                           gd_steps=params
+    #                           )
+    fp_eval_partial = partial(fp_eval_lasco_logisticgd_safeguard,
                               supervised=supervised,
                               z_star=z_star,
                               X=X,
                               y=y,
+                              safeguard_step=safeguard_step,
                               gd_steps=params
                               )
     z_all = jnp.zeros((k, z0.size))
@@ -61,18 +69,40 @@ def k_steps_train_lasco_logisticgd(k, z0, q, params, num_points, supervised, z_s
     z_final, iter_losses = out
     return z_final, iter_losses
 
-
 def fp_eval_lasco_logisticgd(i, val, supervised, z_star, X, y, gd_steps):
     z, loss_vec, z_all, obj_diffs = val
     z_next = fixed_point_logisticgd(z, X, y, gd_steps[i])
     diff = jnp.linalg.norm(z - z_star)
     loss_vec = loss_vec.at[i].set(diff)
     w, b = z[:-1], z[-1]
-    obj = compute_loss(y, sigmoid(X @ w + b)) #+ .01 * .5 * jnp.linalg.norm(w) ** 2 + .01  * .5 * b ** 2 
+    obj = compute_loss(y, sigmoid(X @ w + b))
     w_star, b_star = z_star[:-1], z_star[-1]
     opt_obj = compute_loss(y, sigmoid(X @ w_star + b_star))
-    # obj = .5 * jnp.linalg.norm(A @ z - c) ** 2 + lambd * jnp.linalg.norm(z, ord=1)
-    # opt_obj = .5 * jnp.linalg.norm(A @ z_star - c) ** 2 + lambd * jnp.linalg.norm(z_star, ord=1)
+
+
+    obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
+    z_all = z_all.at[i, :].set(z_next)
+    return z_next, loss_vec, z_all, obj_diffs
+
+
+def fp_eval_lasco_logisticgd_safeguard(i, val, supervised, z_star, X, y, safeguard_step, gd_steps):
+    z, loss_vec, z_all, obj_diffs = val
+    z_next = fixed_point_logisticgd(z, X, y, gd_steps[i])
+    diff = jnp.linalg.norm(z - z_star)
+    loss_vec = loss_vec.at[i].set(diff)
+
+    w, b = z[:-1], z[-1]
+    obj = compute_loss(y, sigmoid(X @ w + b))
+
+    w_star, b_star = z_star[:-1], z_star[-1]
+    opt_obj = compute_loss(y, sigmoid(X @ w_star + b_star))
+
+    w_next, b_next = z_next[:-1], z_next[-1]
+    next_obj = compute_loss(y, sigmoid(X @ w_next + b_next))
+
+
+    z_next = lax.cond(next_obj < obj, lambda _: z_next, lambda _: fixed_point_logisticgd(z, X, y, safeguard_step), operand=None)
+
     obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
     z_all = z_all.at[i, :].set(z_next)
     return z_next, loss_vec, z_all, obj_diffs

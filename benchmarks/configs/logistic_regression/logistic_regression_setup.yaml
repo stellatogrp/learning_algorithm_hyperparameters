@@ -1,6 +1,5 @@
 num_points: 200 #100 #20
 N_train: 500
-N_test: 1000
+N_test: 2000
 seed: 42
 solve: True
-
