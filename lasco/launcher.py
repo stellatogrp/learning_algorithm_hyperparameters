@@ -967,6 +967,11 @@ class Workspace:
                 # perturb slightly for training
                 self.l2ws_model.perturb_params()
 
+            elif self.l2ws_model.algo == 'lasco_logisticgd':
+                # nesterov
+                self.l2ws_model.set_params_for_nesterov()
+                self.eval_iters_train_and_test('nesterov', None)
+
             # prev sol eval
             if self.prev_sol_eval and self.l2ws_model.z_stars_train is not None:
                 self.eval_iters_train_and_test('prev_sol', None)

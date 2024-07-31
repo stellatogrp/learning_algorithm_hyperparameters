@@ -5,7 +5,7 @@ from jax import random
 
 import numpy as np
 
-from lasco.algo_steps_logistic import k_steps_eval_lasco_logisticgd, k_steps_train_lasco_logisticgd
+from lasco.algo_steps_logistic import k_steps_eval_lasco_logisticgd, k_steps_train_lasco_logisticgd, k_steps_eval_nesterov_logisticgd
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
 
@@ -56,8 +56,8 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
         self.k_steps_eval_fn = partial(k_steps_eval_lasco_logisticgd, num_points=num_points, 
                                        safeguard_step=1/self.smooth_param,
                                        jit=self.jit)
-        # self.nesterov_eval_fn = partial(k_steps_eval_nesterov_gd, num_points=num_points, cond_num=cond_num,
-        #                                jit=self.jit)
+        self.nesterov_eval_fn = partial(k_steps_eval_nesterov_logisticgd, num_points=num_points,
+                                       jit=self.jit)
         # self.conj_grad_eval_fn = partial(k_steps_eval_conj_grad, num_points=num_points,
         #                                jit=self.jit)
         self.out_axes_length = 5
@@ -105,7 +105,7 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
 
     def set_params_for_nesterov(self):
         # self.params = [jnp.log(1 / self.smooth_param * jnp.ones((self.step_varying_num + 1, 1)))]
-        nesterov_step = 4 / (3 * self.smooth_param + self.str_cvx_param)
+        nesterov_step = 1 / self.smooth_param # 4 / (3 * self.smooth_param + self.str_cvx_param)
         self.params = [jnp.log(nesterov_step * jnp.ones((self.step_varying_num + 1, 1)))]
 
 
@@ -116,11 +116,8 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
         params = jnp.ones((silver_steps + 1, 1))
         params = params.at[:silver_steps, 0].set(jnp.array(silver_step_sizes))
         params = params.at[silver_steps, 0].set(2 / (self.smooth_param + self.str_cvx_param))
-
         self.params = [params]
-        # step_varying_params = jnp.log(params[:self.step_varying_num, :1])
-        # steady_state_params = sigmoid_inv(params[self.step_varying_num:, :1] * self.smooth_param / 2)
-        # self.params = [jnp.vstack([step_varying_params, steady_state_params])]
+
 
 
     def init_params(self):

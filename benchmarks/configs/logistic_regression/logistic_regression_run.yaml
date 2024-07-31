@@ -45,7 +45,7 @@ normalize_inputs: False #True
 
 
 accuracies: [.1, .01, .001, .0001]
-skip_startup: True
+skip_startup: False
 
 save_weights_flag: True
 # load_weights_datetime: '2024-05-04/11-22-08' #'2024-03-30/11-47-25'

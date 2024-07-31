@@ -328,3 +328,57 @@ def fixed_point_logisticgd_lm(z, X, y, gd_step):
     b_next = b - gd_step[-1] * db #(db + .01 * b)
     z_next = jnp.hstack([w_next, b_next])
     return z_next
+
+# def k_steps_eval_nesterov_logisticgd():
+
+def k_steps_eval_nesterov_logisticgd(k, z0, q, params, num_points, supervised, z_star, jit, safeguard=True):
+    iter_losses = jnp.zeros(k)
+    z_all_plus_1 = jnp.zeros((k + 1, z0.size))
+    z_all_plus_1 = z_all_plus_1.at[0, :].set(z0)
+
+    X_flat = q[:num_points * 784]
+    X = jnp.reshape(X_flat, (num_points, 784))
+    y = q[num_points * 784:]
+
+    fp_eval_partial = partial(fp_eval_nesterov_logisticgd,
+                            supervised=supervised,
+                            z_star=z_star,
+                            X=X,
+                            y=y,
+                            gd_steps=params
+                            )
+    
+    z_all = jnp.zeros((k, z0.size))
+    obj_diffs = jnp.zeros(k)
+    val = z0, z0, 0, iter_losses, z_all, obj_diffs
+    start_iter = 0
+    if jit:
+        out = lax.fori_loop(start_iter, k, fp_eval_partial, val)
+    else:
+        out = python_fori_loop(start_iter, k, fp_eval_partial, val)
+    z_final, y_final, t_final, iter_losses, z_all, obj_diffs = out
+    z_all_plus_1 = z_all_plus_1.at[1:, :].set(z_all)
+    return z_final, iter_losses, z_all_plus_1, obj_diffs
+
+
+def fp_eval_nesterov_logisticgd(i, val, supervised, z_star, X, y, gd_steps):
+    z, v, t, loss_vec, z_all, obj_diffs = val
+    z_next, v_next, t_next = fixed_point_nesterov_logisticgd(z, v, t, X, y, gd_steps[i])
+    diff = jnp.linalg.norm(z - z_star)
+    loss_vec = loss_vec.at[i].set(diff)
+    w, b = z[:-1], z[-1]
+    obj = compute_loss(y, sigmoid(X @ w + b))
+    w_star, b_star = z_star[:-1], z_star[-1]
+    opt_obj = compute_loss(y, sigmoid(X @ w_star + b_star))
+
+    obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
+    z_all = z_all.at[i, :].set(z_next)
+    return z_next, v_next, t_next, loss_vec, z_all, obj_diffs
+
+
+def fixed_point_nesterov_logisticgd(z, v, t, X, y, gd_step):
+    v_next = fixed_point_logisticgd(z, X, y, gd_step)
+    # t_next = .5 * (1 + jnp.sqrt(1 + 4 * t ** 2))
+    z_next = v_next + t/ (t + 3) * (v_next - v)
+    t_next = t + 1
+    return z_next, v_next, t_next
