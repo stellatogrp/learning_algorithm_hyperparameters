@@ -19,6 +19,7 @@ from lasco.gd_model import GDmodel
 from lasco.ista_model import ISTAmodel
 from lasco.lm_gd_model import LMGDmodel
 from lasco.logisticgd_model import LOGISTICGDmodel
+from lasco.lm_logisticgd_model import LMLOGISTICGDmodel
 from lasco.lm_ista_model import LMISTAmodel
 from lasco.lasco_gd_model import LASCOGDmodel
 from lasco.lasco_logisticgd_model import LASCOLOGISTICGDmodel
@@ -175,13 +176,11 @@ class Workspace:
             # self.q_mat_test = thetas[N_train:N, :]
             self.create_ista_model(cfg, static_dict)
         elif algo == 'lasco_gd':
-            # self.q_mat_train = thetas[:N_train, :]
-            # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_gd_model(cfg, static_dict)
         elif algo == 'lasco_logisticgd':
-            # self.q_mat_train = thetas[:N_train, :]
-            # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_logisticgd_model(cfg, static_dict)
+        elif algo == 'lm_logisticgd':
+            self.create_lm_logisticgd_model(cfg, static_dict)
         elif algo == 'logisticgd':
             self.create_logisticgd_model(cfg, static_dict)
         elif algo == 'lm_gd':

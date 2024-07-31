@@ -19,14 +19,10 @@ class LOGISTICGDmodel(L2WSmodel):
         num_weights = 785
         
         self.q_mat_train, self.q_mat_test = input_dict['q_mat_train'], input_dict['q_mat_test']
-        # P = input_dict['P']
-        gd_step = input_dict['gd_step']
-        # n = P.shape[0]
-        # self.output_size = n
+        # gd_step = input_dict['gd_step']
         self.n = num_weights
         self.output_size = self.n
 
-        # calculate the gd_step
 
         # get the smoothness parameter
         first_prob_data = self.q_mat_train[0, :]
@@ -45,6 +41,8 @@ class LOGISTICGDmodel(L2WSmodel):
 
         # self.str_cvx_param = jnp.min(evals)
         self.smooth_param = jnp.max(evals) / 4
+
+        gd_step = 1 / self.smooth_param
 
         self.k_steps_eval_fn = partial(k_steps_eval_logisticgd, num_points=num_points, gd_step=gd_step, jit=self.jit)
         self.k_steps_train_fn = partial(k_steps_train_logisticgd, num_points=num_points, gd_step=gd_step, jit=self.jit)

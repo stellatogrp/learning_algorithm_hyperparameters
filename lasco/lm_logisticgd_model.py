@@ -5,40 +5,56 @@ from jax import random
 
 import numpy as np
 
-from lasco.algo_steps_logistic import k_steps_eval_lm_gd, k_steps_train_lm_gd, k_steps_eval_nesterov_gd
+from lasco.algo_steps_logistic import k_steps_eval_lm_logisticgd, k_steps_train_lm_logisticgd
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
 from lasco.lasco_gd_model import sigmoid
 
 
-class LMGDmodel(L2WSmodel):
+class LMLOGISTICGDmodel(L2WSmodel):
     def __init__(self, **kwargs):
-        super(LMGDmodel, self).__init__(**kwargs)
+        super(LMLOGISTICGDmodel, self).__init__(**kwargs)
 
     def initialize_algo(self, input_dict):
         self.factor_static = None
-        self.algo = 'lm_gd'
+        self.algo = 'lm_logisticgd'
         self.factors_required = False
-        self.q_mat_train, self.q_mat_test = input_dict['c_mat_train'], input_dict['c_mat_test']
+        self.q_mat_train, self.q_mat_test = input_dict['q_mat_train'], input_dict['q_mat_test']
 
-        P = input_dict['P']
-        self.P = P
+        # P = input_dict['P']
+        # self.P = P
 
         # self.D, self.W = D, W
-        self.n = P.shape[0]
+        # self.n = P.shape[0]
+        # self.output_size = self.n
+        num_points = input_dict['num_points']
+        num_weights = 785
+        self.n = num_weights
         self.output_size = self.n
 
+        first_prob_data = self.q_mat_train[0, :]
+        X0_flat, y0 = first_prob_data[:-num_points], first_prob_data[-num_points:]
+        X0 = jnp.reshape(X0_flat, (num_points, num_weights - 1))
 
-        evals, evecs = jnp.linalg.eigh(P)
+        covariance_matrix = np.dot(X0.T, X0) / num_points
+    
+        # Compute the maximum eigenvalue of the covariance matrix
+        evals, evecs = jnp.linalg.eigh(covariance_matrix)
+        # max_eigenvalue = jnp.max(evals)
 
-        self.str_cvx_param = jnp.min(evals)
-        self.smooth_param = jnp.max(evals)
+        self.num_const_steps = input_dict.get('num_const_steps', 1)
+
+        # evals, evecs = jnp.linalg.eigh(P)
+
+        # self.str_cvx_param = jnp.min(evals)
+        self.smooth_param = jnp.max(evals) / 4
+
 
         # cond_num = self.smooth_param / self.str_cvx_param
 
-        self.k_steps_train_fn = partial(k_steps_train_lm_gd, P=P,
+        self.k_steps_train_fn = partial(k_steps_train_lm_logisticgd, num_points=num_points,
                                         jit=self.jit)
-        self.k_steps_eval_fn = partial(k_steps_eval_lm_gd, P=P,
+        self.k_steps_eval_fn = partial(k_steps_eval_lm_logisticgd, num_points=num_points,
                                        jit=self.jit)
 
         self.out_axes_length = 5
@@ -50,14 +66,6 @@ class LMGDmodel(L2WSmodel):
         self.lasco = False
         self.lm = True
 
-
-
-        # end-to-end loss fn for silver evaluation
-        # self.loss_fn_eval_silver = e2e_loss_fn(bypass_nn=False, diff_required=False, 
-        #                                        special_algo='silver')
-
-        # end-to-end added fixed warm start eval - bypasses neural network
-        # self.loss_fn_fixed_ws = e2e_loss_fn(bypass_nn=True, diff_required=False)
 
 
 
