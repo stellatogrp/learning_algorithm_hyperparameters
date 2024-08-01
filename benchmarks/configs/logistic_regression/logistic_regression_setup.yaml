@@ -1,10 +1,5 @@
 num_points: 200 #100 #20
-<<<<<<< HEAD
 N_train: 1000
 N_test: 10000
-=======
-N_train: 500
-N_test: 2000
->>>>>>> c0075ddd2fe0b3862c61e604c6aaacd502424df7
 seed: 42
 solve: True
