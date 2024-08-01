@@ -9,6 +9,7 @@ from jax.tree_util import tree_map
 from lasco.utils.generic_utils import python_fori_loop, unvec_symm, vec_symm
 
 TAU_FACTOR = 1 #10
+import jax
 
 
 def k_steps_eval_conj_grad(k, z0, q, params, P, supervised, z_star, jit):
@@ -72,7 +73,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, P, A, idx_mapping, supervised, z_s
     fp_train_partial = partial(fp_train_lasco_scs, q_r=q, all_factors=all_factors,
                                supervised=supervised, P=P, A=A, idx_mapping=idx_mapping,
                                z_star=z_star, proj=proj, hsde=hsde,
-                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, 
+                               homogeneous=hsde, scaled_vecs=scaled_vecs, alphas=alphas, 
                                tau_factors=tau_factors)
     if hsde:
         # first step: iteration 0
@@ -105,6 +106,9 @@ def fp_train_lasco_scs(i, val, q_r, all_factors, P, A, idx_mapping, supervised, 
     r = q_r
     factors1, factors2 = all_factors
     idx = idx_mapping[i]
+
+    print('i', i)
+
     z_next, u, u_tilde, v = fixed_point_hsde(z, homogeneous, r, factors1[idx, :, :], 
                                              factors2[idx, :], proj, scaled_vecs[idx, :], alphas[idx], tau_factors[idx])
     
@@ -1750,7 +1754,7 @@ def get_scaled_vec_and_factor(M, rho_x, rho_y, rho_y_zero, m, n, zero_cone_size,
 
 def extract_sol(u, v, n, hsde):
     if hsde:
-        tau = u[-1]
+        tau = u[-1] #+ 1e-10
         x, y, s = u[:n] / tau, u[n:-1] / tau, v[n:-1] / tau
     else:
         # x, y, s = u[:n], u[n:], v[n:]
@@ -1947,6 +1951,7 @@ def fixed_point_hsde(z_init, homogeneous, r, factor1, factor2, proj, scale_vec, 
     else:
         tau_tilde = 1.0
     w_tilde = p - r * tau_tilde
+    # check_for_nans(w_tilde)
 
     # u, tau update
     w_temp = 2 * w_tilde - mu
@@ -2137,6 +2142,17 @@ def soc_proj_single(input):
     return jnp.append(pi_s, pi_y)
 
 
+# def check_for_nans(matrix):
+#     if jnp.isnan(matrix).any():
+#         raise ValueError("Input matrix contains NaNs")
+
+def check_for_nans(matrix):
+    # Use lax.cond to handle the check
+    has_nans = jnp.isnan(matrix).any()
+    return lax.cond(has_nans, lambda _: ValueError("Input matrix contains NaNs"), lambda _: matrix, None)
+
+
+
 def sdp_proj_single(x, n):
     """
     x_proj = argmin_y ||y - x||_2^2
@@ -2148,8 +2164,12 @@ def sdp_proj_single(x, n):
         but we cannot jit a function
         whose values depend on the size of inputs
     """
+    # print('sdp_proj_single', jax.numpy.isnan(x).max())
+    # check_for_nans(x)
+
     # convert vector of size (n * (n + 1) / 2) to matrix of shape (n, n)
     X = unvec_symm(x, n)
+    
 
     # do the eigendecomposition of X
     evals, evecs = jnp.linalg.eigh(X)

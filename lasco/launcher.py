@@ -18,6 +18,8 @@ from lasco.algo_steps import create_projection_fn, get_psd_sizes
 from lasco.gd_model import GDmodel
 from lasco.ista_model import ISTAmodel
 from lasco.lm_gd_model import LMGDmodel
+from lasco.logisticgd_model import LOGISTICGDmodel
+from lasco.lm_logisticgd_model import LMLOGISTICGDmodel
 from lasco.lm_ista_model import LMISTAmodel
 from lasco.lasco_gd_model import LASCOGDmodel
 from lasco.lasco_logisticgd_model import LASCOLOGISTICGDmodel
@@ -125,6 +127,7 @@ class Workspace:
         N_train, N_test = cfg.N_train, cfg.N_test
         N_val = cfg.get('N_val', 0)
         N = N_train + N_test + N_val
+        self.N_val = N_val
 
         # for control problems only
         self.closed_loop_rollout_dict = closed_loop_rollout_dict
@@ -173,13 +176,13 @@ class Workspace:
             # self.q_mat_test = thetas[N_train:N, :]
             self.create_ista_model(cfg, static_dict)
         elif algo == 'lasco_gd':
-            # self.q_mat_train = thetas[:N_train, :]
-            # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_gd_model(cfg, static_dict)
         elif algo == 'lasco_logisticgd':
-            # self.q_mat_train = thetas[:N_train, :]
-            # self.q_mat_test = thetas[N_train:N, :]
             self.create_lasco_logisticgd_model(cfg, static_dict)
+        elif algo == 'lm_logisticgd':
+            self.create_lm_logisticgd_model(cfg, static_dict)
+        elif algo == 'logisticgd':
+            self.create_logisticgd_model(cfg, static_dict)
         elif algo == 'lm_gd':
             self.create_lm_gd_model(cfg, static_dict)
         elif algo == 'lasco_osqp':
@@ -283,6 +286,51 @@ class Workspace:
                           num_points=num_points
                           )
         self.l2ws_model = LASCOLOGISTICGDmodel(train_unrolls=self.train_unrolls,
+                                               step_varying_num=cfg.get('step_varying_num', 50),
+                                       eval_unrolls=self.eval_unrolls,
+                                       train_inputs=self.train_inputs,
+                                       test_inputs=self.test_inputs,
+                                       regression=cfg.supervised,
+                                       nn_cfg=cfg.nn_cfg,
+                                       z_stars_train=self.z_stars_train,
+                                       z_stars_test=self.z_stars_test,
+                                       loss_method=cfg.loss_method,
+                                       algo_dict=input_dict)
+        
+    def create_lm_logisticgd_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        num_points = static_dict['num_points']
+        gd_step = static_dict['gd_step']
+
+        input_dict = dict(algorithm='lm_logisticgd',
+                          q_mat_train=self.q_mat_train,
+                          q_mat_test=self.q_mat_test,
+                          gd_step=gd_step,
+                          num_points=num_points
+                          )
+        self.l2ws_model = LMLOGISTICGDmodel(train_unrolls=self.train_unrolls,
+                                       eval_unrolls=self.eval_unrolls,
+                                       train_inputs=self.train_inputs,
+                                       test_inputs=self.test_inputs,
+                                       regression=cfg.supervised,
+                                       nn_cfg=cfg.nn_cfg,
+                                       z_stars_train=self.z_stars_train,
+                                       z_stars_test=self.z_stars_test,
+                                       loss_method=cfg.loss_method,
+                                       algo_dict=input_dict)
+        
+    def create_logisticgd_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        num_points = static_dict['num_points']
+        gd_step = static_dict['gd_step']
+
+        input_dict = dict(algorithm='lm_logisticgd',
+                          q_mat_train=self.q_mat_train,
+                          q_mat_test=self.q_mat_test,
+                          gd_step=gd_step,
+                          num_points=num_points
+                          )
+        self.l2ws_model = LOGISTICGDmodel(train_unrolls=self.train_unrolls,
                                        eval_unrolls=self.eval_unrolls,
                                        train_inputs=self.train_inputs,
                                        test_inputs=self.test_inputs,
@@ -702,12 +750,15 @@ class Workspace:
             self.train_indices = rand_indices[:N_train]
             self.test_indices = rand_indices[N_train:]
 
+            self.val_indices = rand_indices[N_train + N_test:]
+
             # self.train_indices = np.random.choice(
             #     thetas.shape[0], N_train, replace=False)
             # self.test_indices = np.random.choice(
             #     thetas.shape[0], N_train, replace=False)
             self.q_mat_train = thetas[self.train_indices, :]
             self.q_mat_test = thetas[self.test_indices, :]
+            self.q_mat_val = thetas[self.val_indices, :]
 
 
         # load the closed_loop_rollout trajectories
@@ -837,11 +888,11 @@ class Workspace:
 
         if isinstance(self.l2ws_model, SCSmodel) or isinstance(self.l2ws_model, LASCOSCSmodel) or isinstance(self.l2ws_model, LMSCSmodel):
             # out_train[6]
-            z_plot = z_all[:, :, :-1] / z_all[:, :, -1:]
+            z_plot = z_all[:, :, :-1] / (z_all[:, :, -1:] + 1e-10)
 
             u_all = out_train[6]
 
-            u_plot = u_all[:, :, :self.l2ws_model.n] / u_all[:, :, -1:]
+            u_plot = u_all[:, :, :self.l2ws_model.n] / (u_all[:, :, -1:] + 1e-10)
             # z_plot = u_plot
         else:
             z_plot = z_all
@@ -849,7 +900,7 @@ class Workspace:
         plot_warm_starts(self.l2ws_model, self.plot_iterates, z_plot, train, col)
 
         if self.l2ws_model.algo[:5] == 'lasco':
-            n_iters = 64 if col == 'silver' else 51
+            n_iters = 64 if col == 'silver' else self.l2ws_model.step_varying_num + 1 #51
             if col == 'silver' or col == 'conj_grad':
                 transformed_params = self.l2ws_model.params[0]
             else:
@@ -915,6 +966,15 @@ class Workspace:
 
                 # perturb slightly for training
                 self.l2ws_model.perturb_params()
+
+            elif self.l2ws_model.algo == 'lasco_logisticgd':
+                # nesterov
+                self.l2ws_model.set_params_for_nesterov()
+                self.eval_iters_train_and_test('nesterov', None)
+
+                # silver
+                self.l2ws_model.set_params_for_silver()
+                self.eval_iters_train_and_test('silver', None)
 
             # prev sol eval
             if self.prev_sol_eval and self.l2ws_model.z_stars_train is not None:
@@ -1049,9 +1109,9 @@ class Workspace:
                 emp_risks = 1 - emp_success_rates  # a vector over the iterations
 
                 upper_risk_bounds = compute_kl_inv_vector(emp_risks, self.l2ws_model.delta, 
-                                                        self.l2ws_model.N_test)
+                                                        self.N_val)
                 lower_risk_bounds = 1 - compute_kl_inv_vector(emp_success_rates, self.l2ws_model.delta, 
-                                                            self.l2ws_model.N_test)
+                                                            self.N_val)
                 if not os.path.exists(f"frac_solved_{metric_name}"):
                     os.mkdir(f"frac_solved_{metric_name}")
                 filename = f"frac_solved_{metric_name}/tol={self.frac_solved_accs[i]}"

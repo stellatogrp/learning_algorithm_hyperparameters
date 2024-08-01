@@ -52,7 +52,8 @@ def compute_kl_inv_vector(emp_risks, delta, N):
         # pdb.set_trace()
     else:
         # manually do it
-        kl_inv_vector = 0
+        raise ValueError(f"Invalid values: N should be {1000} and delta should be {0.0001}, but got N={N} and delta={delta}")
+        # kl_inv_vector = 0
         # K = emp_risks.size
         # kl_inv_vector = np.zeros(K)
         # for i in range(K):

@@ -41,7 +41,7 @@ def run(run_cfg, model='lasco'):
     if model == 'lasco':
         algo = 'lasco_logisticgd'
     elif model == 'l2ws':
-        algo = 'l2ws_logisticgd'
+        algo = 'logisticgd'
     else:
         algo = 'lm_logisticgd'
     workspace = Workspace(algo, run_cfg, static_flag, static_dict, example)

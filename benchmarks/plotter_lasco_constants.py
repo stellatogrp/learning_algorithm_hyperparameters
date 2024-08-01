@@ -34,6 +34,7 @@ titles_2_colors = dict(cold_start='black',
                        obj_k30=colors[5],
                        obj_k60=colors[2])
 titles_2_colors['UB97.5'] = colors[1]
+titles_2_colors['UB87.5'] = colors[1]
 titles_2_colors['LB2.5'] = colors[1]
                     #    obj_k120='gray')
 titles_2_styles = dict(cold_start='-', 
@@ -58,6 +59,7 @@ titles_2_styles = dict(cold_start='-',
                        obj_k30='-',
                        obj_k60='-')
 titles_2_styles['UB97.5'] = ':'
+titles_2_styles['UB87.5'] = ':'
 titles_2_styles['LB2.5'] = ':'
                     #    obj_k120='-')
 titles_2_markers = dict(cold_start='v', 
@@ -82,6 +84,7 @@ titles_2_markers = dict(cold_start='v',
                        obj_k30='x',
                        obj_k60='D')
 titles_2_markers['UB97.5'] = 'None'
+titles_2_markers['UB87.5'] = 'None'
 titles_2_markers['LB2.5'] = 'None'
 titles_2_marker_starts = dict(cold_start=0, 
                        nearest_neighbor=16, 
@@ -106,4 +109,5 @@ titles_2_marker_starts = dict(cold_start=0,
                        obj_k60=20)
 
 titles_2_marker_starts['UB97.5'] = 0
+titles_2_marker_starts['UB87.5'] = 0
 titles_2_marker_starts['LB2.5'] = 0

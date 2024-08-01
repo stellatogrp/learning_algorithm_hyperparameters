@@ -45,6 +45,13 @@ def ridge_regression_plot_eval_iters(cfg):
     plot_step_sizes(example, cfg)
 
 
+@hydra.main(config_path='configs/logistic_regression', config_name='logistic_regression_plot.yaml')
+def logistic_regression_plot_eval_iters(cfg):
+    example = 'logistic_regression'
+    create_lasco_results_unconstrained(example, cfg)
+    plot_step_sizes(example, cfg)
+
+
 @hydra.main(config_path='configs/lasso', config_name='lasso_plot.yaml')
 def lasso_plot_eval_iters(cfg):
     example = 'lasso'
@@ -718,6 +725,10 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'ridge_regression/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         ridge_regression_plot_eval_iters()
+    elif sys.argv[1] == 'logistic_regression':
+        sys.argv[1] = base + 'logistic_regression/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        logistic_regression_plot_eval_iters()
     elif sys.argv[1] == 'quadcopter':
         sys.argv[1] = base + 'quadcopter/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]

@@ -21,6 +21,7 @@ import lasco.examples.unconstrained_qp as unconstrained_qp
 import lasco.examples.vehicle as vehicle
 import lasco.examples.ridge_regression as ridge_regression
 import lasco.examples.logistic_regression as logistic_regression
+import lasco.examples.opf as opf
 from lasco.utils.data_utils import copy_data_file, recover_last_datetime
 
 
@@ -398,7 +399,7 @@ def main_run_logistic_regression_l2ws(cfg):
         agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
         cfg.data.datetime = agg_datetime
     copy_data_file(example, agg_datetime)
-    logistic_regression.l2ws_run(cfg)
+    logistic_regression.run(cfg, model='l2ws')
 
 
 @hydra.main(config_path='configs/logistic_regression', config_name='logistic_regression_lm_run.yaml')
@@ -411,7 +412,46 @@ def main_run_logistic_regression_lm(cfg):
         agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
         cfg.data.datetime = agg_datetime
     copy_data_file(example, agg_datetime)
-    logistic_regression.run(cfg, lasco=False)
+    logistic_regression.run(cfg, model='lm')
+
+
+@hydra.main(config_path='configs/opf', config_name='opf_run.yaml')
+def main_run_opf(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'opf'
+    agg_datetime = cfg.data.datetime
+    if agg_datetime == '':
+        # get the most recent datetime and update datetimes
+        agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = agg_datetime
+    copy_data_file(example, agg_datetime)
+    opf.run(cfg)
+
+
+@hydra.main(config_path='configs/opf', config_name='opf_l2ws_run.yaml')
+def main_run_opf_l2ws(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'opf'
+    agg_datetime = cfg.data.datetime
+    if agg_datetime == '':
+        # get the most recent datetime and update datetimes
+        agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = agg_datetime
+    copy_data_file(example, agg_datetime)
+    opf.l2ws_run(cfg)
+
+
+@hydra.main(config_path='configs/opf', config_name='opf_lm_run.yaml')
+def main_run_opf_lm(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'opf'
+    agg_datetime = cfg.data.datetime
+    if agg_datetime == '':
+        # get the most recent datetime and update datetimes
+        agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = agg_datetime
+    copy_data_file(example, agg_datetime)
+    opf.run(cfg, lasco=False)
 
 
 @hydra.main(config_path='configs/robust_kalman', config_name='robust_kalman_lm_run.yaml')
@@ -532,7 +572,7 @@ if __name__ == '__main__':
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_logistic_regression()
     elif sys.argv[1] == 'logistic_regression_l2ws':
-        sys.argv[1] = base + 'ridge_regression/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv[1] = base + 'logistic_regression/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_logistic_regression_l2ws()
     elif sys.argv[1] == 'logistic_regression_lm':
@@ -543,3 +583,15 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'robust_kalman/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_robust_kalman_lm()
+    elif sys.argv[1] == 'opf':
+        sys.argv[1] = base + 'opf/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_run_opf()
+    elif sys.argv[1] == 'opf_l2ws':
+        sys.argv[1] = base + 'opf/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_run_opf_l2ws()
+    elif sys.argv[1] == 'opf_lm':
+        sys.argv[1] = base + 'opf/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_run_opf_lm()

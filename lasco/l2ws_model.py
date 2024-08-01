@@ -25,11 +25,13 @@ from jaxopt import Bisection
 import jax
 jax.config.update("jax_enable_x64", True)
 # jax.config.update('jax_disable_jit', True)
+# jax.config.update("jax_debug_nans", True)
 
 
 class L2WSmodel(object):
     def __init__(self, 
                  train_unrolls=5,
+                 step_varying_num=50,
                  train_inputs=None,
                  test_inputs=None,
                  regression=False,
@@ -83,7 +85,7 @@ class L2WSmodel(object):
         self.create_all_loss_fns(loss_method, regression)
         
 
-        self.step_varying_num = 50
+        self.step_varying_num = step_varying_num # 50
 
         # neural network setup
         self.initialize_neural_network(nn_cfg, plateau_decay)
@@ -206,8 +208,11 @@ class L2WSmodel(object):
                                         iters=self.train_unrolls,
                                         z_stars=batch_z_stars,
                                         key=key)
+        # import pdb
+        # pdb.set_trace()
         self.key = key
         params, state = results
+        print('params', params)
         return state.value, params, state
 
     def evaluate(self, k, inputs, b, z_stars, fixed_ws, key, factors=None, tag='test', light=False):
