@@ -19,20 +19,14 @@ class LASCOGDmodel(L2WSmodel):
         self.algo = 'lasco_gd'
         self.factors_required = False
         self.q_mat_train, self.q_mat_test = input_dict['c_mat_train'], input_dict['c_mat_test']
-        # self.q_mat_train, self.q_mat_test = input_dict['b_mat_train'], input_dict['b_mat_test']
-        # D, W = input_dict['D'], input_dict['W']
+
         P = input_dict['P']
         self.P = P
 
-        # self.D, self.W = D, W
         self.n = P.shape[0]
         self.output_size = self.n
 
-        # evals, evecs = jnp.linalg.eigh(D.T @ D)
-        # lambd = 0.1
-        # self.ista_step = lambd / evals.max()
-        # p = jnp.diag(P)
-        # cond_num = jnp.max(p) / jnp.min(p)
+
         evals, evecs = jnp.linalg.eigh(P)
 
         self.str_cvx_param = jnp.min(evals)
@@ -50,11 +44,8 @@ class LASCOGDmodel(L2WSmodel):
                                        jit=self.jit)
         self.out_axes_length = 5
 
-        # self.lasco_train_inputs = self.q_mat_train
         N = self.q_mat_train.shape[0]
         self.lasco_train_inputs = jnp.zeros((N, self.n))
-
-
 
         e2e_loss_fn = self.create_end2end_loss_fn
 
@@ -68,8 +59,6 @@ class LASCOGDmodel(L2WSmodel):
         self.loss_fn_eval_conj_grad = e2e_loss_fn(bypass_nn=False, diff_required=False, 
                                                special_algo='conj_grad')
 
-        # end-to-end added fixed warm start eval - bypasses neural network
-        # self.loss_fn_fixed_ws = e2e_loss_fn(bypass_nn=True, diff_required=False)
 
     def transform_params(self, params, n_iters):
         # n_iters = params[0].size
@@ -104,9 +93,6 @@ class LASCOGDmodel(L2WSmodel):
         params = params.at[silver_steps, 0].set(2 / (self.smooth_param + self.str_cvx_param))
 
         self.params = [params]
-        # step_varying_params = jnp.log(params[:self.step_varying_num, :1])
-        # steady_state_params = sigmoid_inv(params[self.step_varying_num:, :1] * self.smooth_param / 2)
-        # self.params = [jnp.vstack([step_varying_params, steady_state_params])]
 
 
     def init_params(self):
@@ -138,13 +124,8 @@ class LASCOGDmodel(L2WSmodel):
                 if special_algo == 'silver' or special_algo == 'conj_grad':
                     stochastic_params = params[0]
                 else:
-                    n_iters = key #min(iters, 51)
-                    # stochastic_params = jnp.zeros((n_iters, 1))
-                    # stochastic_params = stochastic_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0]))
-                    # stochastic_params = stochastic_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+                    n_iters = key 
                     stochastic_params = self.transform_params(params, n_iters)
-
-            
 
             if self.train_fn is not None:
                 train_fn = self.train_fn
@@ -155,7 +136,6 @@ class LASCOGDmodel(L2WSmodel):
             else:
                 eval_fn = self.k_steps_eval_fn
 
-            # stochastic_params = params[0][:n_iters, 0]
             if special_algo == 'conj_grad':
                 eval_out = self.conj_grad_eval_fn(k=iters,
                                    z0=z0,
@@ -196,8 +176,6 @@ class LASCOGDmodel(L2WSmodel):
             loss = self.final_loss(loss_method, z_final,
                                    iter_losses, supervised, z0, z_star)
 
-            # penalty_loss = calculate_pinsker_penalty(self.N_train, params, self.b, self.c, self.delta)
-            # loss = loss + self.penalty_coeff * penalty_loss
 
             if diff_required:
                 return loss

@@ -11,6 +11,16 @@ from lasco.utils.data_utils import recover_last_datetime
 
 from plotter_lasco_constants import titles_2_colors, titles_2_marker_starts, titles_2_markers, titles_2_styles
 
+import PEPit
+from PEPit import PEP
+from PEPit.functions import SmoothStronglyConvexFunction
+from PEPit.functions import ConvexFunction
+from PEPit.primitive_steps import proximal_step
+
+# from PEPit.examples.unconstrained_convex_minimization import wc_gradient_descent_silver_stepsize_strongly_convex
+# from PEPit.examples.unconstrained_convex_minimization.gradient_descent_silver_stepsize_strongly_convex import wc_gradient_descent_silver_stepsize_strongly_convex
+from math import sqrt, log2
+
 plt.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",   # For talks, use sans-serif
@@ -75,6 +85,260 @@ def mnist_plot_eval_iters(cfg):
 def quadcopter_plot_eval_iters(cfg):
     example = 'quadcopter'
     create_lasco_results_constrained(example, cfg)
+
+
+def universal_pep_str_cvx(step_sizes, mu, L):
+    mu_orig = mu / 10
+    L_orig = L
+    L = L_orig / mu_orig
+    mu = 1
+    
+    # List of step sizes to evaluate
+    # step_sizes = [0.1, 0.2, 0.3, 0.4, 0.5]
+
+    # Parameters for the strongly convex and smooth function
+    # L = 1  # Smoothness constant
+    # mu = 0.1  # Strong convexity constant
+
+    # Create a PEP problem
+    problem = PEP()
+
+    # Declare a strongly convex and smooth function
+    f = problem.declare_function(SmoothStronglyConvexFunction, L=L, mu=mu)
+
+    # Start by defining the initial point and the optimal point
+    x0 = problem.set_initial_point()
+    y0 = problem.set_initial_point()
+    xs = f.stationary_point() #problem.set_optimal_point()
+
+    # Set the initial distance between x0 and xs
+    problem.set_initial_condition((x0 - xs) ** 2 <= 1)
+    # problem.set_initial_condition((x0 - y0) ** 2 <= 1)
+
+
+    # Evaluate the performance for each step size
+    x = x0
+    y = y0
+    # for i in range(step_sizes.size):
+    num_iters = 8
+    for i in range(num_iters):
+        alpha = 2 / (L + mu) #
+        alpha = step_sizes[i] * mu_orig #L_orig / L #/100
+        # alpha = step_sizes[i] / 10
+
+        # Take the first gradient step
+        x = x - alpha * f.gradient(x)
+        # y = y - alpha * f.gradient(y)
+
+        
+    # Set the performance metric (e.g., function value decrease)
+    # problem.set_performance_metric((x - y) ** 2) #(f(x) - f(xs))
+    # problem.set_performance_metric(f.value(x) - f.value(xs))
+    problem.set_performance_metric((x - xs) ** 2)
+
+    # Solve the PEP problem and retrieve the worst-case performance
+    pepit_performance = problem.solve(verbose=True)
+    print(f'Worst-case performance: {pepit_performance}')
+
+    # Compute theoretical guarantee (for comparison)
+    gamma = 2 / (L + mu)
+    theoretical_tau = max((1 - gamma * L) ** 2, (1 - gamma * mu) ** 2) ** num_iters
+    print('\tPEP-it guarantee:\t ||x_n - y_n||^2 <= {:.6} ||x_0 - y_0||^2'.format(pepit_performance))
+    print('\tTheoretical guarantee:\t ||x_n - y_n||^2 <= {:.6} ||x_0 - y_0||^2'.format(theoretical_tau))
+
+    import pdb
+    pdb.set_trace()
+
+    out = wc_gradient_descent_silver_stepsize_strongly_convex(L, mu, num_iters)
+    out = wc_prox_gradient_descent_silver_stepsize_strongly_convex(L, mu, num_iters)
+
+
+def  wc_gradient_descent_silver_stepsize_strongly_convex(L, mu, n, wrapper="cvxpy", solver=None, verbose=1):
+    # Set n if not a power of 2
+    import warnings
+    if not log2(n).is_integer():
+        warnings.warn(
+            "Silver step-size strategy is optimally designed when n is a power of 2."
+            " The provided input n is not a power of 2."
+            " We decompose n as sum_k 2^k and recursely use sequences of stepsizes of length 2^k.")
+
+    # Decompose n as sum of power of 2
+    n_glue_list = [i for i in range(n.bit_length()) if n & (1 << i)]
+
+    # Apply silver step-size strategy for each power of 2 composing n.
+    # Initiate list of step-sizes and theoretical rate.
+    h = []
+    theoretical_tau = 1
+
+    # Define a tool function
+    def psi(t):
+        return (1 + L / mu * t) / (1 + t)
+
+    # Iterate over the different power of 2 composing n
+    for n_glue in n_glue_list:
+
+        # Compute 2^n_glue silver step-sizes
+        y = [mu / L]
+        z = [mu / L]
+
+        a = [psi(y[0])]
+        b = [psi(z[0])]
+
+        h_temp = [b[0]]
+        for step in range(n_glue):
+            z_old = z[step]
+            eta = 1 - z_old
+            y_new = z_old / (eta + sqrt(1 + eta ** 2))
+            z_new = z_old * (eta + sqrt(1 + eta ** 2))
+            y.append(y_new)
+            z.append(z_new)
+            a_new = psi(y_new)
+            b_new = psi(z_new)
+            a.append(a_new)
+            b.append(b_new)
+            h_tilde = h_temp[:-1]
+            h_temp = h_tilde + [a_new] + h_tilde + [b_new]
+
+        # Update the list of step-sizes
+        h = h + h_temp
+
+        # Update the theoretical rate
+        theoretical_tau *= ((1 - z[-1]) / (1 + z[-1])) ** 2
+
+    # Instantiate PEP
+    problem = PEP()
+
+    # Declare a strongly convex smooth function
+    func = problem.declare_function(SmoothStronglyConvexFunction, L=L, mu=mu)
+
+    # Start by defining its unique optimal point xs = x_*
+    xs = func.stationary_point()
+
+    # Then define the starting point x0 of the algorithm
+    x0 = problem.set_initial_point()
+
+    # Set the initial constraint that is the distance between x0 and x^*
+    problem.set_initial_condition((x0 - xs) ** 2 <= 1)
+
+    # Run n steps of the GD method
+    x = x0
+    for i in range(n):
+        x = x - h[i] / L * func.gradient(x)
+
+    # Set the performance metric to the distance between the output and x^*
+    problem.set_performance_metric((x - xs) ** 2)
+
+    # Solve the PEP
+    # verbose = 1
+    # solver = cp.SCS
+    pepit_verbose = max(verbose, 0)
+    pepit_tau = problem.solve(wrapper=wrapper, solver=solver, verbose=pepit_verbose)
+
+    # Print conclusion if required
+    if verbose != -1:
+        print('*** Example file: worst-case performance of gradient descent with silver step-sizes ***')
+        print('\tPEPit guarantee:\t ||x_n - x_*||^2 <= {:.6} ||x_0 - x_*||^2'.format(pepit_tau))
+        print('\tTheoretical guarantee:\t ||x_n - x_*||^2 <= {:.6} ||x_0 - x_*||^2'.format(theoretical_tau))
+
+    # Return the worst-case guarantee of the evaluated method (and the reference theoretical value)
+    return pepit_tau, theoretical_tau
+
+
+def  wc_prox_gradient_descent_silver_stepsize_strongly_convex(L, mu, n, wrapper="cvxpy", solver=None, verbose=1):
+    # Set n if not a power of 2
+    import warnings
+    if not log2(n).is_integer():
+        warnings.warn(
+            "Silver step-size strategy is optimally designed when n is a power of 2."
+            " The provided input n is not a power of 2."
+            " We decompose n as sum_k 2^k and recursely use sequences of stepsizes of length 2^k.")
+
+    # Decompose n as sum of power of 2
+    n_glue_list = [i for i in range(n.bit_length()) if n & (1 << i)]
+
+    # Apply silver step-size strategy for each power of 2 composing n.
+    # Initiate list of step-sizes and theoretical rate.
+    h = []
+    theoretical_tau = 1
+
+    # Define a tool function
+    def psi(t):
+        return (1 + L / mu * t) / (1 + t)
+
+    # Iterate over the different power of 2 composing n
+    for n_glue in n_glue_list:
+
+        # Compute 2^n_glue silver step-sizes
+        y = [mu / L]
+        z = [mu / L]
+
+        a = [psi(y[0])]
+        b = [psi(z[0])]
+
+        h_temp = [b[0]]
+        for step in range(n_glue):
+            z_old = z[step]
+            eta = 1 - z_old
+            y_new = z_old / (eta + sqrt(1 + eta ** 2))
+            z_new = z_old * (eta + sqrt(1 + eta ** 2))
+            y.append(y_new)
+            z.append(z_new)
+            a_new = psi(y_new)
+            b_new = psi(z_new)
+            a.append(a_new)
+            b.append(b_new)
+            h_tilde = h_temp[:-1]
+            h_temp = h_tilde + [a_new] + h_tilde + [b_new]
+
+        # Update the list of step-sizes
+        h = h + h_temp
+
+        # Update the theoretical rate
+        theoretical_tau *= ((1 - z[-1]) / (1 + z[-1])) ** 2
+
+    # Instantiate PEP
+    problem = PEP()
+
+    # Declare a strongly convex smooth function
+    # func = problem.declare_function(SmoothStronglyConvexFunction, L=L, mu=mu)
+    # Declare a strongly convex smooth function and a closed convex proper function
+    f1 = problem.declare_function(SmoothStronglyConvexFunction, mu=mu, L=L)
+    f2 = problem.declare_function(ConvexFunction)
+    func = f1 + f2
+
+    # Start by defining its unique optimal point xs = x_*
+    xs = func.stationary_point()
+
+    # Then define the starting point x0 of the algorithm
+    x0 = problem.set_initial_point()
+
+    # Set the initial constraint that is the distance between x0 and x^*
+    problem.set_initial_condition((x0 - xs) ** 2 <= 1)
+
+    # Run n steps of the GD method
+    x = x0
+    for i in range(n):
+        y = x - h[i] / L * f1.gradient(x)
+        # y = x - gamma * f1.gradient(x)
+        x, _, _ = proximal_step(y, f2, h[i] / L)
+
+    # Set the performance metric to the distance between the output and x^*
+    problem.set_performance_metric((x - xs) ** 2)
+
+    # Solve the PEP
+    # verbose = 1
+    # solver = cp.SCS
+    pepit_verbose = max(verbose, 0)
+    pepit_tau = problem.solve(wrapper=wrapper, solver=solver, verbose=pepit_verbose)
+
+    # Print conclusion if required
+    if verbose != -1:
+        print('*** Example file: worst-case performance of PROXIMAL gradient descent with silver step-sizes ***')
+        print('\tPEPit guarantee:\t ||x_n - x_*||^2 <= {:.6} ||x_0 - x_*||^2'.format(pepit_tau))
+        print('\tTheoretical guarantee:\t ||x_n - x_*||^2 <= {:.6} ||x_0 - x_*||^2'.format(theoretical_tau))
+
+    # Return the worst-case guarantee of the evaluated method (and the reference theoretical value)
+    return pepit_tau, theoretical_tau
 
 
 def plot_step_sizes_lasso(example, cfg):
@@ -161,6 +425,11 @@ def plot_step_sizes(example, cfg):
 
     plt.tight_layout()
     plt.savefig('step_sizes.pdf', bbox_inches='tight')
+    
+    L = smoothness
+    mu = 2 / vanilla_step_size  - L
+    # universal_pep_str_cvx(lasco_step_sizes, mu, L)
+    universal_pep_str_cvx(silver_step_sizes, mu, L)
 
 
 
