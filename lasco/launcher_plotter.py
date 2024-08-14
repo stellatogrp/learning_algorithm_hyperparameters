@@ -275,7 +275,7 @@ def custom_visualize(custom_visualize_fn, iterates_visualize, vis_num, thetas, z
             custom_visualize_fn(z_all, z_stars, z_no_learn, z_nn,
                                         thetas, iterates_visualize, visual_path)
     else:
-        if col != 'nearest_neighbor' and col != 'no_train' and col != 'prev_sol':
+        if col != 'nearest_neighbor' and col != 'no_train': # and col != 'prev_sol':
             if z_prev_sol is None:
                 custom_visualize_fn(z_all, z_stars, z_no_learn, z_nn,
                                             thetas, iterates_visualize, visual_path,

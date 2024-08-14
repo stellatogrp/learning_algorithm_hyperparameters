@@ -132,7 +132,7 @@ class Workspace:
         # for control problems only
         self.closed_loop_rollout_dict = closed_loop_rollout_dict
         self.traj_length = traj_length
-        if traj_length is not None and False:
+        if traj_length is not None: # and False:
             self.prev_sol_eval = True
         else:
             self.prev_sol_eval = False
@@ -729,16 +729,16 @@ class Workspace:
 
         if 'q_mat' in jnp_load_obj.keys():
             q_mat = jnp.array(jnp_load_obj['q_mat'])
-            # q_mat_train = q_mat[:N_train, :]
-            # q_mat_test = q_mat[N_train:N, :]
-            # self.q_mat_train, self.q_mat_test = q_mat_train, q_mat_test
 
-            rand_indices = np.random.choice(q_mat.shape[0], N, replace=False)
+            # rand_indices = np.random.choice(q_mat.shape[0], N, replace=False)
+            rand_indices = np.arange(N)
 
-            self.train_indices = rand_indices[:N_train] #np.random.choice(q_mat.shape[0], N_train, replace=False)
+            # self.train_indices = rand_indices[:N_train]
+            self.train_indices = rand_indices[N_test: N_test + N_train]
             self.q_mat_train = q_mat[self.train_indices, :]
 
-            self.test_indices = rand_indices[N_train:N_train + N_test] #np.random.choice(q_mat.shape[0], N - N_train, replace=False)
+            # self.test_indices = rand_indices[N_train:N_train + N_test]
+            self.test_indices = rand_indices[:N_test]
             self.q_mat_test = q_mat[self.test_indices, :]
 
             self.val_indices = rand_indices[N_train + N_test:]
@@ -746,16 +746,15 @@ class Workspace:
             
         else:
             thetas = jnp.array(jnp_load_obj['thetas'])
-            rand_indices = np.random.choice(thetas.shape[0], N, replace=False)
-            self.train_indices = rand_indices[:N_train]
-            self.test_indices = rand_indices[N_train:]
-
+            rand_indices = np.arange(N)
+            self.train_indices = rand_indices[N_test: N_test + N_train]
+            self.test_indices = rand_indices[:N_test]
             self.val_indices = rand_indices[N_train + N_test:]
+            # rand_indices = np.random.choice(thetas.shape[0], N, replace=False)
+            # self.train_indices = rand_indices[:N_train]
+            # self.test_indices = rand_indices[N_train:]
+            # self.val_indices = rand_indices[N_train + N_test:]
 
-            # self.train_indices = np.random.choice(
-            #     thetas.shape[0], N_train, replace=False)
-            # self.test_indices = np.random.choice(
-            #     thetas.shape[0], N_train, replace=False)
             self.q_mat_train = thetas[self.train_indices, :]
             self.q_mat_test = thetas[self.test_indices, :]
             self.q_mat_val = thetas[self.val_indices, :]

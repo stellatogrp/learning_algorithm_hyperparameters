@@ -31,12 +31,12 @@ test_every_x_epochs: 1
 write_csv_every_x_batches: 1
 epochs_jit: 2
 
-N_train: 10000
-N_test: 10
-N_val: 0 #1000
-num_samples_train: 2
-num_samples_test: 10
-num_const_steps: 2
+N_train: 10
+N_test: 1000
+N_val: 1000
+num_samples_train: 10
+num_samples_test: 1000
+num_const_steps: 1
 
 
 prediction_variable: w
@@ -77,7 +77,7 @@ iterates_visualize: [3, 4, 5] #[10, 20, 50, 90, 200, 300, 500, 1000] #[10, 20, 5
 vis_num: 5
 skip_startup: False
 
-eval_unrolls: 40000
+eval_unrolls: 1000 #40000
 solve_c_num: 0
 supervised: True
 train_unrolls: 10

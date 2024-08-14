@@ -1116,13 +1116,17 @@ def custom_visualize_fn(x_primals, x_stars, x_prev_sol, x_nn, thetas, iterates, 
     """
     assert len(iterates) == 1
     num = np.min([x_stars.shape[0], num])
-    # num = np.min([x_prev_sol.shape[0], num])
 
     y_mat_rotated = jnp.reshape(thetas[:num, :], (num, T, 2))
     for i in range(num):
+        df = pd.DataFrame()
         titles = ['optimal solution', 'noisy trajectory']
         x_true_kalman = get_x_kalman_from_x_primal(x_stars[i, :], T)
         traj = [x_true_kalman, y_mat_rotated[i, :].T]
+        df['observations_x'] =  y_mat_rotated[i, :, 0]
+        df['observations_y'] = y_mat_rotated[i, :, 1]
+        df['optimal_x'] =  x_true_kalman[i, :, 0]
+        df['optimal_y'] = x_true_kalman[i, :, 1]
 
         for j in range(len(iterates)):
             iter = iterates[j]
@@ -1132,17 +1136,15 @@ def custom_visualize_fn(x_primals, x_stars, x_prev_sol, x_nn, thetas, iterates, 
             # traj.append(x_prev_sol_kalman)
             traj.append(x_nn_kalman)
             traj.append(x_hat_kalman)
-            # titles.append(f"no learning: ${iter}$ iters")
-            # titles.append(f"prev_sol: ${iter}$ iters")
             titles.append(f"nearest neighbor: ${iter}$ iters")
             titles.append(f"learned: ${iter}$ iters")
 
+            df.to_csv(f"{visual_path}/positions_{i}_rotated.pdf")
+
+
         plot_positions_overlay(traj, titles, filename=f"{visual_path}/positions_{i}_rotated_legend.pdf", legend=True)
         plot_positions_overlay(traj, titles, filename=f"{visual_path}/positions_{i}_rotated.pdf", legend=False)
-            # noisy = y_mat_rotated[i, :].T #jnp.reshape(thetas[i, :], (num, T, 2))
-            # optimal = get_x_kalman_from_x_primal(x_stars[i, :], T)
-            # cold = x_hat_kalman
-            # plot_positions_overlay_genL2O(noisy, optimal, cold, filename=f"{visual_path}/positions_{i}_rotated.pdf")
+
 
 
 def get_x_kalman_from_x_primal(x_primal, T):
