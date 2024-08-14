@@ -73,7 +73,7 @@ def k_steps_train_lasco_scs(k, z0, q, params, P, A, idx_mapping, supervised, z_s
     fp_train_partial = partial(fp_train_lasco_scs, q_r=q, all_factors=all_factors,
                                supervised=supervised, P=P, A=A, idx_mapping=idx_mapping,
                                z_star=z_star, proj=proj, hsde=hsde,
-                               homogeneous=hsde, scaled_vecs=scaled_vecs, alphas=alphas, 
+                               homogeneous=True, scaled_vecs=scaled_vecs, alphas=alphas, 
                                tau_factors=tau_factors)
     if hsde:
         # first step: iteration 0

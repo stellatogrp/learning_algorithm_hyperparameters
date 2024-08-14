@@ -25,7 +25,7 @@ pretrain:
 data:
   datetime: ''
 
-num_const_steps: 1
+num_const_steps: 2
 
 
 eval_unrolls: 500

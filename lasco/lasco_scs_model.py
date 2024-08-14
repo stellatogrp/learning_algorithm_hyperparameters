@@ -61,12 +61,12 @@ class LASCOSCSmodel(L2WSmodel):
                                         A=self.A,
                                         idx_mapping=self.idx_mapping,
                                         hsde=True)
-        # self.k_steps_train_fn2 = partial(k_steps_train_lasco_scs, proj=self.proj,
-        #                                 jit=self.jit,
-        #                                 P=self.P,
-        #                                 A=self.A,
-        #                                 idx_mapping=self.idx_mapping,
-        #                                 hsde=False)
+        self.k_steps_train_fn2 = partial(k_steps_train_lasco_scs, proj=self.proj,
+                                        jit=self.jit,
+                                        P=self.P,
+                                        A=self.A,
+                                        idx_mapping=self.idx_mapping,
+                                        hsde=False)
         self.k_steps_eval_fn = partial(k_steps_eval_lasco_scs, proj=self.proj,
                                        P=self.P, A=self.A,
                                        idx_mapping=self.idx_mapping,
@@ -116,7 +116,7 @@ class LASCOSCSmodel(L2WSmodel):
             if diff_required:
                 n_iters = key #self.train_unrolls if key else 1
             else:
-                n_iters = min(iters, 51)
+                n_iters = min(iters, self.step_varying_num + 1)
             
             z0 = input
 

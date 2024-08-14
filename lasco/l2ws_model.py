@@ -316,6 +316,9 @@ class L2WSmodel(object):
         q_init = self.q_mat_train[batch_indices, :]
         z_stars_init = self.z_stars_train[batch_indices, :] #if self.supervised else None
 
+        if not hasattr(self, 'num_const_steps'):
+            self.num_const_steps = 1
+
         if self.lasco:
             self.state = self.optimizer.init_state(init_params=[self.params[0][:int(self.train_unrolls / self.num_const_steps), :]],
                                                    inputs=input_init,

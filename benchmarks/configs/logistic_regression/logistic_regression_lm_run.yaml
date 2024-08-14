@@ -1,5 +1,5 @@
 nn_cfg:
-  lr: 1e-5
+  lr: 1e-3
   method: adam
   intermediate_layer_sizes: []
   batch_size: 100
@@ -32,9 +32,9 @@ save_every_x_epochs: 1
 test_every_x_epochs: 1
 write_csv_every_x_batches: 1
 epochs_jit: 2
-N_train: 10
-N_test: 10
-num_samples: 10
+N_train: 10 #5000
+N_test: 1000
+num_samples: 100
 supervised: True
 plot_iterates: [0, 10, 20]
 loss_method: 'fixed_k' # 'fixed_k' #'fixed_k' #'constant_sum'

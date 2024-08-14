@@ -139,6 +139,9 @@ def plot_step_sizes(example, cfg):
     axes[0].set_ylabel('step sizes')
     # axes[1, 0].set_ylabel('gain to cold start')
 
+    if example == 'logistic_regression':
+        axes[0].set_yscale('log')
+
     # plot the bar plot for silver
     cmap = plt.cm.Set1
     colors = cmap.colors
@@ -236,7 +239,10 @@ def find_last_folder_starting_with(directory, prefix):
     #     return None
     max_val = 0
     for i in range(len(folders)):
-        curr_val = int(folders[i][12:])
+        if 'final' in folders[i]:
+            curr_val = int(folders[i][12:-6])
+        else:
+            curr_val = int(folders[i][12:])
         if curr_val > max_val:
             max_val = curr_val
             last_folder = folders[i]
