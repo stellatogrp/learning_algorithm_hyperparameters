@@ -55,6 +55,13 @@ def ridge_regression_plot_eval_iters(cfg):
     plot_step_sizes(example, cfg)
 
 
+@hydra.main(config_path='configs/universal_gd_str_cvx', config_name='universal_gd_str_cvx_plot.yaml')
+def universal_gd_str_cvx_plot_eval_iters(cfg):
+    example = 'universal_gd_str_cvx'
+    # create_lasco_results_unconstrained(example, cfg)
+    plot_step_sizes(example, cfg)
+
+
 @hydra.main(config_path='configs/logistic_regression', config_name='logistic_regression_plot.yaml')
 def logistic_regression_plot_eval_iters(cfg):
     example = 'logistic_regression'
@@ -88,7 +95,7 @@ def quadcopter_plot_eval_iters(cfg):
 
 
 def universal_pep_str_cvx(step_sizes, mu, L):
-    mu_orig = mu / 10
+    mu_orig = mu
     L_orig = L
     L = L_orig / mu_orig
     mu = 1
@@ -120,7 +127,7 @@ def universal_pep_str_cvx(step_sizes, mu, L):
     x = x0
     y = y0
     # for i in range(step_sizes.size):
-    num_iters = 8
+    num_iters = 2
     for i in range(num_iters):
         alpha = 2 / (L + mu) #
         alpha = step_sizes[i] * mu_orig #L_orig / L #/100
@@ -149,8 +156,8 @@ def universal_pep_str_cvx(step_sizes, mu, L):
     import pdb
     pdb.set_trace()
 
-    out = wc_gradient_descent_silver_stepsize_strongly_convex(L, mu, num_iters)
-    out = wc_prox_gradient_descent_silver_stepsize_strongly_convex(L, mu, num_iters)
+    # out = wc_gradient_descent_silver_stepsize_strongly_convex(L, mu, num_iters)
+    # out = wc_prox_gradient_descent_silver_stepsize_strongly_convex(L, mu, num_iters)
 
 
 def  wc_gradient_descent_silver_stepsize_strongly_convex(L, mu, n, wrapper="cvxpy", solver=None, verbose=1):
@@ -386,8 +393,11 @@ def plot_step_sizes_lasso(example, cfg):
 def plot_step_sizes(example, cfg):
     # get the step sizes (for silver and learned)
     step_sizes_dict = get_lasco_gd_step_size(example, cfg)
-    silver_step_sizes = step_sizes_dict['silver'].to_numpy()[:, 1]
     lasco_step_sizes = step_sizes_dict['lasco'].to_numpy()[:, 1]
+    universal_pep_str_cvx(lasco_step_sizes, mu=1, L=20)
+
+    silver_step_sizes = step_sizes_dict['silver'].to_numpy()[:, 1]
+    
 
     # get the strongly convex and L-smooth values
     #       can get it from nesterov and no_train
@@ -505,7 +515,11 @@ def find_last_folder_starting_with(directory, prefix):
     #     return None
     max_val = 0
     for i in range(len(folders)):
-        curr_val = int(folders[i][12:])
+        # curr_val = int(folders[i][12:])
+        if 'final' in folders[i]:
+            curr_val = int(folders[i][12:-6])
+        else:
+            curr_val = int(folders[i][12:])
         if curr_val > max_val:
             max_val = curr_val
             last_folder = folders[i]
@@ -1006,3 +1020,9 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'lasso/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         lasso_plot_eval_iters()
+    elif sys.argv[1] == 'universal_gd_str_cvx':
+        sys.argv[1] = base + 'universal_gd_str_cvx_plot/plots/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        universal_gd_str_cvx_plot_eval_iters()
+
+    

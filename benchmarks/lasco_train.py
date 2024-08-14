@@ -22,6 +22,7 @@ import lasco.examples.vehicle as vehicle
 import lasco.examples.ridge_regression as ridge_regression
 import lasco.examples.logistic_regression as logistic_regression
 import lasco.examples.opf as opf
+import lasco.examples.universal_gd_str_cvx as universal_gd_str_cvx
 from lasco.utils.data_utils import copy_data_file, recover_last_datetime
 
 
@@ -467,6 +468,20 @@ def main_run_robust_kalman_lm(cfg):
     robust_kalman.run(cfg, lasco=False)
 
 
+@hydra.main(config_path='configs/universal_gd_str_cvx', config_name='universal_gd_str_cvx_run.yaml')
+def main_run_universal_gd_str_cvx(cfg):
+    orig_cwd = hydra.utils.get_original_cwd()
+    example = 'universal_gd_str_cvx'
+    agg_datetime = cfg.data.datetime
+    if agg_datetime == '':
+        # get the most recent datetime and update datetimes
+        agg_datetime = recover_last_datetime(orig_cwd, example, 'data_setup')
+        cfg.data.datetime = agg_datetime
+    copy_data_file(example, agg_datetime)
+    universal_gd_str_cvx.run(cfg, lasco=True)
+
+
+
 if __name__ == '__main__':
     if sys.argv[2] == 'cluster':
         base = 'hydra.run.dir=/scratch/gpfs/rajivs/learn2warmstart/outputs/'
@@ -595,3 +610,7 @@ if __name__ == '__main__':
         sys.argv[1] = base + 'opf/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
         sys.argv = [sys.argv[0], sys.argv[1]]
         main_run_opf_lm()
+    elif sys.argv[1] == 'universal_gd_str_cvx':
+        sys.argv[1] = base + 'universal_gd_str_cvx/train_outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}'
+        sys.argv = [sys.argv[0], sys.argv[1]]
+        main_run_universal_gd_str_cvx()

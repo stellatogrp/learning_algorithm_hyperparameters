@@ -21,27 +21,49 @@ class LASCOGDmodel(L2WSmodel):
         self.q_mat_train, self.q_mat_test = input_dict['c_mat_train'], input_dict['c_mat_test']
 
         P = input_dict['P']
-        self.P = P
+        self.const_P = P is not None
+        
+        if self.const_P:
+            self.P = P
 
-        self.n = P.shape[0]
-        self.output_size = self.n
+            self.n = P.shape[0]
+            
 
 
-        evals, evecs = jnp.linalg.eigh(P)
+            evals, evecs = jnp.linalg.eigh(P)
 
-        self.str_cvx_param = jnp.min(evals)
-        self.smooth_param = jnp.max(evals)
+            self.str_cvx_param = jnp.min(evals)
+            self.smooth_param = jnp.max(evals)
 
-        cond_num = self.smooth_param / self.str_cvx_param
-
-        self.k_steps_train_fn = partial(k_steps_train_lasco_gd, P=P,
+            cond_num = self.smooth_param / self.str_cvx_param
+            self.k_steps_train_fn = partial(k_steps_train_lasco_gd, P=P,
+                                            jit=self.jit)
+            self.k_steps_eval_fn = partial(k_steps_eval_lasco_gd, P=P,
                                         jit=self.jit)
-        self.k_steps_eval_fn = partial(k_steps_eval_lasco_gd, P=P,
-                                       jit=self.jit)
-        self.nesterov_eval_fn = partial(k_steps_eval_nesterov_gd, P=P, cond_num=cond_num,
-                                       jit=self.jit)
-        self.conj_grad_eval_fn = partial(k_steps_eval_conj_grad, P=P,
-                                       jit=self.jit)
+            self.nesterov_eval_fn = partial(k_steps_eval_nesterov_gd, P=P, cond_num=cond_num,
+                                        jit=self.jit)
+            self.conj_grad_eval_fn = partial(k_steps_eval_conj_grad, P=P,
+                                        jit=self.jit)
+        else:
+            self.n = int((-1 + jnp.sqrt(1 + 4 * self.q_mat_train.shape[1])) / 2)
+            self.num_const_steps = 1
+
+            P = jnp.reshape(self.q_mat_train[0, self.n:], (self.n, self.n))
+            evals, evecs = jnp.linalg.eigh(P)
+
+
+            self.str_cvx_param = jnp.min(evals)
+            self.smooth_param = jnp.max(evals)
+
+            self.k_steps_train_fn = partial(k_steps_train_lasco_gd,
+                                            jit=self.jit)
+            self.k_steps_eval_fn = partial(k_steps_eval_lasco_gd,
+                                        jit=self.jit)
+            self.nesterov_eval_fn = partial(k_steps_eval_nesterov_gd,
+                                        jit=self.jit)
+            self.conj_grad_eval_fn = partial(k_steps_eval_conj_grad,
+                                        jit=self.jit)
+        self.output_size = self.n
         self.out_axes_length = 5
 
         N = self.q_mat_train.shape[0]
@@ -59,23 +81,28 @@ class LASCOGDmodel(L2WSmodel):
         self.loss_fn_eval_conj_grad = e2e_loss_fn(bypass_nn=False, diff_required=False, 
                                                special_algo='conj_grad')
 
+        
 
     def transform_params(self, params, n_iters):
         # n_iters = params[0].size
         transformed_params = jnp.zeros((n_iters, 1))
         transformed_params = transformed_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0]))
-        transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+        transformed_params = transformed_params.at[n_iters - 1, 0].set(2.1 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
+        # import pdb
+        # pdb.set_trace()
         return transformed_params
 
     def perturb_params(self):
         # init step-varying params
-        noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=1e-5, a_max=1e0)) * 0.00001
+        # noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=1e-5, a_max=1e0)) * 0.01
+        noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=-1, a_max=1e0)) * 0.01
         step_varying_params = jnp.log(noise + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
 
         # init steady_state_params
         steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
 
         self.params = [jnp.vstack([step_varying_params, steady_state_params])]
+
 
 
     def set_params_for_nesterov(self):
@@ -101,6 +128,7 @@ class LASCOGDmodel(L2WSmodel):
 
         # init steady_state_params
         steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
+        # steady_state_params = sigmoid_inv(2 / self.smooth_param + .1) * jnp.ones((1, 1))
 
         self.params = [jnp.vstack([step_varying_params, steady_state_params])]
         # sigmoid_inv(beta)
@@ -111,7 +139,7 @@ class LASCOGDmodel(L2WSmodel):
         loss_method = self.loss_method
 
         def predict(params, input, q, iters, z_star, key, factor):
-            z0 = input
+            z0 = input+1.0
             if diff_required:
                 n_iters = key #self.train_unrolls if key else 1
                 if n_iters == 1:
@@ -156,25 +184,47 @@ class LASCOGDmodel(L2WSmodel):
                 z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
                 angles = None
             else:
-                if diff_required:
-                    z_final, iter_losses = train_fn(k=iters,
-                                                    z0=z0,
-                                                    q=q,
-                                                    params=stochastic_params,
-                                                    supervised=supervised,
-                                                    z_star=z_star)
+                if not self.const_P:
+                    c = q[:self.n]
+                    P = jnp.reshape(q[self.n:], (self.n, self.n))
+                    if diff_required:
+                        z_final, iter_losses = train_fn(k=iters,
+                                                        z0=z0,
+                                                        q=c,
+                                                        P=P,
+                                                        params=stochastic_params,
+                                                        supervised=supervised,
+                                                        z_star=z_star)
+                    else:
+                        eval_out = eval_fn(k=iters,
+                                        z0=z0,
+                                        q=c,
+                                        P=P,
+                                        params=stochastic_params,
+                                        supervised=supervised,
+                                        z_star=z_star)
+                        z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
+                        angles = None
                 else:
-                    eval_out = eval_fn(k=iters,
-                                       z0=z0,
-                                       q=q,
-                                       params=stochastic_params,
-                                       supervised=supervised,
-                                       z_star=z_star)
+                    if diff_required:
+                        z_final, iter_losses = train_fn(k=iters,
+                                                        z0=z0,
+                                                        q=q,
+                                                        params=stochastic_params,
+                                                        supervised=supervised,
+                                                        z_star=z_star)
+                    else:
+                        eval_out = eval_fn(k=iters,
+                                        z0=z0,
+                                        q=q,
+                                        params=stochastic_params,
+                                        supervised=supervised,
+                                        z_star=z_star)
                     z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
                     angles = None
 
             loss = self.final_loss(loss_method, z_final,
-                                   iter_losses, supervised, z0, z_star)
+                                   iter_losses, supervised, z0, z_star) # / jnp.linalg.norm(z_star)
 
 
             if diff_required:

@@ -9,6 +9,7 @@ import pdb
 import cvxpy as cp
 from scipy.sparse import csc_matrix, save_npz, load_npz
 import osqp
+from jax import vmap
 
 
 plt.rcParams.update(
@@ -331,12 +332,48 @@ def ista_setup_script(b_mat, A, lambd, output_filename):
     plt.clf()
 
 
+# def invert_batch_of_matrices(P):
+#     """
+#     Compute the inverse of a batch of positive definite matrices.
+
+#     Parameters:
+#     P (jnp.ndarray): A batch of matrices with shape (N, n, n).
+
+#     Returns:
+#     jnp.ndarray: A batch of inverted matrices with shape (N, n, n).
+#     """
+#     # Vectorize the matrix inversion operation over the batch dimension
+#     P_inv = vmap(jnp.linalg.inv)(P)
+#     return P_inv
+
+
+def solve_batch_linear_systems(P_tensor, c_mat):
+    """
+    Solve a batch of linear systems P_i x_i = c_i.
+
+    Parameters:
+    P_tensor (jnp.ndarray): A batch of matrices with shape (N, n, n).
+    c_mat (jnp.ndarray): A batch of vectors with shape (N, n).
+
+    Returns:
+    jnp.ndarray: A batch of solutions with shape (N, n).
+    """
+    # Vectorize the linear system solve operation over the batch dimension
+    solutions = vmap(jnp.linalg.solve)(P_tensor, c_mat)
+    return solutions
+
+
 def gd_setup_script(c_mat, P, theta_mat, output_filename):
     """
     solves many gd problems where each problem has a different b vector
     """
-    P_inv = jnp.linalg.inv(P)
-    z_stars = (-P_inv @ c_mat.T).T
+    if P.ndim == 3:
+        z_stars = solve_batch_linear_systems(P, -c_mat)
+    else:
+        P_inv = jnp.linalg.inv(P)
+        z_stars = (-P_inv @ c_mat.T).T
+    import pdb
+    pdb.set_trace()
 
     # save the data
     log.info("final saving final data...")

@@ -727,7 +727,7 @@ class Workspace:
 
         jnp_load_obj = jnp.load(filename)
 
-        if 'q_mat' in jnp_load_obj.keys():
+        if 'q_mat' in jnp_load_obj.keys() and example != 'universal_gd_str_cvx':
             q_mat = jnp.array(jnp_load_obj['q_mat'])
             # q_mat_train = q_mat[:N_train, :]
             # q_mat_test = q_mat[N_train:N, :]
@@ -954,15 +954,16 @@ class Workspace:
             if self.l2ws_model.algo == 'lasco_gd':
                 # conj_grad
                 # self.l2ws_model.set_params_for_nesterov()
-                self.eval_iters_train_and_test('conj_grad', None)
+                if self.example == 'ridge_regression':
+                    self.eval_iters_train_and_test('conj_grad', None)
 
-                # nesterov
-                self.l2ws_model.set_params_for_nesterov()
-                self.eval_iters_train_and_test('nesterov', None)
+                    # nesterov
+                    self.l2ws_model.set_params_for_nesterov()
+                    self.eval_iters_train_and_test('nesterov', None)
 
-                # silver
-                self.l2ws_model.set_params_for_silver()
-                self.eval_iters_train_and_test('silver', None)
+                    # silver
+                    self.l2ws_model.set_params_for_silver()
+                    self.eval_iters_train_and_test('silver', None)
 
                 # perturb slightly for training
                 self.l2ws_model.perturb_params()

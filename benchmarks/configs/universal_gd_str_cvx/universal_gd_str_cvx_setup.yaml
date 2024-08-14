@@ -1,0 +1,9 @@
+N_train: 1000
+N_test: 1000
+n_orig: 20
+seed: 42
+solve: True
+mu_str_cvx: .25
+L_smooth: 1
+b_min: -1 #-100000
+b_max: 1 #100000

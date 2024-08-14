@@ -484,7 +484,24 @@ class L2WSmodel(object):
         def loss_fn(params, inputs, b, iters, z_stars, key):
             if diff_required:
                 losses = batch_predict(params, inputs, b, iters, z_stars, key)
-                return losses.mean()
+                # return losses.max() #losses.mean()
+
+                argsorted_vector = jnp.argsort(losses)[::-1]
+                for i in range(10):
+                    P_vec = b[argsorted_vector[i], 20:]
+                    P = jnp.reshape(P_vec, (20, 20))
+                    print('P', jnp.diag(P))
+
+                # Sort the vector in descending order
+                sorted_vector = jnp.sort(losses)[::-1]
+                
+                # Sum the first k elements
+                largest_sum = jnp.sum(sorted_vector[:10])
+
+                
+                print()
+
+                return largest_sum
             
                 # return losses.mean()
                 q = losses.mean() / self.penalty_coeff
