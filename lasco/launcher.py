@@ -1040,6 +1040,8 @@ class Workspace:
                 
                 # insert the curr_params into the entire params
                 if self.l2ws_model.lasco:
+                    # import pdb
+                    # pdb.set_trace()
                     pp = self.l2ws_model.params[0].at[window_indices, :].set(curr_params[0])
                     params = [pp]
                 else:

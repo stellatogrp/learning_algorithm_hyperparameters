@@ -1,5 +1,5 @@
-n_orig: 100 #20
-m_orig: 50
+n_orig: 1000 #20
+m_orig: 500
 N_train: 2000
 N_test: 1000
 seed: 42
