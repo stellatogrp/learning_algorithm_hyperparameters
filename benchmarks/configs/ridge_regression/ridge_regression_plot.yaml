@@ -23,5 +23,7 @@ methods:
   conj_grad: 2024-07-08/14-39-43
   UB97.5: 2024-07-08/14-39-43
   LB2.5: 2024-07-08/14-39-43
+  lasco_two_step: 2024-08-26/09-40-11
+  lasco_one_step: 2024-08-26/09-00-45
 num_iters: 63
 step_size_iters: 63
