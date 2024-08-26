@@ -2,7 +2,7 @@ import jax.numpy as jnp
 
 
 def one_step_gd_solver(z_stars_train, z_currs, gradients):
-    return jnp.sum(z_stars_train @ z_currs) / (jnp.linalg.norm(gradients) ** 2)
+    return jnp.trace(gradients @ (z_currs - z_stars_train).T) / (jnp.linalg.norm(gradients) ** 2)
 
 
 def two_step_quad_gd_solver(z_stars_train, z_currs, P):
@@ -31,7 +31,7 @@ def two_step_quad_gd_solver(z_stars_train, z_currs, P):
     beta = (-c_1 + jnp.sqrt(c_1 ** 2 - 4 * c_0 * c_2)) / (2 * c_2)
     alpha = (-c_1 - jnp.sqrt(c_1 ** 2 - 4 * c_0 * c_2)) / (2 * c_2)
 
-    alpha, beta = two_step_young(P)
+    # alpha, beta = two_step_young(P)
     return alpha, beta
 
 

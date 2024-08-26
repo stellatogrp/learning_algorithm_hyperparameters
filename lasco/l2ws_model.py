@@ -49,6 +49,7 @@ class L2WSmodel(object):
                  y_stars_test=None,
                  loss_method='fixed_k',
                  algo_dict={}):
+        self.train_case = 'gradient'
         dict = algo_dict
         self.key = 0
         self.sigma = 0.01
@@ -196,22 +197,26 @@ class L2WSmodel(object):
         return loss_fn
 
 
-    def train_batch(self, batch_indices, inputs, params, state, n_iters, two_step_quad=True):
+    def train_batch(self, batch_indices, inputs, params, state, n_iters, train_case='gradient'):
         batch_inputs = inputs[batch_indices, :]
         batch_q_data = self.q_mat_train[batch_indices, :]
         batch_z_stars = self.z_stars_train[batch_indices, :]
 
         key = n_iters #1 if params[0].shape[0] == 0 else self.train_unrolls #state.iter_num
 
-        if two_step_quad:
-            alpha, beta = two_step_quad_gd_solver(batch_z_stars, batch_inputs, self.P)
+        if train_case == 'one_step_grad':
+            gradients = self.compute_gradients(batch_inputs, batch_q_data)
+            alpha = one_step_gd_solver(batch_z_stars, batch_inputs, gradients)
+            params[0] = jnp.log(jnp.array([[alpha]]))
+        elif train_case == 'two_step_quad': 
+            # gradients = self.compute_gradients(batch_inputs, batch_q_data)
+            P = self.P
+            alpha, beta = two_step_quad_gd_solver(batch_z_stars, batch_inputs, P)
             # import pdb
             # pdb.set_trace()
-            # params = 
-            # import pdb
-            # pdb.set_trace()
-            params[0] = jnp.log(jnp.array([[alpha,beta]]).T)
+            params[0] = jnp.log(jnp.array([[alpha, beta]])).T
         else:
+            # gradient-based methods
             results = self.optimizer.update(params=params,
                                             state=state,
                                             inputs=batch_inputs,
