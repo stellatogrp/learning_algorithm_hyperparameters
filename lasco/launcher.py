@@ -1007,6 +1007,7 @@ class Workspace:
 
         num_progressive_trains = int(self.l2ws_model.step_varying_num * self.l2ws_model.num_const_steps / self.train_unrolls + 1)
 
+        
 
         for window in range(num_progressive_trains):
             # update window_indices
