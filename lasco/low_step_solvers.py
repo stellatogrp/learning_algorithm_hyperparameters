@@ -2,7 +2,7 @@ import jax.numpy as jnp
 
 
 def one_step_gd_solver(z_stars_train, z_currs, gradients):
-    return jnp.sum(z_stars_train @ z_currs) / (jnp.linalg.norm(gradients) ** 2)
+    return jnp.trace(gradients @ (z_currs - z_stars_train).T) / (jnp.linalg.norm(gradients) ** 2)
 
 
 def two_step_quad_gd_solver(z_stars_train, z_currs, P):
@@ -14,7 +14,7 @@ def two_step_quad_gd_solver(z_stars_train, z_currs, P):
     # step 2
     z_bar = jnp.zeros(n)
     for i in range(N):
-        z_bar += Q.T @ (z_currs - z_stars_train[i, :]) / N
+        z_bar += Q.T @ (z_currs[i, :] - z_stars_train[i, :]) / N
 
     # step 3
     A = jnp.sum(evals * z_bar ** 2)
@@ -30,6 +30,18 @@ def two_step_quad_gd_solver(z_stars_train, z_currs, P):
     # step 5
     beta = (-c_1 + jnp.sqrt(c_1 ** 2 - 4 * c_0 * c_2)) / (2 * c_2)
     alpha = (-c_1 - jnp.sqrt(c_1 ** 2 - 4 * c_0 * c_2)) / (2 * c_2)
+
+    # alpha, beta = two_step_young(P)
+    return alpha, beta
+
+
+def two_step_young(P):
+    evals, evecs = jnp.linalg.eigh(P)
+    L = evals.max()
+    mu = evals.min()
+    S = jnp.sqrt(L ** 2 + (L - mu) ** 2)
+    alpha = 2  / (mu + S)
+    beta = 2 / (2 * L + mu - S)
     return alpha, beta
 
 

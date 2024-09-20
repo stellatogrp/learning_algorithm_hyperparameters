@@ -1,11 +1,11 @@
 from functools import partial
 
 import jax.numpy as jnp
-from jax import random
+from jax import random, vmap
 
 import numpy as np
 
-from lasco.algo_steps_logistic import k_steps_eval_lasco_logisticgd, k_steps_train_lasco_logisticgd, k_steps_eval_nesterov_logisticgd
+from lasco.algo_steps_logistic import k_steps_eval_lasco_logisticgd, k_steps_train_lasco_logisticgd, k_steps_eval_nesterov_logisticgd, compute_gradient
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
 
@@ -83,6 +83,32 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
         # self.loss_fn_fixed_ws = e2e_loss_fn(bypass_nn=True, diff_required=False)
 
         self.num_const_steps = input_dict.get('num_const_steps', 1)
+
+        self.num_points = num_points
+
+        if self.train_unrolls == 1:
+            self.train_case = 'one_step_grad'
+
+    def compute_single_gradient(self, z, q):
+        num_points = self.num_points
+        X_flat = q[:num_points * 784]
+        X = jnp.reshape(X_flat, (num_points, 784))
+        y = q[num_points * 784:]
+
+        w, b = z[:-1], z[-1]
+        y_hat = sigmoid(X @ w + b)
+        dw, db = compute_gradient(X, y, y_hat)
+        return jnp.hstack([dw, db])
+
+    # def compute_gradients(self, batch_inputs, batch_q_data):
+    #     # TODO
+    #     return gradients
+
+    def compute_gradients(self, batch_inputs, batch_q_data):
+        # Use vmap to vectorize compute_single_gradient over the batch dimensions
+        batched_compute_gradient = vmap(self.compute_single_gradient, in_axes=(0, 0))
+        return batched_compute_gradient(batch_inputs, batch_q_data)
+
 
     def transform_params(self, params, n_iters):
         # n_iters = params[0].size

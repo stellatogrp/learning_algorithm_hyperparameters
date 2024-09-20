@@ -3,7 +3,7 @@ nn_cfg:
   method: adam
   intermediate_layer_sizes: [10]
   batch_size: 100
-  epochs: 200
+  epochs: 2 #00
   decay_lr: .1
   min_lr: 1e-7
   decay_every: 1e7
@@ -26,9 +26,9 @@ data:
   datetime: ''
 
 step_varying_num: 100
-train_unrolls: 10
+train_unrolls: 1
 eval_unrolls: 200
-eval_every_x_epochs: 200
+eval_every_x_epochs: 2 #00
 save_every_x_epochs: 1
 test_every_x_epochs: 1
 write_csv_every_x_batches: 1
