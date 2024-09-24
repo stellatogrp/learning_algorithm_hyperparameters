@@ -326,16 +326,26 @@ def create_acc_reduction_tables(accs_dict, acc_reductions_dict):
 
 def plot_results_dict_constrained(results_dict, gains_dict, num_iters):
     # plot the primal and dual residuals next to each other
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(18, 12), sharey='row') #, sharey=True)
-    axes[0, 0].set_yscale('log')
-    axes[1, 0].set_yscale('log')
-    axes[1, 0].set_xlabel('iterations')
-    axes[1, 1].set_xlabel('iterations')
-    axes[0, 0].set_title('primal residuals')
-    axes[0, 1].set_title('dual residuals')
+    # fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(18, 12), sharey='row') #, sharey=True)
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(18, 6), sharey='row') #, sharey=True)
+    # axes[0, 0].set_yscale('log')
+    # axes[1, 0].set_yscale('log')
+    # axes[1, 0].set_xlabel('iterations')
+    # axes[1, 1].set_xlabel('iterations')
+    # axes[0, 0].set_title('primal residuals')
+    # axes[0, 1].set_title('dual residuals')
 
-    axes[0, 0].set_ylabel('residual value')
-    axes[1, 0].set_ylabel('gain to vanilla')
+    # axes[0, 0].set_ylabel('residual value')
+    # axes[1, 0].set_ylabel('gain to vanilla')
+
+    axes[0].set_yscale('log')
+    axes[1].set_yscale('log')
+    axes[0].set_xlabel('iterations')
+    axes[1].set_xlabel('iterations')
+    axes[0].set_title('primal residuals')
+    axes[1].set_title('dual residuals')
+
+    axes[0].set_ylabel('residual value')
 
     methods = list(results_dict.keys())
     markevery = int(num_iters / 20)
@@ -352,16 +362,16 @@ def plot_results_dict_constrained(results_dict, gains_dict, num_iters):
         mark_start = titles_2_marker_starts[method]
 
         # plot the values
-        axes[0, 0].plot(results_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
+        axes[0].plot(results_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
                                 markevery=(mark_start, markevery))
-        axes[0, 1].plot(results_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
+        axes[1].plot(results_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
                                 markevery=(mark_start, markevery))
         
         # plot the gains
-        axes[1, 0].plot(gains_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                markevery=(mark_start, markevery))
-        axes[1, 1].plot(gains_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                markevery=(mark_start, markevery))
+        # axes[1, 0].plot(gains_dict[method]['pr'][:num_iters], linestyle=style, marker=marker, color=color, 
+        #                         markevery=(mark_start, markevery))
+        # axes[1, 1].plot(gains_dict[method]['dr'][:num_iters], linestyle=style, marker=marker, color=color, 
+        #                         markevery=(mark_start, markevery))
 
     fig.tight_layout()
     plt.savefig('pr_dr.pdf', bbox_inches='tight')
@@ -369,14 +379,24 @@ def plot_results_dict_constrained(results_dict, gains_dict, num_iters):
 
 def plot_results_dict_unconstrained(results_dict, gains_dict, num_iters):
     # plot the primal and dual residuals next to each other
-    fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(18, 12), sharey='row') #, sharey=True)
-    axes[0].set_yscale('log')
-    axes[1].set_yscale('log')
-    axes[1].set_xlabel('iterations')
-    axes[0].set_title('objective suboptimality')
+    # fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(18, 12), sharey='row') #, sharey=True)
+    # axes[0].set_yscale('log')
+    # axes[1].set_yscale('log')
+    # axes[1].set_xlabel('iterations')
+    # axes[0].set_title('objective suboptimality')
 
-    axes[0].set_ylabel('objective suboptimality')
-    axes[1].set_ylabel('gain to vanilla')
+    # axes[0].set_ylabel('objective suboptimality')
+    # axes[1].set_ylabel('gain to vanilla')
+
+    # fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(18, 12), sharey='row') #, sharey=True)
+    plt.figure(figsize=(12, 6))
+    plt.yscale('log')
+    # axes[1].set_yscale('log')
+    plt.xlabel('iterations')
+    plt.title('objective suboptimality')
+
+    # plt.ylabel('objective suboptimality')
+    # axes[1].set_ylabel('gain to vanilla')
 
     methods = list(results_dict.keys())
     markevery = int(num_iters / 20)
@@ -393,14 +413,14 @@ def plot_results_dict_unconstrained(results_dict, gains_dict, num_iters):
             continue
 
         # plot the values
-        axes[0].plot(results_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color, 
+        plt.plot(results_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color, 
                                 markevery=(mark_start, markevery))
         
         # plot the gains
-        axes[1].plot(gains_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                markevery=(mark_start, markevery))
+        # axes[1].plot(gains_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color, 
+        #                         markevery=(mark_start, markevery))
 
-    fig.tight_layout()
+    plt.tight_layout()
     plt.savefig('obj_diff.pdf', bbox_inches='tight')
     plt.clf()
 
