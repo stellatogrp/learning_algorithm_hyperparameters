@@ -9,7 +9,7 @@ from jax import jit, random, vmap
 # from jax.config import config
 from jaxopt import OptaxSolver
 
-from lasco.low_step_solvers import two_step_quad_gd_solver, one_step_gd_solver, one_step_prox_gd_solver
+from lasco.low_step_solvers import two_step_quad_gd_solver, one_step_gd_solver, one_step_prox_gd_solver, three_step_quad_gd_solver
 from lasco.algo_steps import create_eval_fn, create_train_fn, lin_sys_solve, create_kl_inv_layer, kl_inv_fn
 from lasco.utils.nn_utils import (
     calculate_pinsker_penalty,
@@ -215,6 +215,13 @@ class L2WSmodel(object):
             # import pdb
             # pdb.set_trace()
             params[0] = jnp.log(jnp.array([[alpha, beta]])).T
+        elif train_case == 'three_step_quad': 
+            # gradients = self.compute_gradients(batch_inputs, batch_q_data)
+            P = self.P
+            alpha, beta, gamma = three_step_quad_gd_solver(batch_z_stars, batch_inputs, P)
+            # import pdb
+            # pdb.set_trace()
+            params[0] = jnp.log(jnp.array([[alpha, beta, gamma]])).T
         else:
             # gradient-based methods
             results = self.optimizer.update(params=params,

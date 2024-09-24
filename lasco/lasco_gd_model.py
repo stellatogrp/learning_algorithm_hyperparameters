@@ -75,6 +75,8 @@ class LASCOGDmodel(L2WSmodel):
             self.train_case = 'one_step_grad'
         elif self.train_unrolls == 2:
             self.train_case = 'two_step_quad'
+        elif self.train_unrolls == 3:
+            self.train_case = 'three_step_quad'
         
 
 

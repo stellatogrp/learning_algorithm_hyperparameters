@@ -35,6 +35,60 @@ def two_step_quad_gd_solver(z_stars_train, z_currs, P):
     return alpha, beta
 
 
+def three_step_quad_gd_solver(z_stars_train, z_currs, P):
+    N, n = z_stars_train.shape
+
+    # step 1
+    evals, Q = jnp.linalg.eigh(P)
+
+    # step 2
+    z_bar = jnp.zeros(n)
+    for i in range(N):
+        z_bar += Q.T @ (z_currs[i, :] - z_stars_train[i, :]) / N
+
+    # step 3
+    A = jnp.sum(evals * z_bar ** 2)
+    B = jnp.sum(evals ** 2 * z_bar ** 2)
+    C = jnp.sum(evals ** 3 * z_bar ** 2)
+    D = jnp.sum(evals ** 4 * z_bar ** 2)
+    E = jnp.sum(evals ** 5 * z_bar ** 2)
+    F = jnp.sum(evals ** 6 * z_bar ** 2)
+
+    # step 4 d_0 &= ace - b^2e - ad^2 + 2bcd - c^3, \quad d_1 = c^2d - bd^2 - bce + ade + b^2f -acf \\
+    # d_2 &= -cd^2 + c^2e + bde - ae^2 - bcf + adf, \quad  d_3 = d^3 -  2cde + be^2 + c^2f - bdf
+    d_0 = A * C*E - B ** 2*E - A*D**2 + 2*B*C*D - C**3
+    d_1 = C**2*D - B*D**2 - B*C*E + A*D*E + B**2 * F - A*C*F
+    d_2 = -C*D**2 + C**2*E + B*D*E - A*E**2 - B*C*F + A*D*F
+    d_3 = D**3 - 2 * C *D*E + B*E**2 + C**2*F - B*D*F
+
+    # step 5
+    coefficients = jnp.array([d_3, d_2, d_1, d_0]) #jnp.array([d_0, d_1, d_2, d_3])
+    roots = jnp.roots(coefficients, strip_zeros=False)
+    alpha, beta, gamma = roots[0].real, roots[1].real, roots[2].real
+    # import pdb
+    # pdb.set_trace()
+
+
+    # DEBUG
+    # A1 =  jnp.sum((1 - alpha*evals)**1 *evals * z_bar ** 2)
+    # B1 = jnp.sum((1 - alpha*evals)**2 *evals**2 * z_bar ** 2)
+    # C1 = jnp.sum((1 - alpha*evals)**2 *evals**3 * z_bar ** 2)
+    # D1 = jnp.sum((1 - alpha*evals)**2 *evals**4 * z_bar ** 2)
+    # c0 = A1*C1 - B1*B1
+    # c1 = -A1*D1 + B1*C1
+    # c2 = -C1*C1 + B1*D1
+
+    # e0 = (A*C - B*B) + alpha * (2*B*C - 2*A*D) + alpha**2*(-3*C**2 + 2*B*D + A*E) + alpha**3 * (2*C*D-2*B*E) + alpha**4 * (C*E-D*D)
+    # e1 = -(A - 2*alpha*B + alpha**2 * C) * (D - 2*alpha*E + alpha**2 * F) + (B - 2*alpha * C + alpha**2*D) * (C - 2 *alpha*D + alpha**2 *E)
+    # e2 = -(C-2*alpha*D + alpha**2*E)**2 + (B-2*alpha*C+alpha**2*D)*(D-2*alpha*E+alpha**2*F)
+
+    # beta = (-c_1 + jnp.sqrt(c_1 ** 2 - 4 * c_0 * c_2)) / (2 * c_2)
+    # alpha = (-c_1 - jnp.sqrt(c_1 ** 2 - 4 * c_0 * c_2)) / (2 * c_2)
+
+    # alpha, beta = two_step_young(P)
+    return alpha, beta, gamma
+
+
 def two_step_young(P):
     evals, evecs = jnp.linalg.eigh(P)
     L = evals.max()
