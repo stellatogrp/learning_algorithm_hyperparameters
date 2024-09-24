@@ -71,6 +71,14 @@ class LASCOGDmodel(L2WSmodel):
         # end-to-end added fixed warm start eval - bypasses neural network
         # self.loss_fn_fixed_ws = e2e_loss_fn(bypass_nn=True, diff_required=False)
 
+        if self.train_unrolls == 1:
+            self.train_case = 'one_step_grad'
+        elif self.train_unrolls == 2:
+            self.train_case = 'two_step_quad'
+        elif self.train_unrolls == 3:
+            self.train_case = 'three_step_quad'
+        
+
 
     def transform_params(self, params, n_iters):
         # n_iters = params[0].size
@@ -108,6 +116,10 @@ class LASCOGDmodel(L2WSmodel):
         # step_varying_params = jnp.log(params[:self.step_varying_num, :1])
         # steady_state_params = sigmoid_inv(params[self.step_varying_num:, :1] * self.smooth_param / 2)
         # self.params = [jnp.vstack([step_varying_params, steady_state_params])]
+
+    def compute_gradients(self, batch_inputs, batch_q_data):
+        gradients = (self.P @ batch_inputs.T + batch_q_data.T).T
+        return gradients
 
 
     def init_params(self):

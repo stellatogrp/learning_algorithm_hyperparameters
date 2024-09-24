@@ -77,6 +77,89 @@ def quadcopter_plot_eval_iters(cfg):
     create_lasco_results_constrained(example, cfg)
 
 
+def plot_results_wth_step_sizes(example, cfg, results_dict, gains_dict, num_iters):
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(18, 6)) #, sharey='row') #, sharey=True)
+
+    # subplot 1: results
+    # plot the primal and dual residuals next to each other
+    # fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(18, 12), sharey='row') #, sharey=True)
+    axes[0].set_yscale('log')
+    # axes[1].set_yscale('log')
+    # axes[1].set_xlabel('iterations')
+    axes[0].set_title('objective suboptimality')
+
+    # axes[0].set_ylabel('objective suboptimality')
+    # axes[1].set_ylabel('gain to vanilla')
+
+    methods = list(results_dict.keys())
+    markevery = int(num_iters / 20)
+    for i in range(len(methods)):
+        method = methods[i]
+        style = titles_2_styles[method]
+        marker = titles_2_markers[method]
+        color = titles_2_colors[method]
+        mark_start = titles_2_marker_starts[method]
+
+        if method == 'lm' and 'lm10000' in methods:
+            continue
+        if method == 'l2ws' and 'l2ws10000' in methods:
+            continue
+
+        # plot the values
+        axes[0].plot(results_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color, 
+                                markevery=(mark_start, markevery))
+        
+        # # plot the gains
+        # axes[1].plot(gains_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color, 
+        #                         markevery=(mark_start, markevery))
+
+    # fig.tight_layout()
+    # plt.savefig('obj_diff.pdf', bbox_inches='tight')
+    # plt.clf()
+
+
+
+    # subplot 2: step sizes
+    # get the step sizes (for silver and learned)
+    step_sizes_dict = get_lasco_gd_step_size(example, cfg)
+    lasco_step_sizes = step_sizes_dict['lasco'].to_numpy()[:, 1]
+
+    # get the strongly convex and L-smooth values
+    #       can get it from nesterov and no_train
+    nesterov_step_size = step_sizes_dict['nesterov'].to_numpy()[0, 1]
+    vanilla_step_size = step_sizes_dict['cold_start'].to_numpy()[0, 1]
+    smoothness = 1 / nesterov_step_size
+
+    # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(18, 6), sharey='row') #, sharey=True)
+    axes[1].set_xlabel('iterations')
+    axes[1].set_title('LAH step sizes')
+    # plt.ylabel('step sizes')
+    # axes[1, 0].set_ylabel('gain to cold start')
+
+    # plot the bar plot for silver
+    cmap = plt.cm.Set1
+    colors = cmap.colors
+    step_size_iters = cfg.step_size_iters
+    # axes[0].bar(np.arange(step_size_iters), silver_step_sizes[:step_size_iters], color=colors[2])
+    # axes[0].hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
+
+    # plot the bar plot for the learned method
+
+    # add in the horizontal lines for lasco
+    full_lasco = lasco_step_sizes[-1] * np.ones(step_size_iters)
+    num_lasco = lasco_step_sizes.size
+    full_lasco[:num_lasco] = lasco_step_sizes[:num_lasco]
+    bars = plt.bar(np.arange(step_size_iters), full_lasco, color=colors[1])
+    plt.hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
+    # bars[num_lasco:].set_color(colors[0])
+    # Change the color of the bars from num_lasco onward
+    for i in range(num_lasco - 1, len(bars)):
+        bars[i].set_color(colors[0])
+
+    plt.tight_layout()
+    plt.savefig('results_with_step_sizes.pdf', bbox_inches='tight')
+
+
 def plot_step_sizes_lasso(example, cfg):
     plt.figure(figsize=(9, 6))
 
@@ -157,13 +240,82 @@ def plot_step_sizes(example, cfg):
     full_lasco[:num_lasco] = lasco_step_sizes[:num_lasco]
     bars = axes[1].bar(np.arange(step_size_iters), full_lasco, color=colors[1])
     axes[1].hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
-    # bars[num_lasco:].set_color(colors[0])
+
     # Change the color of the bars from num_lasco onward
     for i in range(num_lasco - 1, len(bars)):
         bars[i].set_color(colors[0])
 
     plt.tight_layout()
     plt.savefig('step_sizes.pdf', bbox_inches='tight')
+
+
+
+
+
+    # plot one_step, two_step, 10_step
+    lasco_onestep_sizes = step_sizes_dict['lasco_one_step'].to_numpy()[:, 1]
+    lasco_twostep_sizes = step_sizes_dict['lasco_two_step'].to_numpy()[:, 1]
+
+    fig, axes = plt.subplots(nrows=1, ncols=4, figsize=(30, 6), sharey='row') #, sharey=True)
+    axes[0].set_xlabel('iterations')
+    axes[1].set_xlabel('iterations')
+    axes[2].set_xlabel('iterations')
+    axes[3].set_xlabel('iterations')
+    axes[0].set_title('silver', color=colors[2])
+    axes[1].set_title('1 step at a time', color=colors[1])
+    axes[2].set_title('2 steps at a time', color=colors[1])
+    axes[3].set_title('10 steps at a time', color=colors[1])
+    # axes[1].set_title('LAH 1 step')
+    # axes[2].set_title('LAH 2 step')
+    # axes[3].set_title('LAH 10 step')
+    axes[0].set_ylabel('step sizes')
+    # axes[1, 0].set_ylabel('gain to cold start')
+
+    if example == 'logistic_regression':
+        axes[0].set_yscale('log')
+
+    # plot the bar plot for silver
+    cmap = plt.cm.Set1
+    colors = cmap.colors
+    step_size_iters = cfg.step_size_iters
+    axes[0].bar(np.arange(step_size_iters), silver_step_sizes[:step_size_iters], color=colors[2])
+    axes[0].hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
+
+    # plot the bar plot for the learned method
+
+    # add in the horizontal lines for lasco
+    full_lasco = lasco_step_sizes[-1] * np.ones(step_size_iters)
+    num_lasco = lasco_step_sizes.size
+    full_lasco[:num_lasco] = lasco_step_sizes[:num_lasco]
+    bars = axes[3].bar(np.arange(step_size_iters), full_lasco, color=colors[1])
+    axes[3].hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
+    # Change the color of the bars from num_lasco onward
+    for i in range(num_lasco - 1, len(bars)):
+        bars[i].set_color(colors[0])
+
+    # add in the horizontal lines for lasco one step
+    full_lasco = lasco_step_sizes[-1] * np.ones(step_size_iters)
+    num_lasco = lasco_step_sizes.size
+    full_lasco[:num_lasco] = lasco_onestep_sizes[:num_lasco]
+    bars = axes[1].bar(np.arange(step_size_iters), full_lasco, color=colors[1])
+    axes[1].hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
+    # Change the color of the bars from num_lasco onward
+    for i in range(num_lasco - 1, len(bars)):
+        bars[i].set_color(colors[0])
+
+    # add in the horizontal lines for lasco two step
+    full_lasco = lasco_step_sizes[-1] * np.ones(step_size_iters)
+    num_lasco = lasco_step_sizes.size
+    full_lasco[:num_lasco] = lasco_twostep_sizes[:num_lasco]
+    bars = axes[2].bar(np.arange(step_size_iters), full_lasco, color=colors[1])
+    axes[2].hlines(2 * nesterov_step_size, 0, step_size_iters, color=colors[3])
+
+    # Change the color of the bars from num_lasco onward
+    for i in range(num_lasco - 1, len(bars)):
+        bars[i].set_color(colors[0])
+
+    plt.tight_layout()
+    plt.savefig('step_sizes_all.pdf', bbox_inches='tight')
 
 
 
@@ -198,7 +350,8 @@ def read_step_size_data(dt_path, method):
         df = read_csv(f"{dt_path}/lasco_weights/no_train/params.csv")
     elif method == 'nearest_neighbor':
         df = read_csv(f"{dt_path}/lasco_weights/nearest_neighbor/params.csv")
-    elif method == 'lasco':
+    # elif method == 'lasco':
+    elif method[:5] == 'lasco':
         # get all of the folder starting with 'train_epoch_...'
         # all_train_epoch_folders = 
         last_folder = find_last_folder_starting_with(f"{dt_path}/lasco_weights", 'train_epoch')
@@ -271,6 +424,9 @@ def create_lasco_results_unconstrained(example, cfg):
 
     # create the tables (need the accuracies and reductions for this)
     create_acc_reduction_tables(accs_dict, acc_reductions_dict)
+
+    if example == 'lasso':
+        plot_results_wth_step_sizes(example, cfg, results_dict, gains_dict, cfg.num_iters)
 
 
 def create_lasco_results_constrained(example, cfg):

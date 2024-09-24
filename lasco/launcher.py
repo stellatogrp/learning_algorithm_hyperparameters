@@ -928,6 +928,7 @@ class Workspace:
             self.save_weights()
         gc.collect()
 
+
         return out_train
 
     def run(self):
@@ -1018,6 +1019,10 @@ class Workspace:
             # update the train inputs
             update_train_inputs_flag = window > 0 and self.l2ws_model.lasco
 
+            # update the method for the steady-state
+            if window == num_progressive_trains - 1:
+                self.l2ws_model.train_case = 'gradient'
+
             for epoch_batch in range(num_epochs_jit):
                 epoch = int(epoch_batch * self.epochs_jit) + window * num_epochs_jit * self.epochs_jit
                 print('epoch', epoch)
@@ -1040,6 +1045,8 @@ class Workspace:
                 
                 # insert the curr_params into the entire params
                 if self.l2ws_model.lasco:
+                    # import pdb
+                    # pdb.set_trace()
                     pp = self.l2ws_model.params[0].at[window_indices, :].set(curr_params[0])
                     params = [pp]
                 else:
@@ -1148,7 +1155,7 @@ class Workspace:
             if self.l2ws_model.lasco:
                 train_loss_first, params, state = self.l2ws_model.train_batch(
                     batch_indices, self.l2ws_model.lasco_train_inputs, [self.l2ws_model.params[0][window_indices, :]], 
-                    self.l2ws_model.state, n_iters=n_iters)
+                    self.l2ws_model.state, n_iters=n_iters, train_case=self.l2ws_model.train_case)
             else:
                 train_loss_first, params, state = self.l2ws_model.train_batch(
                     batch_indices, self.l2ws_model.train_inputs, self.l2ws_model.params, 
@@ -1192,7 +1199,7 @@ class Workspace:
             permutation, (start_index,), (self.l2ws_model.batch_size,))
 
         train_loss, params, state = self.l2ws_model.train_batch(
-            batch_indices, inputs, params, state, n_iters)
+            batch_indices, inputs, params, state, n_iters, train_case=self.l2ws_model.train_case)
 
         train_losses = train_losses.at[batch].set(train_loss)
         val = train_losses, inputs, params, state, permutation

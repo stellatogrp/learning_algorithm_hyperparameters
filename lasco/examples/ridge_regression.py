@@ -25,9 +25,9 @@ def run(run_cfg, lasco=True):
     m_orig = setup_cfg['m_orig']
 
     lambd = setup_cfg['lambd']
-    A = np.random.normal(size=(m_orig, n_orig))
+    A = np.random.normal(size=(m_orig, n_orig)) #/ 10
     # P = A.T @ A + lambd * np.identity(n_orig)
-    P = A.T @ A / 10 + lambd * np.identity(n_orig)
+    P = A.T @ A  + lambd * np.identity(n_orig)
 
     gd_step = 1 / P.max()
 
@@ -63,7 +63,7 @@ def l2ws_run(run_cfg):
     m_orig = setup_cfg['m_orig']
 
     lambd = setup_cfg['lambd']
-    A = np.random.normal(size=(m_orig, n_orig))
+    A = np.random.normal(size=(m_orig, n_orig)) #/ 10
     P = A.T @ A + lambd * np.identity(n_orig)
 
     evals, evecs = np.linalg.eigh(P)
@@ -96,7 +96,7 @@ def setup_probs(setup_cfg):
 
     lambd = setup_cfg['lambd']
     A = np.random.normal(size=(m_orig, n_orig))
-    P = A.T @ A / 10 + lambd * np.identity(n_orig)
+    P = A.T @ A  + lambd * np.identity(n_orig)
 
     
 
