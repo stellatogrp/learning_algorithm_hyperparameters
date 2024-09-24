@@ -4,6 +4,7 @@
 import numpy as np
 import cvxpy as cp
 import pandas as pd
+import os
 from lasco.utils.nn_utils import (
     invert_kl,
 )
@@ -27,4 +28,5 @@ for i in range(N + 1):
 
 df = pd.DataFrame()
 df['kl_inv'] = kl_invs
+os.mkdir('kl_inv_cache')
 df.to_csv(f"kl_inv_cache/kl_inv_delta_{delta}_Nval_{N}.csv")
