@@ -136,7 +136,7 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
 
 
     def set_params_for_silver(self):
-        silver_steps = 128
+        silver_steps = 4096
         # kappa = self.smooth_param / self.str_cvx_param
 
         silver_step_sizes = compute_silver_steps(silver_steps) / self.smooth_param
@@ -184,7 +184,6 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
                     stochastic_params = self.transform_params(params, n_iters)
 
             
-
             if self.train_fn is not None:
                 train_fn = self.train_fn
             else:

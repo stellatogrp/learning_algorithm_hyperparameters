@@ -413,14 +413,15 @@ def create_lasco_results_unconstrained(example, cfg):
     # takes a different form accuracies_dict['lasco'][0.01] = num_iters (it is a single integer)
 
     # calculate the gains (divide by cold start)
-    gains_dict = populate_gains_dict(results_dict, cfg.num_iters, constrained=False)
+    # gains_dict = populate_gains_dict(results_dict, cfg.num_iters, constrained=False)
+    gains_dict = {}
 
     # calculate the reduction in iterations for accs
     acc_reductions_dict = populate_acc_reductions_dict(accs_dict)
     # takes a different form accuracies_dict['lasco'][0.01] = reduction (it is a single fraction)
 
     # do the plotting
-    plot_results_dict_unconstrained(results_dict, gains_dict, cfg.num_iters)
+    plot_results_dict_unconstrained(example, results_dict, gains_dict, cfg.num_iters)
 
     # create the tables (need the accuracies and reductions for this)
     create_acc_reduction_tables(accs_dict, acc_reductions_dict)
@@ -533,7 +534,7 @@ def plot_results_dict_constrained(results_dict, gains_dict, num_iters):
     plt.savefig('pr_dr.pdf', bbox_inches='tight')
 
 
-def plot_results_dict_unconstrained(results_dict, gains_dict, num_iters):
+def plot_results_dict_unconstrained(example, results_dict, gains_dict, num_iters):
     # plot the primal and dual residuals next to each other
     # fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(18, 12), sharey='row') #, sharey=True)
     # axes[0].set_yscale('log')
@@ -550,6 +551,9 @@ def plot_results_dict_unconstrained(results_dict, gains_dict, num_iters):
     # axes[1].set_yscale('log')
     plt.xlabel('iterations')
     plt.title('objective suboptimality')
+
+    if example == 'logistic_regression':
+        plt.xscale('log')
 
     # plt.ylabel('objective suboptimality')
     # axes[1].set_ylabel('gain to vanilla')
@@ -569,8 +573,12 @@ def plot_results_dict_unconstrained(results_dict, gains_dict, num_iters):
             continue
 
         # plot the values
-        plt.plot(results_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color, 
-                                markevery=(mark_start, markevery))
+        if example == 'logistic_regression':
+            plt.plot(results_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color,
+                     markevery=(mark_start, 0.1))
+        else:
+            plt.plot(results_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color, 
+                                    markevery=(mark_start, markevery))
         
         # plot the gains
         # axes[1].plot(gains_dict[method]['obj_diff'][:num_iters], linestyle=style, marker=marker, color=color, 
