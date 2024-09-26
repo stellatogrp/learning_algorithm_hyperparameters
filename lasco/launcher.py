@@ -981,7 +981,7 @@ class Workspace:
                 self.l2ws_model.set_params_for_nesterov()
                 self.eval_iters_train_and_test('nesterov', None)
 
-            if self.l2ws_model.algo == 'lasco_gd':
+            if self.l2ws_model.algo == 'lasco_gd' or self.l2ws_model.algo == 'lasco_stochastic_gd':
                 # conj_grad
                 # self.l2ws_model.set_params_for_nesterov()
                 self.eval_iters_train_and_test('conj_grad', None)

@@ -124,6 +124,9 @@ def setup_probs(setup_cfg):
 
     gd_setup_script(c_mat, P, theta_mat, output_filename)
 
+    import pdb
+    pdb.set_trace()
+
 
 def obj(P, c, z):
     return .5 * z.T @ P @ z  + c @ z

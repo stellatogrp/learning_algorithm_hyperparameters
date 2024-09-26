@@ -87,11 +87,19 @@ def stochastic_get_z_bar(gauss_mean, gauss_variance, params, P):
     evals, Q = jnp.linalg.eigh(P)
 
     # get the matrix
-    mat = -jnp.eye(n)
+    # mat = -jnp.eye(n)
     step_sizes = jnp.exp(params[0])
+    # for j in range(n):
+
+    diag_mat = -jnp.ones(n)
     for i in range(step_sizes.size):
-        mat = mat @ (jnp.eye(n) - step_sizes[i] * jnp.diag(evals))
-    mat = mat @ jnp.diag(1 / evals) @ Q.T
+        diag_mat = diag_mat * (1 -  step_sizes[i] * evals)
+        # mat = mat @ (jnp.eye(n) - step_sizes[i] * jnp.diag(evals))
+    diag_mat = diag_mat / evals
+    mat = jnp.diag(diag_mat) @ Q.T
+    # import pdb
+    # pdb.set_trace()
+    # mat = mat @ jnp.diag(1 / evals) @ Q.T
 
 
     # step 2

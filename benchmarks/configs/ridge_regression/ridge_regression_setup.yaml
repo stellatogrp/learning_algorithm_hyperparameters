@@ -6,4 +6,4 @@ seed: 42
 solve: True
 b_min: -10
 b_max: 10
-lambd: 0.1 #10
+lambd: 0.01 #10
