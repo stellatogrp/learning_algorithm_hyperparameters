@@ -9,7 +9,7 @@ from jax import jit, random, vmap
 # from jax.config import config
 from jaxopt import OptaxSolver
 
-from lasco.low_step_solvers import two_step_quad_gd_solver, one_step_gd_solver, one_step_prox_gd_solver, three_step_quad_gd_solver
+from lasco.low_step_solvers import two_step_data_quad_gd_solver, one_step_gd_solver, one_step_prox_gd_solver, three_step_data_quad_gd_solver, two_step_stochastic_quad_gd_solver, three_step_stochastic_quad_gd_solver
 from lasco.algo_steps import create_eval_fn, create_train_fn, lin_sys_solve, create_kl_inv_layer, kl_inv_fn
 from lasco.utils.nn_utils import (
     calculate_pinsker_penalty,
@@ -195,9 +195,37 @@ class L2WSmodel(object):
                 return return_out
         loss_fn = self.predict_2_loss(predict, diff_required)
         return loss_fn
+    
+
+    def train_stochastic(self, prev_params, train_case):
+        mean, var = self.gauss_mean, self.gauss_var
+        if train_case == 'stochastic_one_step_grad':
+            alpha = one_step_gd_solver(batch_z_stars, batch_inputs, gradients)
+            params[0] = jnp.log(jnp.array([[alpha]]))
+        elif train_case == 'stochastic_two_step_quad': 
+            # gradients = self.compute_gradients(batch_inputs, batch_q_data)
+            P = self.P
+            alpha, beta = two_step_stochastic_quad_gd_solver(mean, var, params, P)
+            # import pdb
+            # pdb.set_trace()
+            params[0] = jnp.log(jnp.array([[alpha, beta]])).T
+        elif train_case == 'stochastic_three_step_quad': 
+            # gradients = self.compute_gradients(batch_inputs, batch_q_data)
+            P = self.P
+            alpha, beta, gamma = three_step_stochastic_quad_gd_solver(mean, var, prev_params, P)
+            # import pdb
+            # pdb.set_trace()
+            # params[0] = jnp.log(jnp.array([[alpha, beta, gamma]])).T
+            return jnp.log(jnp.array([[alpha, beta, gamma]])).T
+        return params
 
 
     def train_batch(self, batch_indices, inputs, params, state, n_iters, train_case='gradient'):
+        if train_case[:10] == 'stochastic':
+            # prev_params = [inputs[0]]
+            prev_params = inputs
+            params[0] = self.train_stochastic(prev_params, train_case)
+            return state.value, params, state
         batch_inputs = inputs[batch_indices, :]
         batch_q_data = self.q_mat_train[batch_indices, :]
         batch_z_stars = self.z_stars_train[batch_indices, :]
