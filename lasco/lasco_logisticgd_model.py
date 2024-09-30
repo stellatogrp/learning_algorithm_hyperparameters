@@ -55,7 +55,7 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
                                         jit=self.jit)
         self.k_steps_eval_fn = partial(k_steps_eval_lasco_logisticgd, num_points=num_points, 
                                        safeguard_step=1/self.smooth_param,
-                                       jit=self.jit)
+                                       jit=self.jit, safeguard=False)
         self.nesterov_eval_fn = partial(k_steps_eval_nesterov_logisticgd, num_points=num_points,
                                        jit=self.jit)
         # self.conj_grad_eval_fn = partial(k_steps_eval_conj_grad, num_points=num_points,
@@ -113,7 +113,7 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
     def transform_params(self, params, n_iters):
         # n_iters = params[0].size
         transformed_params = jnp.zeros((n_iters, 1))
-        transformed_params = jnp.clip(transformed_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0])), a_max=1000)
+        transformed_params = jnp.clip(transformed_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0])), a_max=50000)
         transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
         # transformed_params = transformed_params.at[n_iters - 1, 0].set(jnp.exp(params[0][n_iters - 1, 0]))
         return transformed_params
@@ -208,7 +208,8 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
                 eval_out = self.nesterov_eval_fn(k=iters,
                                    z0=z0,
                                    q=q,
-                                   params=stochastic_params,
+                                #    params=stochastic_params,
+                                    params=1/self.smooth_param,
                                    supervised=supervised,
                                    z_star=z_star)
                 z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]

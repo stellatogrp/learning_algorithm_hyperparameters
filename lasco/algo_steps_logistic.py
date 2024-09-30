@@ -35,16 +35,48 @@ def k_steps_eval_lasco_logisticgd(k, z0, q, params, num_points, safeguard_step, 
                                 y=y,
                                 gd_steps=params
                                 )
+    # nesterov
+    fp_eval_nesterov_partial = partial(fp_eval_nesterov_logisticgd,
+                            supervised=supervised,
+                            z_star=z_star,
+                            X=X,
+                            y=y,
+                            gd_steps=safeguard_step #params
+                            )
     
     z_all = jnp.zeros((k, z0.size))
     obj_diffs = jnp.zeros(k)
     val = z0, iter_losses, z_all, obj_diffs
+
+    # run learned for 100
     start_iter = 0
     if jit:
         out = lax.fori_loop(start_iter, k, fp_eval_partial, val)
     else:
         out = python_fori_loop(start_iter, k, fp_eval_partial, val)
     z_final, iter_losses, z_all, obj_diffs = out
+
+    # run nesterov for the rest
+    start_iter = 0
+    iter_losses_nesterov = jnp.zeros(k - 100)
+    z_all_nesterov = jnp.zeros((k - 100, z0.size))
+    obj_diffs_nesterov = jnp.zeros(k - 100)
+    val = z_final, z_final, 0, iter_losses_nesterov, z_all_nesterov, obj_diffs_nesterov
+    if jit:
+        out_nesterov = lax.fori_loop(start_iter, k - 100, fp_eval_nesterov_partial, val)
+    else:
+        out_nesterov = python_fori_loop(start_iter, k - 100, fp_eval_nesterov_partial, val)
+    z_final_nesterov, y_final_nesterov, t_final_nesterov, iter_losses_nesterov, z_all_nesterov, obj_diffs_nesterov = out_nesterov
+
+    # z_final, y_final, t_final, iter_losses, z_all, obj_diffs
+
+    # stitch everything together
+    z_final = z_final_nesterov
+
+    z_all = z_all.at[100:, :].set(z_all_nesterov)
+    iter_losses = iter_losses.at[100:].set(iter_losses_nesterov)
+    obj_diffs = obj_diffs.at[100:].set(obj_diffs_nesterov)
+
     z_all_plus_1 = z_all_plus_1.at[1:, :].set(z_all)
     return z_final, iter_losses, z_all_plus_1, obj_diffs
 
@@ -121,7 +153,10 @@ def fp_train_lasco_logisticgd(i, val, supervised, z_star, X, y, gd_steps):
 
 def fixed_point_logisticgd(z, X, y, gd_step):
     w, b = z[:-1], z[-1]
-    y_hat = sigmoid(X @ w + b)
+    logits = jnp.clip(X @ w + b, -20, 20)
+    y_hat = sigmoid(logits)
+    # y_hat = sigmoid(X @ w + b)
+    
     dw, db = compute_gradient(X, y, y_hat)
     w_next = w - gd_step * dw #(dw + .01 * w)
     b_next = b - gd_step * db #(db + .01 * b)
@@ -363,7 +398,7 @@ def k_steps_eval_nesterov_logisticgd(k, z0, q, params, num_points, supervised, z
 
 def fp_eval_nesterov_logisticgd(i, val, supervised, z_star, X, y, gd_steps):
     z, v, t, loss_vec, z_all, obj_diffs = val
-    z_next, v_next, t_next = fixed_point_nesterov_logisticgd(z, v, t, X, y, gd_steps[i])
+    z_next, v_next, t_next = fixed_point_nesterov_logisticgd(z, v, t, X, y, gd_steps)
     diff = jnp.linalg.norm(z - z_star)
     loss_vec = loss_vec.at[i].set(diff)
     w, b = z[:-1], z[-1]
