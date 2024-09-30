@@ -16,7 +16,7 @@ echo "My SLURM_ARRAY_JOB_ID is $SLURM_ARRAY_JOB_ID."
 echo "My SLURM_ARRAY_TASK_ID is $SLURM_ARRAY_TASK_ID"
 echo "Executing on the machine:" $(hostname)
 
-python benchmarks/plotter_lasco.py logistic_regression cluster
+python benchmarks/plotter_lasco.py lasso cluster
 
 # python benchmarks/kl_inv_data_script.py
 # python benchmarks/lasco_setup.py mnist cluster
