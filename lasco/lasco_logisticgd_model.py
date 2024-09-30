@@ -55,7 +55,7 @@ class LASCOLOGISTICGDmodel(L2WSmodel):
                                         jit=self.jit)
         self.k_steps_eval_fn = partial(k_steps_eval_lasco_logisticgd, num_points=num_points, 
                                        safeguard_step=1/self.smooth_param,
-                                       jit=self.jit, safeguard=False)
+                                       jit=self.jit, safeguard=True)
         self.nesterov_eval_fn = partial(k_steps_eval_nesterov_logisticgd, num_points=num_points,
                                        jit=self.jit)
         # self.conj_grad_eval_fn = partial(k_steps_eval_conj_grad, num_points=num_points,

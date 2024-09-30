@@ -26,8 +26,8 @@ data:
   datetime: ''
 
 step_varying_num: 100
-train_unrolls: 10
-eval_unrolls: 500
+train_unrolls: 1
+eval_unrolls: 2000
 eval_every_x_epochs: 200
 save_every_x_epochs: 1
 test_every_x_epochs: 1
