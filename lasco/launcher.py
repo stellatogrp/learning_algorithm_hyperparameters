@@ -972,9 +972,9 @@ class Workspace:
 
             # if self.l2ws_model.lasco:
             # nearest neighbor
-            if self.l2ws_model.lasco:
-                self.eval_iters_train_and_test('nearest_neighbor', None)
-                jax.clear_caches()
+            # if self.l2ws_model.lasco:
+            #     self.eval_iters_train_and_test('nearest_neighbor', None)
+            #     jax.clear_caches()
 
             if self.l2ws_model.algo == 'lasco_ista':
                 # nesterov
@@ -983,12 +983,11 @@ class Workspace:
 
             if self.l2ws_model.algo == 'lasco_gd' or self.l2ws_model.algo == 'lasco_stochastic_gd':
                 # conj_grad
-                # self.l2ws_model.set_params_for_nesterov()
-                self.eval_iters_train_and_test('conj_grad', None)
+                # self.eval_iters_train_and_test('conj_grad', None)
 
-                # nesterov
-                self.l2ws_model.set_params_for_nesterov()
-                self.eval_iters_train_and_test('nesterov', None)
+                # # nesterov
+                # self.l2ws_model.set_params_for_nesterov()
+                # self.eval_iters_train_and_test('nesterov', None)
 
                 # silver
                 self.l2ws_model.set_params_for_silver()
@@ -1076,6 +1075,8 @@ class Workspace:
                 # train the jitted epochs
                 curr_params, state, epoch_train_losses, time_train_per_epoch = self.train_jitted_epochs(
                     permutation, epoch, window_indices, steady_state=steady_state)
+                # import pdb
+                # pdb.set_trace()
                 
                 self.l2ws_model.params = [prev_params]
                 # import pdb
@@ -1231,6 +1232,7 @@ class Workspace:
         time_diff = epoch_batch_end_time - epoch_batch_start_time
         time_train_per_epoch = time_diff / self.epochs_jit
         epoch_train_losses, inputs, params, state, permutation = val
+        print('epoch_train_losses', epoch_train_losses)
 
         self.l2ws_model.key = state.iter_num
 

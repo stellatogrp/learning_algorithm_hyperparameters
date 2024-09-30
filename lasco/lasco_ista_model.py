@@ -9,6 +9,8 @@ from lasco.algo_steps_ista import k_steps_eval_lasco_ista, k_steps_train_lasco_i
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
 
+from jax import vmap
+
 
 class LASCOISTAmodel(L2WSmodel):
     def __init__(self, **kwargs):
@@ -24,6 +26,7 @@ class LASCOISTAmodel(L2WSmodel):
         A = input_dict['A']
         lambd = input_dict['lambd']
         self.A = A
+        self.lambd = lambd
 
         # self.D, self.W = D, W
         self.m, self.n = A.shape
@@ -45,7 +48,8 @@ class LASCOISTAmodel(L2WSmodel):
 
         self.k_steps_train_fn = partial(k_steps_train_lasco_ista, lambd=lambd, A=A,
                                         jit=self.jit)
-        self.k_steps_eval_fn = partial(k_steps_eval_lasco_ista, lambd=lambd, A=A, safeguard_step=safeguard_step,
+        self.k_steps_eval_fn = partial(k_steps_eval_lasco_ista, lambd=lambd, A=A, 
+                                       safeguard_step=jnp.array([safeguard_step]),
                                        jit=self.jit)
         self.nesterov_eval_fn = partial(k_steps_eval_fista, lambd=lambd, A=A,
                                        jit=self.jit)
@@ -71,6 +75,13 @@ class LASCOISTAmodel(L2WSmodel):
 
         # end-to-end added fixed warm start eval - bypasses neural network
         # self.loss_fn_fixed_ws = e2e_loss_fn(bypass_nn=True, diff_required=False)
+
+    def f(self, z, c):
+        return .5 * jnp.linalg.norm(self.A @ z - c) ** 2 + self.lambd * jnp.linalg.norm(z, ord=1)
+
+    # def compute_avg_opt(self):
+    #     batch_f = vmap(self.f, in_axes=(0, 0), out_axes=(0))
+    #     opt_vals = batch_f(self.z_stars_train, self.theta)
 
     def transform_params(self, params, n_iters):
         # n_iters = params[0].size

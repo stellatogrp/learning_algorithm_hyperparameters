@@ -9,7 +9,7 @@ from jax import jit, random, vmap
 # from jax.config import config
 from jaxopt import OptaxSolver
 
-from lasco.low_step_solvers import two_step_data_quad_gd_solver, one_step_gd_solver, one_step_prox_gd_solver, three_step_data_quad_gd_solver, two_step_stochastic_quad_gd_solver, three_step_stochastic_quad_gd_solver
+from lasco.low_step_solvers import two_step_data_quad_gd_solver, one_step_gd_solver, one_step_prox_gd_solver, three_step_data_quad_gd_solver, two_step_stochastic_quad_gd_solver, three_step_stochastic_quad_gd_solver, stochastic_get_z_bar
 from lasco.algo_steps import create_eval_fn, create_train_fn, lin_sys_solve, create_kl_inv_layer, kl_inv_fn
 from lasco.utils.nn_utils import (
     calculate_pinsker_penalty,
@@ -25,7 +25,7 @@ from jaxopt import Bisection
 
 import jax
 jax.config.update("jax_enable_x64", True)
-# jax.config.update('jax_disable_jit', True)
+jax.config.update('jax_disable_jit', True)
 # jax.config.update("jax_debug_nans", True)
 
 
@@ -95,8 +95,11 @@ class L2WSmodel(object):
         # init to track training
         self.init_train_tracking()
 
-        
+        self.compute_avg_opt()
 
+        
+    def compute_avg_opt(self):
+        pass
 
     def reinit_losses(self):
         self.create_all_loss_fns(self.loss_method, self.regression)
@@ -197,7 +200,7 @@ class L2WSmodel(object):
         return loss_fn
     
 
-    def train_stochastic(self, prev_params, train_case):
+    def train_stochastic(self, prev_params, train_case, placeholder, n_iters, params, state):
         mean, var = self.gauss_mean, self.gauss_var
         if train_case == 'stochastic_one_step_grad':
             alpha = one_step_gd_solver(batch_z_stars, batch_inputs, gradients)
@@ -205,7 +208,7 @@ class L2WSmodel(object):
         elif train_case == 'stochastic_two_step_quad': 
             # gradients = self.compute_gradients(batch_inputs, batch_q_data)
             P = self.P
-            alpha, beta = two_step_stochastic_quad_gd_solver(mean, var, params, P)
+            alpha, beta = two_step_stochastic_quad_gd_solver(mean, var, prev_params, P)
             # import pdb
             # pdb.set_trace()
             params[0] = jnp.log(jnp.array([[alpha, beta]])).T
@@ -215,17 +218,36 @@ class L2WSmodel(object):
             alpha, beta, gamma = three_step_stochastic_quad_gd_solver(mean, var, prev_params, P)
             # import pdb
             # pdb.set_trace()
-            # params[0] = jnp.log(jnp.array([[alpha, beta, gamma]])).T
-            return jnp.log(jnp.array([[alpha, beta, gamma]])).T
-        return params
+            params[0] = jnp.log(jnp.array([[alpha, beta, gamma]])).T
+            # return state.value, jnp.log(jnp.array([[alpha, beta, gamma]])).T, state
+        elif train_case == 'stochastic_multi_step_quad': 
+            params_matrix = jnp.tile(prev_params[0], (placeholder.shape[0], 1))
+            # import pdb
+            # pdb.set_trace()
+            z_bar = stochastic_get_z_bar(self.gauss_mean, self.gauss_var, prev_params, self.P)
+            z_bar_mat = jnp.tile(z_bar, (placeholder.shape[0], 1))
+            results = self.optimizer.update(params=params,
+                                            state=state,
+                                            inputs=z_bar_mat,
+                                            b=placeholder,
+                                            iters=self.train_unrolls,
+                                            z_stars=placeholder,
+                                            key=n_iters)
+            params, state = results
+        # return params
+        # import pdb
+        # pdb.set_trace()
+        return state.value, params, state
 
 
     def train_batch(self, batch_indices, inputs, params, state, n_iters, train_case='gradient'):
         if train_case[:10] == 'stochastic':
             # prev_params = [inputs[0]]
             prev_params = inputs
-            params[0] = self.train_stochastic(prev_params, train_case)
-            return state.value, params, state
+            placeholder = self.q_mat_train
+            # params[0] = self.train_stochastic(prev_params, train_case, params, state)
+            # return state.value, params, state
+            return self.train_stochastic(prev_params, train_case, placeholder, n_iters, params, state)
         batch_inputs = inputs[batch_indices, :]
         batch_q_data = self.q_mat_train[batch_indices, :]
         batch_z_stars = self.z_stars_train[batch_indices, :]
@@ -536,6 +558,8 @@ class L2WSmodel(object):
         def loss_fn(params, inputs, b, iters, z_stars, key):
             if diff_required:
                 losses = batch_predict(params, inputs, b, iters, z_stars, key)
+                # import pdb
+                # pdb.set_trace()
                 return losses.mean()
             
                 # return losses.mean()

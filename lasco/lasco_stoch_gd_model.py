@@ -8,6 +8,7 @@ import numpy as np
 from lasco.algo_steps import k_steps_eval_lasco_gd, k_steps_train_lasco_gd, k_steps_eval_nesterov_gd, k_steps_eval_conj_grad
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
+from lasco.low_step_solvers import stochastic_get_z_bar
 
 
 class LASCOStochasticGDmodel(L2WSmodel):
@@ -34,6 +35,8 @@ class LASCOStochasticGDmodel(L2WSmodel):
         # p = jnp.diag(P)
         # cond_num = jnp.max(p) / jnp.min(p)
         evals, evecs = jnp.linalg.eigh(P)
+
+        self.evals = evals
 
         self.str_cvx_param = jnp.min(evals)
         self.smooth_param = jnp.max(evals)
@@ -81,6 +84,9 @@ class LASCOStochasticGDmodel(L2WSmodel):
             self.train_case = 'stochastic_two_step_quad'
         elif self.train_unrolls == 3:
             self.train_case = 'stochastic_three_step_quad'
+        elif self.train_unrolls > 3:
+            self.train_case = 'stochastic_multi_step_quad'
+
         
 
 
@@ -93,8 +99,13 @@ class LASCOStochasticGDmodel(L2WSmodel):
 
     def perturb_params(self):
         # init step-varying params
-        noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=1e-5, a_max=1e0)) * 0.00001
-        step_varying_params = jnp.log(noise + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
+        # noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=1e-5, a_max=1e0)) * 0.1 #* 0.00001
+        # step_varying_params = jnp.log(noise + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
+        noise = .95 + .1* jnp.array(np.random.rand(self.step_varying_num, 1)) #* 0.00001
+        step_varying_params = jnp.log( 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1)) * noise
+
+        # noise = jnp.array(np.random.normal(size=(self.step_varying_num, 1)))
+        # step_varying_params = noise #jnp.exp(noise) # + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
 
         # init steady_state_params
         steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
@@ -194,12 +205,23 @@ class LASCOStochasticGDmodel(L2WSmodel):
                 angles = None
             else:
                 if diff_required:
-                    z_final, iter_losses = train_fn(k=iters,
-                                                    z0=z0,
-                                                    q=q,
-                                                    params=stochastic_params,
-                                                    supervised=supervised,
-                                                    z_star=z_star)
+                    # z_final, iter_losses = train_fn(k=iters,
+                    #                                 z0=z0,
+                    #                                 q=q,
+                    #                                 params=stochastic_params,
+                    #                                 supervised=supervised,
+                    #                                 z_star=z_star)
+                    # z_bar = stochastic_get_z_bar(self.gauss_mean, self.gauss_var, key, self.P)
+                    z_bar = z0
+
+                    outer_products = jnp.prod((1 - jnp.outer(stochastic_params, self.evals)) ** 2, axis=0)
+    
+                    # Multiply the product terms with z_bar and sum over the results
+                    loss = jnp.sum(outer_products * z_bar)
+                    # import pdb
+                    # pdb.set_trace()
+                    
+                    # loss = jnp.prod(1 - jnp.outer(params[0], self.evals), axis=0)
                 else:
                     eval_out = eval_fn(k=iters,
                                        z0=z0,
@@ -210,8 +232,9 @@ class LASCOStochasticGDmodel(L2WSmodel):
                     z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
                     angles = None
 
-            loss = self.final_loss(loss_method, z_final,
-                                   iter_losses, supervised, z0, z_star)
+            if not diff_required:
+                loss = self.final_loss(loss_method, z_final,
+                                    iter_losses, supervised, z0, z_star)
 
             # penalty_loss = calculate_pinsker_penalty(self.N_train, params, self.b, self.c, self.delta)
             # loss = loss + self.penalty_coeff * penalty_loss

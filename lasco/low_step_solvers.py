@@ -91,12 +91,22 @@ def stochastic_get_z_bar(gauss_mean, gauss_variance, params, P):
     step_sizes = jnp.exp(params[0])
     # for j in range(n):
 
-    diag_mat = -jnp.ones(n)
-    for i in range(step_sizes.size):
-        diag_mat = diag_mat * (1 -  step_sizes[i] * evals)
-        # mat = mat @ (jnp.eye(n) - step_sizes[i] * jnp.diag(evals))
+    # diag_mat = -jnp.ones(n)
+    # for i in range(step_sizes.size):
+    #     diag_mat = diag_mat * (1 -  step_sizes[i] * evals)
+    # diag_mat = diag_mat / evals
+    # mat = jnp.diag(diag_mat) @ Q.T
+
+    # Compute the product over (1 - step_size * eval) for all step sizes in a vectorized way
+    diag_mat = -jnp.ones_like(evals) * jnp.prod(1 - jnp.outer(step_sizes, evals), axis=0)
+
+    # Divide by evals element-wise
     diag_mat = diag_mat / evals
+
+    # Perform the matrix multiplication
     mat = jnp.diag(diag_mat) @ Q.T
+
+
     # import pdb
     # pdb.set_trace()
     # mat = mat @ jnp.diag(1 / evals) @ Q.T
