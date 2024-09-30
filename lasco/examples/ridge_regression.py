@@ -25,18 +25,23 @@ def run(run_cfg, lasco=True):
     m_orig = setup_cfg['m_orig']
 
     lambd = setup_cfg['lambd']
-    A = np.random.normal(size=(m_orig, n_orig)) #/ 10
+    # A = np.random.normal(size=(m_orig, n_orig)) #/ 10
+    D = np.random.normal(size=(m_orig, n_orig)) / np.sqrt(m_orig)
+    A = jnp.array(D / np.linalg.norm(D, axis=0))
     # P = A.T @ A + lambd * np.identity(n_orig)
     P = A.T @ A  + lambd * np.identity(n_orig)
 
     gd_step = 1 / P.max()
 
-    static_dict = dict(P=P, gd_step=gd_step)
+    gauss_mean = jnp.zeros(n_orig)
+    gauss_var = A.T @ A
+    static_dict = dict(P=P, gd_step=gd_step, gauss_mean=gauss_mean, gauss_var=gauss_var)
 
     # we directly save q now
     static_flag = True
     if lasco:
-        algo = 'lasco_gd'
+        algo = 'lasco_stochastic_gd'
+        # algo = 'lasco_gd'
     else:
         algo = 'lm_gd'
     workspace = Workspace(algo, run_cfg, static_flag, static_dict, example)
@@ -63,7 +68,9 @@ def l2ws_run(run_cfg):
     m_orig = setup_cfg['m_orig']
 
     lambd = setup_cfg['lambd']
-    A = np.random.normal(size=(m_orig, n_orig)) #/ 10
+    # A = np.random.normal(size=(m_orig, n_orig)) #/ 10
+    D = np.random.normal(size=(m_orig, n_orig)) / np.sqrt(m_orig)
+    A = jnp.array(D / np.linalg.norm(D, axis=0))
     P = A.T @ A + lambd * np.identity(n_orig)
 
     evals, evecs = np.linalg.eigh(P)
@@ -91,17 +98,22 @@ def setup_probs(setup_cfg):
     n_orig = setup_cfg['n_orig']
     m_orig = setup_cfg['m_orig']
 
-    b_min = setup_cfg['b_min']
-    b_max = setup_cfg['b_max']
+    # b_min = setup_cfg['b_min']
+    # b_max = setup_cfg['b_max']
+    # rhs_mean = setup_cfg['rhs_mean']
+    # rhs_var = setup_cfg['rhs_var']
 
     lambd = setup_cfg['lambd']
-    A = np.random.normal(size=(m_orig, n_orig))
+    # A = np.random.normal(size=(m_orig, n_orig))
+    D = np.random.normal(size=(m_orig, n_orig)) / np.sqrt(m_orig)
+    A = jnp.array(D / np.linalg.norm(D, axis=0))
     P = A.T @ A  + lambd * np.identity(n_orig)
 
     
 
     # generate random rhs b vectors
-    b_mat = b_min + (b_max - b_min) * jnp.array(np.random.rand(N, m_orig))
+    # b_mat = b_min + (b_max - b_min) * jnp.array(np.random.rand(N, m_orig))
+    b_mat = jnp.array(np.random.normal(size=(N, m_orig)))
     theta_mat = b_mat
 
     c_mat = (-A.T @ b_mat.T).T
@@ -111,6 +123,9 @@ def setup_probs(setup_cfg):
     output_filename = f"{os.getcwd()}/data_setup"
 
     gd_setup_script(c_mat, P, theta_mat, output_filename)
+
+    import pdb
+    pdb.set_trace()
 
 
 def obj(P, c, z):

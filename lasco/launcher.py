@@ -22,6 +22,7 @@ from lasco.logisticgd_model import LOGISTICGDmodel
 from lasco.lm_logisticgd_model import LMLOGISTICGDmodel
 from lasco.lm_ista_model import LMISTAmodel
 from lasco.lasco_gd_model import LASCOGDmodel
+from lasco.lasco_stoch_gd_model import LASCOStochasticGDmodel
 from lasco.lasco_logisticgd_model import LASCOLOGISTICGDmodel
 from lasco.lasco_ista_model import LASCOISTAmodel
 from lasco.lasco_osqp_model import LASCOOSQPmodel
@@ -177,6 +178,8 @@ class Workspace:
             self.create_ista_model(cfg, static_dict)
         elif algo == 'lasco_gd':
             self.create_lasco_gd_model(cfg, static_dict)
+        elif algo == 'lasco_stochastic_gd':
+            self.create_lasco_stochastic_gd_model(cfg, static_dict)
         elif algo == 'lasco_logisticgd':
             self.create_lasco_logisticgd_model(cfg, static_dict)
         elif algo == 'lm_logisticgd':
@@ -273,6 +276,33 @@ class Workspace:
                                        z_stars_test=self.z_stars_test,
                                        loss_method=cfg.loss_method,
                                        algo_dict=input_dict)
+        
+    def create_lasco_stochastic_gd_model(self, cfg, static_dict):
+        # get A, lambd, ista_step
+        P = static_dict['P']
+        gd_step = static_dict['gd_step']
+        gauss_mean = static_dict['gauss_mean']
+        gauss_var = static_dict['gauss_var']
+
+        input_dict = dict(algorithm='lasco_stochastic_gd',
+                          c_mat_train=self.q_mat_train,
+                          c_mat_test=self.q_mat_test,
+                          gd_step=gd_step,
+                          P=P,
+                          gauss_mean=gauss_mean,
+                          gauss_var=gauss_var
+                          )
+        self.l2ws_model = LASCOStochasticGDmodel(train_unrolls=self.train_unrolls,
+                                       eval_unrolls=self.eval_unrolls,
+                                       train_inputs=self.train_inputs,
+                                       test_inputs=self.test_inputs,
+                                       regression=cfg.supervised,
+                                       nn_cfg=cfg.nn_cfg,
+                                       z_stars_train=self.z_stars_train,
+                                       z_stars_test=self.z_stars_test,
+                                       loss_method=cfg.loss_method,
+                                       algo_dict=input_dict)
+        
         
     def create_lasco_logisticgd_model(self, cfg, static_dict):
         # get A, lambd, ista_step
@@ -942,23 +972,22 @@ class Workspace:
 
             # if self.l2ws_model.lasco:
             # nearest neighbor
-            if self.l2ws_model.lasco:
-                self.eval_iters_train_and_test('nearest_neighbor', None)
-                jax.clear_caches()
+            # if self.l2ws_model.lasco:
+            #     self.eval_iters_train_and_test('nearest_neighbor', None)
+            #     jax.clear_caches()
 
             if self.l2ws_model.algo == 'lasco_ista':
                 # nesterov
                 self.l2ws_model.set_params_for_nesterov()
                 self.eval_iters_train_and_test('nesterov', None)
 
-            if self.l2ws_model.algo == 'lasco_gd':
+            if self.l2ws_model.algo == 'lasco_gd' or self.l2ws_model.algo == 'lasco_stochastic_gd':
                 # conj_grad
-                # self.l2ws_model.set_params_for_nesterov()
-                self.eval_iters_train_and_test('conj_grad', None)
+                # self.eval_iters_train_and_test('conj_grad', None)
 
-                # nesterov
-                self.l2ws_model.set_params_for_nesterov()
-                self.eval_iters_train_and_test('nesterov', None)
+                # # nesterov
+                # self.l2ws_model.set_params_for_nesterov()
+                # self.eval_iters_train_and_test('nesterov', None)
 
                 # silver
                 self.l2ws_model.set_params_for_silver()
@@ -1038,10 +1067,20 @@ class Workspace:
                 # setup the permutations
                 permutation = setup_permutation(
                     self.key_count, self.l2ws_model.N_train, self.epochs_jit)
+                
+                # import pdb
+                # pdb.set_trace()
+                prev_params = self.l2ws_model.params[0]
 
                 # train the jitted epochs
                 curr_params, state, epoch_train_losses, time_train_per_epoch = self.train_jitted_epochs(
                     permutation, epoch, window_indices, steady_state=steady_state)
+                # import pdb
+                # pdb.set_trace()
+                
+                self.l2ws_model.params = [prev_params]
+                # import pdb
+                # pdb.set_trace()
                 
                 # insert the curr_params into the entire params
                 if self.l2ws_model.lasco:
@@ -1153,9 +1192,15 @@ class Workspace:
                 permutation, (0,), (self.l2ws_model.batch_size,))
 
             if self.l2ws_model.lasco:
-                train_loss_first, params, state = self.l2ws_model.train_batch(
-                    batch_indices, self.l2ws_model.lasco_train_inputs, [self.l2ws_model.params[0][window_indices, :]], 
-                    self.l2ws_model.state, n_iters=n_iters, train_case=self.l2ws_model.train_case)
+                if 'stochastic' in self.l2ws_model.algo:
+                    
+                    train_loss_first, params, state = self.l2ws_model.train_batch(
+                        batch_indices, [self.l2ws_model.params[0][:window_indices[0]]], [self.l2ws_model.params[0][window_indices, :]], 
+                        self.l2ws_model.state, n_iters=n_iters, train_case=self.l2ws_model.train_case)
+                else:
+                    train_loss_first, params, state = self.l2ws_model.train_batch(
+                        batch_indices, self.l2ws_model.lasco_train_inputs, [self.l2ws_model.params[0][window_indices, :]], 
+                        self.l2ws_model.state, n_iters=n_iters, train_case=self.l2ws_model.train_case)
             else:
                 train_loss_first, params, state = self.l2ws_model.train_batch(
                     batch_indices, self.l2ws_model.train_inputs, self.l2ws_model.params, 
@@ -1174,7 +1219,11 @@ class Workspace:
                                                           n_iters=n_iters)
 
         if self.l2ws_model.lasco:
-            init_val = epoch_train_losses, self.l2ws_model.lasco_train_inputs, params, state, permutation
+            prev_params = self.l2ws_model.params[0]
+            if 'stochastic' in self.l2ws_model.algo:
+                init_val = epoch_train_losses, [self.l2ws_model.params[0][:window_indices[0]]], params, state, permutation
+            else:
+                init_val = epoch_train_losses, self.l2ws_model.lasco_train_inputs, params, state, permutation
         else:
             init_val = epoch_train_losses, self.l2ws_model.train_inputs, params, state, permutation
         val = lax.fori_loop(start_index, loop_size,
@@ -1183,6 +1232,7 @@ class Workspace:
         time_diff = epoch_batch_end_time - epoch_batch_start_time
         time_train_per_epoch = time_diff / self.epochs_jit
         epoch_train_losses, inputs, params, state, permutation = val
+        print('epoch_train_losses', epoch_train_losses)
 
         self.l2ws_model.key = state.iter_num
 

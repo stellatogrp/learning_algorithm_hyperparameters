@@ -98,13 +98,13 @@ def k_steps_eval_lasco_ista(k, z0, q, params, lambd, A, safeguard_step, supervis
                               )
     z_all = jnp.zeros((k, z0.size))
     obj_diffs = jnp.zeros(k)
-    val = z0, iter_losses, z_all, obj_diffs
+    val = z0, iter_losses, z_all, obj_diffs, False
     start_iter = 0
     if jit:
         out = lax.fori_loop(start_iter, k, fp_eval_partial, val)
     else:
         out = python_fori_loop(start_iter, k, fp_eval_partial, val)
-    z_final, iter_losses, z_all, obj_diffs = out
+    z_final, iter_losses, z_all, obj_diffs, iter = out
     z_all_plus_1 = z_all_plus_1.at[1:, :].set(z_all)
     return z_final, iter_losses, z_all_plus_1, obj_diffs
 
@@ -143,7 +143,12 @@ def fp_eval_lasco_ista(i, val, supervised, z_star, lambd, A, c, ista_steps):
 
 
 def fp_eval_lasco_ista_safeguard(i, val, supervised, z_star, lambd, A, safeguard_step, c, ista_steps):
-    z, loss_vec, z_all, obj_diffs = val
+    z, loss_vec, z_all, obj_diffs, safeguard = val
+
+    # next_safeguard = lax.cond(obj_diffs[i-1] > 2 * obj_diffs[i-2], lambda _: True, lambda _: safeguard, operand=None)
+    # step_size = lax.cond(next_safeguard, lambda _: safeguard_step, lambda _: ista_steps[i], operand=None)
+
+    # z_next = fixed_point_ista(z, A, c, lambd, step_size) #ista_steps[i])
     z_next = fixed_point_ista(z, A, c, lambd, ista_steps[i])
     diff = jnp.linalg.norm(z - z_star)
     
@@ -152,17 +157,32 @@ def fp_eval_lasco_ista_safeguard(i, val, supervised, z_star, lambd, A, safeguard
 
     next_obj = .5 * jnp.linalg.norm(A @ z_next - c) ** 2 + lambd * jnp.linalg.norm(z_next, ord=1)
 
+
+
+    next_safeguard = lax.cond(next_obj - opt_obj > 5 * (obj - opt_obj), lambda _: True, lambda _: safeguard, operand=None)
+    z_next_final = lax.cond(next_safeguard, lambda _: fixed_point_ista(z, A, c, lambd, safeguard_step), lambda _: z_next, operand=None)
+
+    # next_obj = next_obj #* (iter % 10 == 0)
     # do safeguard
     # if next_obj > obj:
     #     z_next = fixed_point_ista(z, A, c, lambd, safeguard_step)
-    z_next = lax.cond(next_obj < obj, lambda _: z_next, lambda _: fixed_point_ista(z, A, c, lambd, safeguard_step), operand=None)
+    # z_next = lax.cond(iter % 10 == 0, lambda _: z_next, lambda _: fixed_point_ista(z, A, c, lambd, safeguard_step), operand=None)
+    
+    # next_safeguard = lax.cond(next_obj - opt_obj > obj_diffs[i-10], lambda _: True, lambda _: safeguard, operand=None)
+    # z_next_final = lax.cond(next_safeguard, lambda _: z_next, lambda _: fixed_point_ista(z, A, c, lambd, safeguard_step), operand=None)
+
+    
+    # safeguard or z_next != z_next_final
 
     # update vectors carrying over
     loss_vec = loss_vec.at[i].set(diff)
     obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
-    z_all = z_all.at[i, :].set(z_next)
+    # z_all = z_all.at[i, :].set(z_next_final)
+    z_all = z_all.at[i, :].set(z_next_final)
 
-    return z_next, loss_vec, z_all, obj_diffs
+    next_safeguard = safeguard
+
+    return z_next_final, loss_vec, z_all, obj_diffs, next_safeguard
 
 
 def fp_train_lasco_ista(i, val, supervised, z_star, lambd, A, c, ista_steps):

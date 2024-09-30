@@ -5,31 +5,28 @@ from jax import random
 
 import numpy as np
 
-from lasco.algo_steps_ista import k_steps_eval_lasco_ista, k_steps_train_lasco_ista, k_steps_eval_fista
+from lasco.algo_steps import k_steps_eval_lasco_gd, k_steps_train_lasco_gd, k_steps_eval_nesterov_gd, k_steps_eval_conj_grad
 from lasco.l2ws_model import L2WSmodel
 from lasco.utils.nn_utils import calculate_pinsker_penalty, compute_single_param_KL
+from lasco.low_step_solvers import stochastic_get_z_bar
 
-from jax import vmap
 
-
-class LASCOISTAmodel(L2WSmodel):
+class LASCOStochasticGDmodel(L2WSmodel):
     def __init__(self, **kwargs):
-        super(LASCOISTAmodel, self).__init__(**kwargs)
+        super(LASCOStochasticGDmodel, self).__init__(**kwargs)
 
     def initialize_algo(self, input_dict):
         self.factor_static = None
-        self.algo = 'lasco_ista'
+        self.algo = 'lasco_stochastic_gd'
         self.factors_required = False
         self.q_mat_train, self.q_mat_test = input_dict['c_mat_train'], input_dict['c_mat_test']
         # self.q_mat_train, self.q_mat_test = input_dict['b_mat_train'], input_dict['b_mat_test']
         # D, W = input_dict['D'], input_dict['W']
-        A = input_dict['A']
-        lambd = input_dict['lambd']
-        self.A = A
-        self.lambd = lambd
+        P = input_dict['P']
+        self.P = P
 
         # self.D, self.W = D, W
-        self.m, self.n = A.shape
+        self.n = P.shape[0]
         self.output_size = self.n
 
         # evals, evecs = jnp.linalg.eigh(D.T @ D)
@@ -37,28 +34,33 @@ class LASCOISTAmodel(L2WSmodel):
         # self.ista_step = lambd / evals.max()
         # p = jnp.diag(P)
         # cond_num = jnp.max(p) / jnp.min(p)
-        evals, evecs = jnp.linalg.eigh(A.T @ A)
+        evals, evecs = jnp.linalg.eigh(P)
+
+        self.evals = evals
 
         self.str_cvx_param = jnp.min(evals)
         self.smooth_param = jnp.max(evals)
 
+        # gaussians
+        self.gauss_mean = input_dict['gauss_mean'] #jnp.zeros(self.n)
+        self.gauss_var = input_dict['gauss_var'] #np.eye(self.n)
+
         cond_num = self.smooth_param / self.str_cvx_param
 
-        safeguard_step = 1 / self.smooth_param
-
-        self.k_steps_train_fn = partial(k_steps_train_lasco_ista, lambd=lambd, A=A,
+        self.k_steps_train_fn = partial(k_steps_train_lasco_gd, P=P,
                                         jit=self.jit)
-        self.k_steps_eval_fn = partial(k_steps_eval_lasco_ista, lambd=lambd, A=A, 
-                                       safeguard_step=jnp.array([safeguard_step]),
+        self.k_steps_eval_fn = partial(k_steps_eval_lasco_gd, P=P,
                                        jit=self.jit)
-        self.nesterov_eval_fn = partial(k_steps_eval_fista, lambd=lambd, A=A,
+        self.nesterov_eval_fn = partial(k_steps_eval_nesterov_gd, P=P, cond_num=cond_num,
                                        jit=self.jit)
-        # self.conj_grad_eval_fn = partial(k_steps_eval_conj_grad, P=P,
-        #                                jit=self.jit)
+        self.conj_grad_eval_fn = partial(k_steps_eval_conj_grad, P=P,
+                                       jit=self.jit)
         self.out_axes_length = 5
 
+        # self.lasco_train_inputs = self.q_mat_train
         N = self.q_mat_train.shape[0]
         self.lasco_train_inputs = jnp.zeros((N, self.n))
+
 
 
         e2e_loss_fn = self.create_end2end_loss_fn
@@ -66,71 +68,84 @@ class LASCOISTAmodel(L2WSmodel):
 
 
         # end-to-end loss fn for silver evaluation
-        # self.loss_fn_eval_silver = e2e_loss_fn(bypass_nn=False, diff_required=False, 
-        #                                        special_algo='silver')
+        self.loss_fn_eval_silver = e2e_loss_fn(bypass_nn=False, diff_required=False, 
+                                               special_algo='silver')
         
         # end-to-end loss fn for silver evaluation
-        # self.loss_fn_eval_conj_grad = e2e_loss_fn(bypass_nn=False, diff_required=False, 
-        #                                        special_algo='conj_grad')
+        self.loss_fn_eval_conj_grad = e2e_loss_fn(bypass_nn=False, diff_required=False, 
+                                               special_algo='conj_grad')
 
         # end-to-end added fixed warm start eval - bypasses neural network
         # self.loss_fn_fixed_ws = e2e_loss_fn(bypass_nn=True, diff_required=False)
 
-    def f(self, z, c):
-        return .5 * jnp.linalg.norm(self.A @ z - c) ** 2 + self.lambd * jnp.linalg.norm(z, ord=1)
+        if self.train_unrolls == 1:
+            self.train_case = 'stochastic_one_step_grad'
+        elif self.train_unrolls == 2:
+            self.train_case = 'stochastic_two_step_quad'
+        elif self.train_unrolls == 3:
+            self.train_case = 'stochastic_three_step_quad'
+        elif self.train_unrolls > 3:
+            self.train_case = 'stochastic_multi_step_quad'
 
-    # def compute_avg_opt(self):
-    #     batch_f = vmap(self.f, in_axes=(0, 0), out_axes=(0))
-    #     opt_vals = batch_f(self.z_stars_train, self.theta)
+        
+
 
     def transform_params(self, params, n_iters):
         # n_iters = params[0].size
         transformed_params = jnp.zeros((n_iters, 1))
         transformed_params = transformed_params.at[:n_iters - 1, 0].set(jnp.exp(params[0][:n_iters - 1, 0]))
         transformed_params = transformed_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
-        # transformed_params = jnp.clip(transformed_params, a_max=1.0)
         return transformed_params
 
-    # def perturb_params(self):
-    #     # init step-varying params
-    #     noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=1e-5, a_max=1e0)) * 0.00001
-    #     step_varying_params = jnp.log(noise + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
+    def perturb_params(self):
+        # init step-varying params
+        # noise = jnp.array(np.clip(np.random.normal(size=(self.step_varying_num, 1)), a_min=1e-5, a_max=1e0)) * 0.1 #* 0.00001
+        # step_varying_params = jnp.log(noise + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
+        noise = .95 + .1* jnp.array(np.random.rand(self.step_varying_num, 1)) #* 0.00001
+        step_varying_params = jnp.log( 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1)) * noise
 
-    #     # init steady_state_params
-    #     steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
+        # noise = jnp.array(np.random.normal(size=(self.step_varying_num, 1)))
+        # step_varying_params = noise #jnp.exp(noise) # + 2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
 
-    #     self.params = [jnp.vstack([step_varying_params, steady_state_params])]
+        # init steady_state_params
+        steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
+
+        self.params = [jnp.vstack([step_varying_params, steady_state_params])]
 
 
     def set_params_for_nesterov(self):
-        self.init_params()
         # self.params = [jnp.log(1 / self.smooth_param * jnp.ones((self.step_varying_num + 1, 1)))]
+        nesterov_step = 4 / (3 * self.smooth_param + self.str_cvx_param)
+        self.params = [jnp.log(nesterov_step * jnp.ones((self.step_varying_num + 1, 1)))]
 
 
-    # def set_params_for_silver(self):
-    #     silver_steps = 128
-    #     kappa = self.smooth_param / self.str_cvx_param
-    #     silver_step_sizes = compute_silver_steps(kappa, silver_steps) / self.smooth_param
-    #     params = jnp.ones((silver_steps + 1, 1))
-    #     params = params.at[:silver_steps, 0].set(jnp.array(silver_step_sizes))
-    #     params = params.at[silver_steps, 0].set(2 / (self.smooth_param + self.str_cvx_param))
+    def set_params_for_silver(self):
+        silver_steps = 128
+        kappa = self.smooth_param / self.str_cvx_param
+        silver_step_sizes = compute_silver_steps(kappa, silver_steps) / self.smooth_param
+        params = jnp.ones((silver_steps + 1, 1))
+        params = params.at[:silver_steps, 0].set(jnp.array(silver_step_sizes))
+        params = params.at[silver_steps, 0].set(2 / (self.smooth_param + self.str_cvx_param))
 
-    #     self.params = [params]
+        self.params = [params]
         # step_varying_params = jnp.log(params[:self.step_varying_num, :1])
         # steady_state_params = sigmoid_inv(params[self.step_varying_num:, :1] * self.smooth_param / 2)
         # self.params = [jnp.vstack([step_varying_params, steady_state_params])]
 
+    def compute_gradients(self, batch_inputs, batch_q_data):
+        gradients = (self.P @ batch_inputs.T + batch_q_data.T).T
+        return gradients
+
 
     def init_params(self):
         # init step-varying params
-        step_varying_params = jnp.log(1 / self.smooth_param) * jnp.ones((self.step_varying_num, 1))
+        step_varying_params = jnp.log(2 / (self.smooth_param + self.str_cvx_param)) * jnp.ones((self.step_varying_num, 1))
 
         # init steady_state_params
-        steady_state_params = 0 * jnp.ones((1, 1)) #sigmoid_inv(1 / (self.smooth_param)) * jnp.ones((1, 1))
+        steady_state_params = sigmoid_inv(self.smooth_param / (self.smooth_param + self.str_cvx_param)) * jnp.ones((1, 1))
 
         self.params = [jnp.vstack([step_varying_params, steady_state_params])]
         # sigmoid_inv(beta)
-
 
 
     def create_end2end_loss_fn(self, bypass_nn, diff_required, special_algo='gd'):
@@ -157,7 +172,8 @@ class LASCOISTAmodel(L2WSmodel):
                     # stochastic_params = stochastic_params.at[n_iters - 1, 0].set(2 / self.smooth_param * sigmoid(params[0][n_iters - 1, 0]))
                     stochastic_params = self.transform_params(params, n_iters)
 
-            # stochastic_params = jnp.clip(stochastic_params, a_max=0.3)
+            
+
             if self.train_fn is not None:
                 train_fn = self.train_fn
             else:
@@ -167,11 +183,9 @@ class LASCOISTAmodel(L2WSmodel):
             else:
                 eval_fn = self.k_steps_eval_fn
 
-
-
             # stochastic_params = params[0][:n_iters, 0]
-            if special_algo == 'nesterov':
-                eval_out = self.nesterov_eval_fn(k=iters,
+            if special_algo == 'conj_grad':
+                eval_out = self.conj_grad_eval_fn(k=iters,
                                    z0=z0,
                                    q=q,
                                    params=stochastic_params,
@@ -191,12 +205,23 @@ class LASCOISTAmodel(L2WSmodel):
                 angles = None
             else:
                 if diff_required:
-                    z_final, iter_losses = train_fn(k=iters,
-                                                    z0=z0,
-                                                    q=q,
-                                                    params=stochastic_params,
-                                                    supervised=supervised,
-                                                    z_star=z_star)
+                    # z_final, iter_losses = train_fn(k=iters,
+                    #                                 z0=z0,
+                    #                                 q=q,
+                    #                                 params=stochastic_params,
+                    #                                 supervised=supervised,
+                    #                                 z_star=z_star)
+                    # z_bar = stochastic_get_z_bar(self.gauss_mean, self.gauss_var, key, self.P)
+                    z_bar = z0
+
+                    outer_products = jnp.prod((1 - jnp.outer(stochastic_params, self.evals)) ** 2, axis=0)
+    
+                    # Multiply the product terms with z_bar and sum over the results
+                    loss = jnp.sum(outer_products * z_bar)
+                    # import pdb
+                    # pdb.set_trace()
+                    
+                    # loss = jnp.prod(1 - jnp.outer(params[0], self.evals), axis=0)
                 else:
                     eval_out = eval_fn(k=iters,
                                        z0=z0,
@@ -207,8 +232,9 @@ class LASCOISTAmodel(L2WSmodel):
                     z_final, iter_losses, z_all_plus_1 = eval_out[0], eval_out[1], eval_out[2]
                     angles = None
 
-            loss = self.final_loss(loss_method, z_final,
-                                   iter_losses, supervised, z0, z_star)
+            if not diff_required:
+                loss = self.final_loss(loss_method, z_final,
+                                    iter_losses, supervised, z0, z_star)
 
             # penalty_loss = calculate_pinsker_penalty(self.N_train, params, self.b, self.c, self.delta)
             # loss = loss + self.penalty_coeff * penalty_loss
