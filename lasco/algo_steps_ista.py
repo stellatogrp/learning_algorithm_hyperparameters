@@ -159,7 +159,7 @@ def fp_eval_lasco_ista_safeguard(i, val, supervised, z_star, lambd, A, safeguard
 
 
 
-    next_safeguard = lax.cond(next_obj - opt_obj > 5 * (obj - opt_obj), lambda _: True, lambda _: safeguard, operand=None)
+    next_safeguard = lax.cond(next_obj - opt_obj > 20 * (obj - opt_obj), lambda _: True, lambda _: safeguard, operand=None)
     z_next_final = lax.cond(next_safeguard, lambda _: fixed_point_ista(z, A, c, lambd, safeguard_step), lambda _: z_next, operand=None)
 
     # next_obj = next_obj #* (iter % 10 == 0)
@@ -188,7 +188,7 @@ def fp_eval_lasco_ista_safeguard(i, val, supervised, z_star, lambd, A, safeguard
 def fp_train_lasco_ista(i, val, supervised, z_star, lambd, A, c, ista_steps):
     z, loss_vec = val
     z_next = fixed_point_ista(z, A, c, lambd, ista_steps[i])
-    diff = jnp.linalg.norm(z_next - z_star) 
+    diff = jnp.linalg.norm(z_next - z_star) ** 2
     loss_vec = loss_vec.at[i].set(diff)
     return z_next, loss_vec
 

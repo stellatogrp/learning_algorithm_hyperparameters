@@ -26,15 +26,15 @@ data:
   datetime: ''
 
 train_unrolls: 10
-eval_unrolls: 1000
+eval_unrolls: 2000
 eval_every_x_epochs: 50
 save_every_x_epochs: 1
 test_every_x_epochs: 1
 write_csv_every_x_batches: 1
 epochs_jit: 2
-N_train: 10 #5000
+N_train: 5000
 N_test: 1000
-num_samples: 1000
+num_samples: 100
 supervised: True
 plot_iterates: [0, 10, 20]
 loss_method: 'fixed_k' # 'fixed_k' #'fixed_k' #'constant_sum'
