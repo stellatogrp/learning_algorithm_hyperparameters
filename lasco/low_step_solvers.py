@@ -32,6 +32,21 @@ def three_step_sol(P, z_bar):
     return alpha, beta, gamma
 
 
+
+def one_step_sol(P, z_bar):
+    # step 1
+    evals, Q = jnp.linalg.eigh(P)
+
+    # step 3
+    A = jnp.sum(evals * z_bar)
+    B = jnp.sum(evals ** 2 * z_bar)
+
+    alpha = A / B
+
+    # alpha, beta = two_step_young(P)
+    return alpha
+
+
 def two_step_sol(P, z_bar):
     # step 1
     evals, Q = jnp.linalg.eigh(P)
@@ -67,6 +82,11 @@ def two_step_data_quad_gd_solver(z_stars_train, z_currs, P):
         z_bar += Q.T @ (z_currs[i, :] - z_stars_train[i, :]) / N
     z_bar = z_bar * z_bar
     return two_step_sol(P, z_bar)
+
+
+def one_step_stochastic_quad_gd_solver(gauss_mean, gauss_variance, step_sizes, P):
+    z_bar = stochastic_get_z_bar(gauss_mean, gauss_variance, step_sizes, P)
+    return one_step_sol(P, z_bar)
 
 
 def two_step_stochastic_quad_gd_solver(gauss_mean, gauss_variance, step_sizes, P):
@@ -113,6 +133,13 @@ def stochastic_get_z_bar(gauss_mean, gauss_variance, params, P):
 
 
     # step 2
+    # def step_2(mat, gauss_mean, gauss_variance):
+    # Vectorized computation
+    a_gauss_mean = mat @ gauss_mean
+    a_gauss_var = jnp.einsum('ij,ik,jk->i', mat, mat, gauss_variance)
+    z_bar = a_gauss_mean + a_gauss_var
+    return z_bar
+
     z_bar = jnp.zeros(n)
     for j in range(n):
         a_j = mat[j, :]

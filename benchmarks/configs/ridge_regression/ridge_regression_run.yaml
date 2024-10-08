@@ -3,7 +3,7 @@ nn_cfg:
   method: adam
   intermediate_layer_sizes: [10]
   batch_size: 100
-  epochs: 200 #2
+  epochs: 200
   decay_lr: .1
   min_lr: 1e-7
   decay_every: 1e7

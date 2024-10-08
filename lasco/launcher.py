@@ -1049,8 +1049,8 @@ class Workspace:
             update_train_inputs_flag = window > 0 and self.l2ws_model.lasco
 
             # update the method for the steady-state
-            if window == num_progressive_trains - 1:
-                self.l2ws_model.train_case = 'gradient'
+            # if window == num_progressive_trains - 1:
+            #     self.l2ws_model.train_case = 'gradient'
 
             for epoch_batch in range(num_epochs_jit):
                 epoch = int(epoch_batch * self.epochs_jit) + window * num_epochs_jit * self.epochs_jit

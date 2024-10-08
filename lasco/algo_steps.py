@@ -501,7 +501,7 @@ def fp_eval_lasco_gd(i, val, supervised, z_star, P, c, gd_steps):
     z_next = fixed_point_gd(z, P, c, gd_steps[i])
     diff = jnp.linalg.norm(z - z_star)
     loss_vec = loss_vec.at[i].set(diff)
-    obj = .5 * z_next @ P @ z_next + c @ z_next
+    obj = .5 * z @ P @ z + c @ z #.5 * z_next @ P @ z_next + c @ z_next
     opt_obj = .5 * z_star @ P @ z_star + c @ z_star
     obj_diffs = obj_diffs.at[i].set(obj - opt_obj)
     z_all = z_all.at[i, :].set(z_next)

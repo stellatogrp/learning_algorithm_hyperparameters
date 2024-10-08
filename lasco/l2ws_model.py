@@ -9,7 +9,7 @@ from jax import jit, random, vmap
 # from jax.config import config
 from jaxopt import OptaxSolver
 
-from lasco.low_step_solvers import two_step_data_quad_gd_solver, one_step_gd_solver, one_step_prox_gd_solver, three_step_data_quad_gd_solver, two_step_stochastic_quad_gd_solver, three_step_stochastic_quad_gd_solver, stochastic_get_z_bar
+from lasco.low_step_solvers import two_step_data_quad_gd_solver, one_step_gd_solver, one_step_prox_gd_solver, three_step_data_quad_gd_solver, two_step_stochastic_quad_gd_solver, three_step_stochastic_quad_gd_solver, stochastic_get_z_bar, one_step_stochastic_quad_gd_solver
 from lasco.algo_steps import create_eval_fn, create_train_fn, lin_sys_solve, create_kl_inv_layer, kl_inv_fn
 from lasco.utils.nn_utils import (
     calculate_pinsker_penalty,
@@ -25,7 +25,7 @@ from jaxopt import Bisection
 
 import jax
 jax.config.update("jax_enable_x64", True)
-jax.config.update('jax_disable_jit', True)
+# jax.config.update('jax_disable_jit', True)
 # jax.config.update("jax_debug_nans", True)
 
 
@@ -203,7 +203,7 @@ class L2WSmodel(object):
     def train_stochastic(self, prev_params, train_case, placeholder, n_iters, params, state):
         mean, var = self.gauss_mean, self.gauss_var
         if train_case == 'stochastic_one_step_grad':
-            alpha = one_step_gd_solver(batch_z_stars, batch_inputs, gradients)
+            alpha = one_step_stochastic_quad_gd_solver(mean, var, prev_params, self.P)
             params[0] = jnp.log(jnp.array([[alpha]]))
         elif train_case == 'stochastic_two_step_quad': 
             # gradients = self.compute_gradients(batch_inputs, batch_q_data)
