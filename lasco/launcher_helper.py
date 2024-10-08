@@ -171,8 +171,9 @@ def normalize_inputs_fn(normalize_inputs, thetas, train_indices, test_indices):
         # save the col_sums and std deviations
         normalize_col_sums = col_sums
         normalize_std_dev = std_devs
+        
     else:
-        inputs = jnp.array(thetas)
+        inputs = jnp.array(thetas[:2000,:])
         normalize_col_sums, normalize_std_dev = 0, 0
     train_inputs = inputs[train_indices, :]
     test_inputs = inputs[test_indices, :]
