@@ -972,9 +972,9 @@ class Workspace:
 
             # if self.l2ws_model.lasco:
             # nearest neighbor
-            # if self.l2ws_model.lasco:
-            #     self.eval_iters_train_and_test('nearest_neighbor', None)
-            #     jax.clear_caches()
+            if self.l2ws_model.lasco:
+                self.eval_iters_train_and_test('nearest_neighbor', None)
+                jax.clear_caches()
 
             if self.l2ws_model.algo == 'lasco_ista':
                 # nesterov
@@ -983,11 +983,11 @@ class Workspace:
 
             if self.l2ws_model.algo == 'lasco_gd' or self.l2ws_model.algo == 'lasco_stochastic_gd':
                 # conj_grad
-                # self.eval_iters_train_and_test('conj_grad', None)
+                self.eval_iters_train_and_test('conj_grad', None)
 
-                # # nesterov
-                # self.l2ws_model.set_params_for_nesterov()
-                # self.eval_iters_train_and_test('nesterov', None)
+                # nesterov
+                self.l2ws_model.set_params_for_nesterov()
+                self.eval_iters_train_and_test('nesterov', None)
 
                 # silver
                 self.l2ws_model.set_params_for_silver()
