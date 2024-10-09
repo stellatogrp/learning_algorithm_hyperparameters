@@ -33,7 +33,7 @@ epochs_jit: 2
 
 N_train: 10000
 N_test: 1000
-num_samples_train: 1000
+num_samples_train: 100
 num_samples_test: 1000
 
 
@@ -71,7 +71,8 @@ alpha_relax: 1
 # closed_loop_budget: 10
 
 # visualize
-iterates_visualize: [10, 19] #[10, 20, 50, 90, 200, 300, 500, 1000] #[10, 20, 50, 100, 200, 500]
+# iterates_visualize: [10, 19] #[10, 20, 50, 90, 200, 300, 500, 1000] #[10, 20, 50, 100, 200, 500]
+iterates_visualize: [3, 4, 5]
 vis_num: 5
 skip_startup: False
 

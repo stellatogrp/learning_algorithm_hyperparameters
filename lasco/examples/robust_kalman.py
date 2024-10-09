@@ -1123,10 +1123,10 @@ def custom_visualize_fn(x_primals, x_stars, x_prev_sol, x_nn, thetas, iterates, 
         titles = ['optimal solution', 'noisy trajectory']
         x_true_kalman = get_x_kalman_from_x_primal(x_stars[i, :], T)
         traj = [x_true_kalman, y_mat_rotated[i, :].T]
-        df['observations_x'] =  y_mat_rotated[i, :, 0]
-        df['observations_y'] = y_mat_rotated[i, :, 1]
-        df['optimal_x'] =  x_true_kalman[i, :, 0]
-        df['optimal_y'] = x_true_kalman[i, :, 1]
+        # df['observations_x'] =  y_mat_rotated[i, :, 0]
+        # df['observations_y'] = y_mat_rotated[i, :, 1]
+        # df['optimal_x'] =  x_true_kalman[i, :, 0]
+        # df['optimal_y'] = x_true_kalman[i, :, 1]
 
         for j in range(len(iterates)):
             iter = iterates[j]
@@ -1139,7 +1139,7 @@ def custom_visualize_fn(x_primals, x_stars, x_prev_sol, x_nn, thetas, iterates, 
             titles.append(f"nearest neighbor: ${iter}$ iters")
             titles.append(f"learned: ${iter}$ iters")
 
-            df.to_csv(f"{visual_path}/positions_{i}_rotated.pdf")
+            # df.to_csv(f"{visual_path}/positions_{i}_rotated.pdf")
 
 
         plot_positions_overlay(traj, titles, filename=f"{visual_path}/positions_{i}_rotated_legend.pdf", legend=True)
