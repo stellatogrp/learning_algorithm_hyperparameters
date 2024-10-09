@@ -61,7 +61,7 @@ alpha_relax: 1
 save_weights_flag: False #True
 # load_weights_datetime: '2023-12-31/14-54-18'
 # nn_load_type: stochastic
-vis_num: 10
+vis_num: 500
 supervised: True
 train_unrolls: 10
 skip_startup: False
@@ -97,3 +97,4 @@ pac_bayes_flag: False
 #120: '2023-05-22/16-37-55'
 #1: '2023-05-22/16-43-06'
 custom_loss: False
+algo: lah

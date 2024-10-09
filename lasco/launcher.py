@@ -941,16 +941,16 @@ class Workspace:
         z_stars = self.z_stars_train if train else self.z_stars_test
         thetas = self.thetas_train if train else self.thetas_test
         if not hasattr(self, 'z_no_learn_train') and train:
-            self.z_no_learn_train = z_plot
+            self.z_no_learn_train = u_plot #z_plot
         elif not hasattr(self, 'z_no_learn_test') and not train:
-            self.z_no_learn_test = z_plot
+            self.z_no_learn_test = u_plot #z_plot
         z_no_learn = self.z_no_learn_train if train else self.z_no_learn_test
         z_nn = z_no_learn
         z_prev_sol = z_no_learn
         if self.has_custom_visualization:
             if self.vis_num > 0:
                 # custom_visualize(z_plot, train, col)
-                u_plot = z_plot
+                # u_plot = z_plot
                 custom_visualize(self.custom_visualize_fn, self.iterates_visualize, self.vis_num, 
                                  thetas, u_plot, z_stars, z_no_learn, z_nn, z_prev_sol, train, col)
 
@@ -1009,7 +1009,7 @@ class Workspace:
                 self.l2ws_model.init_params()
 
             # prev sol eval
-            if self.prev_sol_eval and self.l2ws_model.z_stars_train is not None:
+            if 'lasco' in self.l2ws_model.algo and self.prev_sol_eval and self.l2ws_model.z_stars_train is not None:
                 self.eval_iters_train_and_test('prev_sol', None)
 
         # load the weights AFTER the cold-start
