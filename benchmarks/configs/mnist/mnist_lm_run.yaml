@@ -33,7 +33,7 @@ epochs_jit: 2
 
 N_train: 10000
 N_test: 1000
-num_samples_train: 100
+num_samples_train: 1000
 num_samples_test: 1000
 
 

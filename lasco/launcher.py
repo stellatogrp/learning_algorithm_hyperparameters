@@ -921,8 +921,8 @@ class Workspace:
 
             u_all = out_train[6]
 
-            u_plot = u_all[:, :, :self.l2ws_model.n] / (u_all[:, :, -1:] + 1e-10)
-            # z_plot = u_plot
+            u_plot = u_all[:, :, :self.l2ws_model.n] / (u_all[:, :, -1:]) # + 1e-10)
+            z_plot = u_plot
         else:
             z_plot = z_all
 
@@ -952,7 +952,7 @@ class Workspace:
                 # custom_visualize(z_plot, train, col)
                 # u_plot = z_plot
                 custom_visualize(self.custom_visualize_fn, self.iterates_visualize, self.vis_num, 
-                                 thetas, u_plot, z_stars, z_no_learn, z_nn, z_prev_sol, train, col)
+                                 thetas, z_plot, z_stars, z_no_learn, z_nn, z_prev_sol, train, col)
 
         if self.save_weights_flag:
             self.save_weights()

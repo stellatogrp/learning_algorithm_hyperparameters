@@ -461,11 +461,13 @@ def plot_positions_overlay(traj, labels, num_dots=2, grayscales=[.8, .3, 1.0, 0.
     '''
     n = len(traj)
 
-    colors = ['green', 'red', 'gray', 'orange', 'blue']
+    colors = ['green', 'red', 'blue', 'gray', 'orange']
     # cmap = plt.cm.Set1
     # colors = [cmap.colors[0], cmap.colors[1], cmap.colors[2], cmap.colors[3], cmap.colors[4]]
     # linestyles = ['o', 'o', '-.', ':', '--']
-    linestyles = ['o', 'o', '--', '--', '--']
+    linestyles = ['o', 'o', '-', '-', '-']
+
+    fig = plt.figure(figsize=(6, 6))
 
     for i in range(n - 2):
         shade = (i + 1) / (n - 2)
@@ -1118,15 +1120,12 @@ def custom_visualize_fn(x_primals, x_stars, x_prev_sol, x_nn, thetas, iterates, 
     num = np.min([x_stars.shape[0], num])
 
     y_mat_rotated = jnp.reshape(thetas[:num, :], (num, T, 2))
+
+
     for i in range(num):
-        df = pd.DataFrame()
         titles = ['optimal solution', 'noisy trajectory']
         x_true_kalman = get_x_kalman_from_x_primal(x_stars[i, :], T)
         traj = [x_true_kalman, y_mat_rotated[i, :].T]
-        # df['observations_x'] =  y_mat_rotated[i, :, 0]
-        # df['observations_y'] = y_mat_rotated[i, :, 1]
-        # df['optimal_x'] =  x_true_kalman[i, :, 0]
-        # df['optimal_y'] = x_true_kalman[i, :, 1]
 
         for j in range(len(iterates)):
             iter = iterates[j]
@@ -1144,6 +1143,19 @@ def custom_visualize_fn(x_primals, x_stars, x_prev_sol, x_nn, thetas, iterates, 
 
         plot_positions_overlay(traj, titles, filename=f"{visual_path}/positions_{i}_rotated_legend.pdf", legend=True)
         plot_positions_overlay(traj, titles, filename=f"{visual_path}/positions_{i}_rotated.pdf", legend=False)
+    
+    # saving to df
+    df_x_stars = pd.DataFrame(x_stars)
+    df_x_stars.to_csv(f"{visual_path}/x_stars.csv")
+
+    df_thetas = pd.DataFrame(thetas)
+    df_thetas.to_csv(f"{visual_path}/thetas.csv")
+
+    key_iterate = iterates[0]
+    df_x_primals = pd.DataFrame(x_primals[:, key_iterate, :])
+    df_x_primals.to_csv(f"{visual_path}/x_primals.csv")
+    # df_x_stars.to_csv('x_stars.csv') #, index=False)
+
 
 
 

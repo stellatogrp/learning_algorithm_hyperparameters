@@ -24,7 +24,7 @@ echo "Executing on the machine:" $(hostname)
 
 # python benchmarks/lasco_train.py ridge_regression cluster
 # python benchmarks/lasco_train.py logis cluster
-python benchmarks/lasco_train.py robust_kalman_lm cluster
+python benchmarks/lasco_train.py robust_kalman cluster
 # python l2ws_train_script.py robust_kalman cluster
 # python aggregate_slurm_runs_script.py robust_ls cluster
 

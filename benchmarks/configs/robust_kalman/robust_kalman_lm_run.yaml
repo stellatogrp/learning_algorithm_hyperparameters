@@ -27,15 +27,15 @@ data:
 
 
 eval_unrolls: 400
-eval_every_x_epochs: 2
+eval_every_x_epochs: 100
 save_every_x_epochs: 1
 # test_every_x_epochs: 10
 write_csv_every_x_batches: 1
-N_train: 10000
+N_train: 10 #000
 N_test: 1000
 # num_samples: 100
-num_samples_test: 1000
-num_samples_train: 100
+num_samples_test: 200
+num_samples_train: 10 #0
 angle_anchors: [0]
 
 plot_iterates: [0, 9, 20]
@@ -47,7 +47,7 @@ normalize_inputs: False
 normalize_alpha: 'other'
 epochs_jit: 2
 accuracies: [1, .1, .03, .01, .001, .0001]
-iterates_visualize: [20] #[11]
+iterates_visualize: [10] #[11]
 
 rho_x: 1
 scale: 1
