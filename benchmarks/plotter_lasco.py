@@ -10,15 +10,16 @@ from pandas import read_csv
 from lasco.utils.data_utils import recover_last_datetime
 
 from lasco.examples.robust_kalman import plot_positions_overlay, get_x_kalman_from_x_primal
+from lasco.examples.mnist import plot_mult_mnist_img
 
 from plotter_lasco_constants import titles_2_colors, titles_2_marker_starts, titles_2_markers, titles_2_styles
 
-plt.rcParams.update({
-    "text.usetex": True,
-    "font.family": "serif",   # For talks, use sans-serif
-    "font.size": 30,
-    # "font.size": 16,
-})
+# plt.rcParams.update({
+#     "text.usetex": True,
+#     "font.family": "serif",   # For talks, use sans-serif
+#     "font.size": 30,
+#     # "font.size": 16,
+# })
 import os
 import re
 cmap = plt.cm.Set1
@@ -72,12 +73,38 @@ def unconstrained_qp_plot_eval_iters(cfg):
 def mnist_plot_eval_iters(cfg):
     example = 'mnist'
     create_lasco_results_constrained(example, cfg)
+    mnist_vis(example, cfg)
 
 
 @hydra.main(config_path='configs/quadcopter', config_name='quadcopter_plot.yaml')
 def quadcopter_plot_eval_iters(cfg):
     example = 'quadcopter'
     create_lasco_results_constrained(example, cfg)
+
+
+def mnist_vis(example, cfg):
+    # get the data -- [rkf_lah_data, rk]
+    mnist_lah_vis, x_stars, thetas = get_rkf_vis_data(example, cfg.lah_vis_dt)
+    mnist_l2ws_vis, _, __ = get_rkf_vis_data(example, cfg.l2ws_vis_dt)
+    mnist_lm_vis, _, __ = get_rkf_vis_data(example, cfg.lm_vis_dt)
+
+    figsize = 784
+    filename = "quant_mult.pdf"
+    indices = np.array([4, 1, 2, 5])
+    plt.rcParams.update(plt.rcParamsDefault)
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "serif",   # For talks, use sans-serif
+        "font.size": 13,
+        # "font.size": 16,
+    })
+    plt.clf()
+    plot_mult_mnist_img(x_stars[indices, :figsize], 
+                        thetas[indices, :figsize], 
+                        mnist_l2ws_vis[indices, :figsize], 
+                        mnist_lm_vis[indices, :figsize], 
+                        mnist_lah_vis[indices, :figsize], 
+                        filename, figsize=figsize)
 
 
 def rkf_vis(example, cfg):

@@ -941,9 +941,9 @@ class Workspace:
         z_stars = self.z_stars_train if train else self.z_stars_test
         thetas = self.thetas_train if train else self.thetas_test
         if not hasattr(self, 'z_no_learn_train') and train:
-            self.z_no_learn_train = u_plot #z_plot
+            self.z_no_learn_train = z_plot
         elif not hasattr(self, 'z_no_learn_test') and not train:
-            self.z_no_learn_test = u_plot #z_plot
+            self.z_no_learn_test = z_plot
         z_no_learn = self.z_no_learn_train if train else self.z_no_learn_test
         z_nn = z_no_learn
         z_prev_sol = z_no_learn

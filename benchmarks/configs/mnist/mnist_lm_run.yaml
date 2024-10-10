@@ -31,10 +31,10 @@ test_every_x_epochs: 1
 write_csv_every_x_batches: 1
 epochs_jit: 2
 
-N_train: 10000
+N_train: 10 #000
 N_test: 1000
-num_samples_train: 1000
-num_samples_test: 1000
+num_samples_train: 10 #00
+num_samples_test: 100 #0
 
 
 prediction_variable: w

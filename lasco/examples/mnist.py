@@ -18,6 +18,7 @@ from emnist import extract_training_samples
 from PIL import Image
 from functools import partial
 from scipy.spatial import distance_matrix
+import pandas as pd
 
 
 def run(run_cfg, model='lasco'):
@@ -682,6 +683,17 @@ def custom_visualize_fn(z_all, z_stars, z_no_learn, z_nn, thetas, iterates, visu
         plot_mult_mnist_img(x_stars, blurred_img_vecs, x_no_learns, x_nns, x_learns, filename, figsize=figsize)
 
 
+    # saving to df
+    df_x_stars = pd.DataFrame(z_stars)
+    df_x_stars.to_csv(f"{visual_path}/x_stars.csv")
+
+    df_thetas = pd.DataFrame(thetas)
+    df_thetas.to_csv(f"{visual_path}/thetas.csv")
+
+    key_iterate = iterates[0]
+    df_x_primals = pd.DataFrame(z_all[:, key_iterate, :])
+    df_x_primals.to_csv(f"{visual_path}/x_primals.csv")
+
 
 def nmse_decibel(z, z_star):
     return 10 * jnp.log(jnp.linalg.norm(z[:784] - z_star[:784]) ** 2 / jnp.linalg.norm(z_star[:784]) ** 2)
@@ -689,20 +701,24 @@ def nmse_decibel(z, z_star):
 
 def plot_mult_mnist_img(x_stars, blurred_img_vecs, x_no_learns, x_nns, x_learns, filename, figsize=784):
     num = x_stars.shape[0]
-    f, axarr = plt.subplots(num, 5 + 1)
+    # f, axarr = plt.subplots(num, 5 + 1)
+    f, axarr = plt.subplots(num, 5)
 
-    start = 1
-    axarr[0, 0].set_title('percentile\n')
+    start = 0 #1
+    # axarr[0, 0].set_title('percentile\n')
     axarr[0, 0 + start].set_title('optimal\n')
     axarr[0, 1 + start].set_title('blurred\n')
-    axarr[0, 2 + start].set_title('cold-start\n')
-    axarr[0, 3 + start].set_title('nearest \n neighbor')
-    axarr[0, 4 + start].set_title('learned\n')
+    # axarr[0, 2 + start].set_title('cold-start\n')
+    # axarr[0, 3 + start].set_title('nearest \n neighbor')
+    # axarr[0, 4 + start].set_title('learned\n')
+    axarr[0, 2 + start].set_title('L2WS\n')
+    axarr[0, 3 + start].set_title('LM\n')
+    axarr[0, 4 + start].set_title('LAH\n')
 
-    axarr[0, 0].text(.5, .5, r'$10^{\rm{th}}$', ha='center', va='center')#, rotation=0) #, size='large')
-    axarr[1, 0].text(.5, .5, r'$50^{\rm{th}}$', ha='center', va='center') #, rotation=0)
-    axarr[2, 0].text(.5, .5, r'$90^{\rm{th}}$', ha='center', va='center') #, rotation=0)
-    axarr[3, 0].text(.5, .5, r'$99^{\rm{th}}$', ha='center', va='center') #, rotation=0)
+    # axarr[0, 0].text(.5, .5, r'$10^{\rm{th}}$', ha='center', va='center')#, rotation=0) #, size='large')
+    # axarr[1, 0].text(.5, .5, r'$50^{\rm{th}}$', ha='center', va='center') #, rotation=0)
+    # axarr[2, 0].text(.5, .5, r'$90^{\rm{th}}$', ha='center', va='center') #, rotation=0)
+    # axarr[3, 0].text(.5, .5, r'$99^{\rm{th}}$', ha='center', va='center') #, rotation=0)
 
     import matplotlib.ticker as ticker
 
@@ -740,7 +756,7 @@ def plot_mult_mnist_img(x_stars, blurred_img_vecs, x_no_learns, x_nns, x_learns,
         axarr[i, start + 4].imshow(learned_img, cmap=plt.get_cmap('gray'))
         axarr[i, 4].axis('off')
 
-        axarr[i, 5].axis('off')
+        # axarr[i, 5].axis('off')
 
     plt.tight_layout()
     plt.savefig(filename, bbox_inches='tight')
