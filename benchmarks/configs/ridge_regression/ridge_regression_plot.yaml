@@ -29,3 +29,8 @@ methods:
   lasco_three_step: 2024-09-30/17-37-09 #2024-09-26/17-02-46
 num_iters: 63
 step_size_iters: 63
+
+lambd: 0.01
+n_orig: 1000
+m_orig: 500
+seed: 42

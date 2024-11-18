@@ -47,6 +47,7 @@ def ridge_regression_plot_eval_iters(cfg):
     example = 'ridge_regression'
     create_lasco_results_unconstrained(example, cfg)
     plot_step_sizes(example, cfg)
+    # unconstrained_plot_ridge(example, cfg)
 
 
 @hydra.main(config_path='configs/logistic_regression', config_name='logistic_regression_plot.yaml')
@@ -145,6 +146,68 @@ def rkf_vis(example, cfg):
         print('y_mat_rotated', y_mat_rotated[index, :].T)
         print('x_true_kalman', x_true_kalman)
         print('x_kalman_lah', x_kalman_lah)
+
+def compute_Ak(Q, theta_values, k, U, S):
+    """
+    Compute A_k, the matrix such that z^k(x) = A_k x for gradient descent with variable step sizes.
+
+    Parameters:
+        Q (np.array): The matrix Q.
+        theta_values (list or np.array): Step size values for each iteration [theta^0, theta^1, ..., theta^(k-1)].
+        k (int): The number of iterations.
+
+    Returns:
+        np.array: The matrix A_k.
+    """
+    n = Q.shape[0]
+    A_k = np.zeros((n, n))  # Initialize A_k as a zero matrix
+
+    # S_diag = np.diag(S)
+
+
+    for j in range(k):
+        # # Compute the product term for the current j
+        # product_term = np.eye(n)  # Start with identity matrix
+        # for i in range(j + 1, k):  # Product from (j+1) to (k-1)
+        #     product_term = product_term @ (np.eye(n) - theta_values[i] * S)
+
+        # Compute the product term for the current j (on the diagonal)
+        product_term_diag = np.ones(n)  # Start with ones for the diagonal
+        for i in range(j + 1, k):  # Product from (j+1) to (k-1)
+            index = np.minimum(i, 50)
+            product_term_diag *= (1 - theta_values[index] * S)
+
+        product_term = np.diag(product_term_diag)
+        
+        # Add the contribution of the current j to A_k
+        index2 = np.minimum(j, 50)
+        A_k -= theta_values[index2] * U @ product_term @ U.T
+
+    return A_k
+
+
+def ridge_subopt_stoch(P, thetas, K, mu, Sigma):
+    subopts = np.zeros(K)
+    Pinv = np.linalg.inv(P)
+    expected_opt_obj = -.5 * (mu @ Pinv @ mu + np.trace(Sigma @ Pinv))
+
+    U, S, VT = np.linalg.svd(P)
+    for i in range(K):
+        print('i', i)
+        # write in form z^k(x) = A x
+        A = compute_Ak(P, thetas, i, U, S)
+
+        # expected subopt = E_x .5 x^T A^T P A x - .5 x^T P^{-1} x
+        B = A.T @ P @ A
+        expected_obj1 = .5 * (mu @ B @ mu + np.trace(Sigma @ B))
+
+        expected_obj2 = mu @ A @ mu + np.trace(Sigma @ A)
+
+        expected_obj = expected_obj1 + expected_obj2
+
+        subopts[i] = expected_obj - expected_opt_obj
+
+    return subopts
 
 
 def get_rkf_vis_data(example, dt):
@@ -291,6 +354,30 @@ def plot_step_sizes_lasso(example, cfg):
 
     plt.tight_layout()
     plt.savefig('step_sizes.pdf', bbox_inches='tight')
+
+
+def ridge_get_subopts(example, cfg, lasco_step_sizes):
+    np.random.seed(cfg['seed'])
+    n_orig = cfg.n_orig #setup_cfg['n_orig']
+    m_orig = cfg.m_orig #setup_cfg['m_orig']
+
+
+    lambd = cfg.lambd #setup_cfg['lambd']
+    # A = np.random.normal(size=(m_orig, n_orig))
+    D = np.random.normal(size=(m_orig, n_orig)) / np.sqrt(m_orig)
+    A = np.array(D / np.linalg.norm(D, axis=0))
+    P = A.T @ A  + lambd * np.identity(n_orig)
+
+    gauss_mean = np.zeros(n_orig)
+    gauss_var = A.T @ A
+
+
+    # get the step sizes
+    step_sizes_dict = get_lasco_gd_step_size(example, cfg)
+    # lasco_step_sizes = step_sizes_dict['lasco'].to_numpy()[:, 1]
+
+    subopts = ridge_subopt_stoch(P, lasco_step_sizes, cfg.num_iters, gauss_mean, gauss_var)
+    return subopts
 
 
 def plot_step_sizes(example, cfg):
@@ -821,6 +908,7 @@ def populate_results_dict(example, cfg, constrained=True):
         if method[:2] != 'LB' and method[:2] != 'UB':
             curr_method_dict = populate_curr_method_dict(method, example, cfg, constrained)
             results_dict[method] = curr_method_dict
+
         # curr_method_dict is a dict of 
         #   {'pr': pr_residuals, 'dr': dr_residuals, 'dist_opt': dist_opts, 'pr_dr_max': pr_dr_maxes}
         # important: nothing to do with reductions or gains here
@@ -829,6 +917,7 @@ def populate_results_dict(example, cfg, constrained=True):
         else:
             curr_method_dict = populate_curr_method_bound_dict(method, example, cfg, constrained)
             results_dict[method] = curr_method_dict
+        
 
     return results_dict
 
@@ -1024,6 +1113,10 @@ def populate_curr_method_dict(method, example, cfg, constrained):
                             # 'dist_opts': dist_opts}
     else:
         obj_diffs = recover_data(example, dt, 'obj_vals_diff_test.csv', col)
+        if example == 'ridge_regression' and method[:5] == 'lasco':
+            step_sizes_dict = get_lasco_gd_step_size(example, cfg)
+            lasco_step_sizes = step_sizes_dict[method].to_numpy()[:, 1]
+            obj_diffs = ridge_get_subopts(example, cfg, lasco_step_sizes)
         curr_method_dict = {'obj_diff': obj_diffs}
 
     return curr_method_dict
