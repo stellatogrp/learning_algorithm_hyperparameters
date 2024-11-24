@@ -7,7 +7,7 @@ import pandas as pd
 import yaml
 from pandas import read_csv
 
-from lasco.utils.data_utils import recover_last_datetime
+from lah.utils.data_utils import recover_last_datetime
 
 from PEPit import PEP
 from PEPit.operators import LipschitzOperator

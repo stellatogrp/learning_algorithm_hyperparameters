@@ -22,9 +22,9 @@ echo "Executing on the machine:" $(hostname)
 # XLA_PYTHON_CLIENT_ALLOCATOR=platform
 # export xla_force_host_platform_device_count=1
 
-# python benchmarks/lasco_train.py ridge_regression cluster
-# python benchmarks/lasco_train.py logis cluster
-python benchmarks/lasco_train.py mnist_lm cluster
+# python benchmarks/lah_train.py ridge_regression cluster
+# python benchmarks/lah_train.py logis cluster
+python benchmarks/lah_train.py mnist_lm cluster
 # python l2ws_train_script.py robust_kalman cluster
 # python aggregate_slurm_runs_script.py robust_ls cluster
 

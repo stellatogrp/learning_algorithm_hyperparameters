@@ -4,24 +4,24 @@ build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "lasco"
+name = "lah"
 description="A package for learning algorithm steps, using data."
 readme = "README.md"
 license = {text = "Apache 2.0"}
 dynamic = ["version"]
 authors = [
-{name = "Rajiv Sambharya", email="rajivs@princeton.edu"},
+{name = "Rajiv Sambharya", email="sambhar9@seas.upenn.edu"},
 {name = "Bartolomeo Stellato", email="bstellato@princeton.edu"}
 ]
 dependencies = [
     "numpy",
     "scipy==1.12",
-    "jax",
-    "jaxlib",
+    "jax==0.4.23",
+    "jaxlib==0.4.23",
     "cvxpy>=1.3.0",
     "matplotlib",
-    "jaxopt",
-    "optax",
+    "jaxopt==0.8",
+    "optax==0.1.5",
     "matplotlib",
     "hydra-core", 
     "emnist", 
@@ -30,12 +30,12 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["lasco*"]
-exclude = ["tutorials*", "benchmarks*", "tests*"]
+include = ["lah*", "benchmarks*"]
+exclude = ["tutorials*", "tests*"]
 
 [tool.setuptools_scm]
 # To infer version automatically from git
-write_to = "lasco/_version.py"
+write_to = "lah/_version.py"
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff", "ruff-lsp", "black", "pandas", "jupyterlab"]

@@ -6,16 +6,16 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from lasco.algo_steps import (
+from lah.algo_steps import (
     create_M,
     create_projection_fn,
     get_scaled_vec_and_factor,
     k_steps_train_scs,
     lin_sys_solve,
 )
-from lasco.examples.robust_kalman import multiple_random_robust_kalman
-from lasco.examples.sparse_pca import multiple_random_sparse_pca
-from lasco.scs_problem import scs_jax
+from lah.examples.robust_kalman import multiple_random_robust_kalman
+from lah.examples.sparse_pca import multiple_random_sparse_pca
+from lah.scs_problem import scs_jax
 
 plt.rcParams.update({
     "text.usetex": True,

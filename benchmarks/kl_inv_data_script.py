@@ -5,7 +5,7 @@ import numpy as np
 import cvxpy as cp
 import pandas as pd
 import os
-from lasco.utils.nn_utils import (
+from lah.utils.nn_utils import (
     invert_kl,
 )
 
