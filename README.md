@@ -3,7 +3,7 @@
 This repository is by
 [Rajiv Sambharya](https://rajivsambharya.github.io/) and [Bartolomeo Stellato](https://stellato.io/),
 and contains the Python source code to reproduce the experiments in our paper
-"[Learning Algorithm Hyperparameters for Fast Parametric Convex Optimization](broken)."
+"[Learning Algorithm Hyperparameters for Fast Parametric Convex Optimization](https://arxiv.org/pdf/2411.15717)."
 
 ## Installation
 To install the learn_algo_steps package, run
