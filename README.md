@@ -1,4 +1,4 @@
-# learn_algo_steps
+# learning_algorithm_hyperparameters
 
 This repository is by
 [Rajiv Sambharya](https://rajivsambharya.github.io/) and [Bartolomeo Stellato](https://stellato.io/),
